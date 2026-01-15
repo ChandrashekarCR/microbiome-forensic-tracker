@@ -1,0 +1,8 @@
+# Ignore vs code files
+/.vscode
+
+# Ignore directories
+/dump
+/log_book
+/papers
+/data
