@@ -1,6 +1,9 @@
 # Ignore vs code files
 /.vscode
 
+# Ignore
+/.venv
+
 # Ignore directories
 /dump
 /log_book
