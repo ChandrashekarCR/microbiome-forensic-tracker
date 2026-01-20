@@ -9,3 +9,7 @@
 /log_book
 /papers
 /data
+
+# Ignore files 
+*.out
+*.err

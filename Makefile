@@ -1,10 +1,11 @@
 BASE_PYTHON ?= python
 PYTHON := .venv/bin/python
+CONDA_ENV_NAME := binp51_env
 
 DEFAULT_GOAL := all
 SHELL := bash
 .SHELL_FLAGS := -euo pipefail -c
-.PHONY := hello help clean lint venv install
+.PHONY := hello help clean lint venv install conda_env
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
@@ -31,3 +32,15 @@ install: venv
 	else \
 		. .venv/bin/activate && pip install -r requirements.txt; \
 	fi
+
+
+conda_env: environment.yml
+	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
+		echo "Environment already exisits. Syncing packages.."; \
+		conda env update -n $(CONDA_ENV_NAME) -f environment.yml --prune;\
+	else \
+		echo "Environment does not exist. Creating the environment from yml file."; \
+		conda env create -f environment.yml; \
+	fi
+	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
+	@echo "[conda_env] ok.."
