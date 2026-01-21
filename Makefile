@@ -33,6 +33,10 @@ install: venv
 		. .venv/bin/activate && pip install -r requirements.txt; \
 	fi
 
+clean: # Clean all the cache files and .out and .err files from slurm runs
+	@find . -type f -name *.err -delete
+	@echo "[clean] ok" 
+
 
 conda_env: environment.yml
 	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
