@@ -48,3 +48,4 @@ conda_env: environment.yml
 	fi
 	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
 	@echo "[conda_env] ok.."
+

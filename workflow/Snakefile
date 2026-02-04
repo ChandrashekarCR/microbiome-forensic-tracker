@@ -1,0 +1,14 @@
+rule all:
+    pass
+
+
+# Step 1 - FASTQC
+rule fastqc:
+    input:
+        # Input file for fastq files
+    output:
+        # HTML and zip files
+    shell:
+        """
+        
+        """
