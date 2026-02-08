@@ -3,12 +3,18 @@
 
 # Ignore
 /.venv
+__pycache__*
+
+# Ignore snakefile
+.snakemake
 
 # Ignore directories
 /dump
 /log_book
 /papers
 /data
+/bin
+/results
 
 # Ignore files 
 *.out

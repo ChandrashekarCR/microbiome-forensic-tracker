@@ -9,6 +9,13 @@ SHELL := bash
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
+# URLS for bioinformatics tools as images
+FASTQC_URL := oras://community.wave.seqera.io/library/fastqc:0.12.1--104d26ddd9519960
+
+# Bioninformatics tools as .sif files
+TOOL_DIR := bin
+FASTQC_IMG := fastqc.sif
+
 
 hello: # Hello Makefile
 	@echo "Makefile working.."
@@ -48,4 +55,23 @@ conda_env: environment.yml
 	fi
 	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
 	@echo "[conda_env] ok.."
+
+
+download: $(FASTQC_IMG)
+	@if [ ! -d $(TOOL_DIR) ]; then \
+		echo "Directory for downloading images does not exist. Creating...";\
+		mkdir -p "$(TOOL_DIR)";\
+	else \
+		echo "Directory already exists...";\
+	fi
+	@echo "[download] ok"
+
+$(FASTQC_IMG):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Dowloading fastqc tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(FASTQC_URL)";\
+	else \
+		echo "Fastqc already exists.";\
+	fi
+
 
