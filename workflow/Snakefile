@@ -13,6 +13,7 @@ ROOT_DIR = Path.cwd()
 
 # Tool image directories
 FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
+FASTP = f"{ROOT_DIR}/bin/fastp.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
@@ -51,7 +52,9 @@ rule fastqc_raw:
         output_dir = f"{RESULTS_DIR}/01_fastqc_raw"
     shell:
         """
-        # Create output directory
+        # Create output directory, if it does not exist
+        if [ ! -d {params.output_dir} ]; then \
+            echo 
         mkdir -p {params.output_dir}     
         
         echo "Running FastQC on {wildcards.sample}..."
@@ -64,4 +67,23 @@ rule fastqc_raw:
             fastqc {input.r1} {input.r2} -o {params.output_dir} -t 4
         
         echo "FastQC completed successfully for {wildcards.sample}"
+        """
+
+rule fastp:
+    input:
+        r1 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R1.fastq.gz"),
+        r2 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R2.fastq.gz")
+
+    output:
+        r1_out = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R1.fastq.gz"),
+        r2_out = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R2.fastq.gz")
+
+    params:
+        fastp = FASTP,
+        output_dir = f"{RESULTS_DIR}/02_fastp"
+    shell:
+        """
+        
+
+
         """
