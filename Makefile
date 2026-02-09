@@ -42,6 +42,7 @@ install: venv
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name *.err -delete
+	@find . -type d -name __pycache__ -exec rm -rf {} + 
 	@echo "[clean] ok" 
 
 

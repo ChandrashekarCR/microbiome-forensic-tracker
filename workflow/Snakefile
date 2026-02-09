@@ -1,3 +1,6 @@
+# Test scripts with few resources
+#srun --partition=lu48 --cpus-per-task=6 --mem=16G --time=1:00:00 --pty bash
+
 import os
 import sys
 from pathlib import Path
@@ -14,71 +17,51 @@ FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
 RESULTS_DIR = "/home/chandru/binp51/results"
-SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:1]
+SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:3]
 READS = ["R1","R2"] # Forward and reverse reads
 
 
 rule all:
     input:
         # What I want -FASTQC report
-        expand(f"{RESULTS_DIR}/01_fastqc/{{sample}}_{{read}}_fastqc.html", sample = SAMPLES,
-                read = READS)
+        expand(
+            os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
+            sample = SAMPLES,
+            read = READS
+        )
     
 
 # Step 1 - FASTQC
-rule fastqc:
+rule fastqc_raw:
     input:
-        fastq_reads = f"{DATA_DIR}/{{sample}}_{{read}}.fastq.gz",
+        r1 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R1.fastq.gz"),
+        r2 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R2.fastq.gz")
     output:
         # HTML and zip files
-        html_file = f"{RESULTS_DIR}/01_fastqc/{{sample}}_{{read}}_fastqc.html",
-        zip_file = f"{RESULTS_DIR}/01_fastqc/{{sample}}_{{read}}_fastqc.zip"
+        html_r1 = os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_R1_fastqc.html"),
+        zip_r1 = os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_R1_fastqc.zip"),
+        html_r2 = os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_R2_fastqc.html"),
+        zip_r2 = os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_R2_fastqc.zip")
+    
+    log:
+        os.path.join(RESULTS_DIR,"01_fastqc_raw", "{sample}.log")
 
     params:
         fastqc = FASTQC,
-        output_dir = f"{RESULTS_DIR}/01_fastqc"
+        output_dir = f"{RESULTS_DIR}/01_fastqc_raw"
     shell:
         """
         # Create output directory
-        mkdir -p {params.output_dir}
+        mkdir -p {params.output_dir}     
         
-        # Debug: Check if input file exists and is readable
-        echo "Checking input file: {input.fastq_reads}"
-        if [ ! -f {input.fastq_reads} ]; then
-            echo "ERROR: Input file {input.fastq_reads} does not exist!"
-            exit 1
-        fi
-        
-        if [ ! -r {input.fastq_reads} ]; then
-            echo "ERROR: Input file {input.fastq_reads} is not readable!"
-            exit 1
-        fi
-        
-        echo "Input file exists and is readable"
-        ls -la {input.fastq_reads}
-        
-        # Check container
-        if [ ! -f {params.fastqc} ]; then
-            echo "ERROR: FastQC container {params.fastqc} does not exist!"
-            exit 1
-        fi
-        
-        echo "Running FastQC on {wildcards.sample}_{wildcards.read}..."
+        echo "Running FastQC on {wildcards.sample}..."
         
         # Run FastQC with bind mounts for /lunarc/nobackup
         apptainer exec \
-            --bind /lunarc/nobackup:/lunarc/nobackup \
+            --bind {DATA_DIR}:{DATA_DIR} \
             --bind {params.output_dir}:{params.output_dir} \
             {params.fastqc} \
-            fastqc {input.fastq_reads} -o {params.output_dir} -t 1
+            fastqc {input.r1} {input.r2} -o {params.output_dir} -t 4
         
-        # Verify outputs were created
-        if [ ! -f {output.html_file} ]; then
-            echo "ERROR: Expected output {output.html_file} was not created!"
-            echo "Output directory contents:"
-            ls -la {params.output_dir}
-            exit 1
-        fi
-        
-        echo "FastQC completed successfully for {wildcards.sample}_{wildcards.read}"
+        echo "FastQC completed successfully for {wildcards.sample}"
         """
