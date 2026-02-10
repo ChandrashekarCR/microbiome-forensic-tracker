@@ -14,6 +14,8 @@ FASTQC_URL := oras://community.wave.seqera.io/library/fastqc:0.12.1--104d26ddd95
 FASTP_URL := oras://community.wave.seqera.io/library/fastp:1.1.0--52619d3aa919a246
 ADAPTER_REMOVAL_URL := oras://community.wave.seqera.io/library/adapterremoval:2.3.4--ed2f98d4afa36f48
 MULTIQC_URL := oras://community.wave.seqera.io/library/multiqc:1.33--e3576ddf588fa00d
+BOWTIE2_URL := oras://community.wave.seqera.io/library/bowtie2:2.5.4--2ec535d45cd82f0b
+SAMTOOLS_URL := oras://community.wave.seqera.io/library/samtools:1.23--86cd9d13645d4fff
 
 # Bioninformatics tools as .sif files
 TOOL_DIR := bin
@@ -21,6 +23,8 @@ FASTQC_IMG := fastqc.sif
 FASTP_IMG := fastp.sif
 ADAPTER_REMOVAL_IMG := adapter_removal.sif
 MULTIQC_IMG := multiqc.sif
+BOWTIE2_IMG := bowtie2.sif
+SAMTOOLS_IMG := samtools.sif
 
 
 hello: # Hello Makefile
@@ -64,7 +68,9 @@ conda_env: environment.yml
 	@echo "[conda_env] ok.."
 
 
-download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG)
+download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
+		$(SAMTOOLS_IMG)
+
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
 		mkdir -p "$(TOOL_DIR)";\
@@ -103,4 +109,19 @@ $(MULTIQC_IMG):
 		apptainer pull "$(TOOL_DIR)/$@" "$(MULTIQC_URL)" ;\
 	else \
 		echo "Multiqc image alread exists";\
+	fi
+$(BOWTIE2_IMG):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading bowtie2 tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(BOWTIE2_URL)" ;\
+	else \
+		echo "Bowtie2 already exists.";\
+	fi
+
+$(SAMTOOLS_IMG):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading samtools tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(SAMTOOLS_URL)" ;\
+	else \
+		echo "Samtools already exists.";\
 	fi

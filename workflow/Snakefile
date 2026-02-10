@@ -16,6 +16,8 @@ FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
 FASTP = f"{ROOT_DIR}/bin/fastp.sif"
 ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
 MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
+BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
+SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
@@ -23,6 +25,8 @@ RESULTS_DIR = "/home/chandru/binp51/results"
 SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:3]
 READS = ["R1","R2"] # Forward and reverse reads
 
+# Host Genome (Human - hG38)
+HOST_GENOME = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
 
 rule all:
     input:
@@ -47,8 +51,13 @@ rule all:
         ),
 
         # Multiqc reports
-        directory(
-            os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report")
+        os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report","multiqc_report.html"),
+
+        # Removal of Host Genome
+        expand(
+            os.path.join(RESULTS_DIR,"05_host_removed","{sample}_{read}_clean.fastq.gz"),
+            sample = SAMPLES,
+            read = READS
         )
 
 # Step 1 - FASTQC
@@ -206,3 +215,45 @@ rule multiqc:
 
         """
 
+# Step 5 - Removal of Human Reads
+rule remove_human_reads:
+    input:
+        # Filter reads
+        r1 = lambda w: os.path.join(RESULTS_DIR,"03_trimmed",f"{w.sample}_trimmed_R1.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"03_trimmed", f"{w.sample}_trimmed_R2.fastq.gz")
+
+    output:
+        r1 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R1_clean.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R2_clean.fastq.gz")
+
+
+    params:
+        bowtie2 = BOWTIE2,
+        output_dir = f"{RESULTS_DIR}/05_host_removed",
+        host_genome = HOST_GENOME,
+    
+    log:
+        os.path.join(RESULTS_DIR, "05_host_removed", "{sample}.log")
+
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind /lunarc/nobackup:/lunarc/nobackup \
+            {params.bowtie2} bowtie2 \
+                --very-sensitive \
+                --threads 8 \
+                -x {params.host_genome} \
+                --un-conc-gz {params.output_dir}/{wildcards.sample}_clean \
+                -1 {input.r1} \
+                -2 {input.r2} \
+                > {params.output_dir}/{wildcards.sample}.sam 2> {log}
+        
+        rm {params.output_dir}/{wildcards.sample}.sam 
+        mv {params.output_dir}/{wildcards.sample}_clean.1.gz {output.r1}
+        mv {params.output_dir}/{wildcards.sample}_clean.2.gz {output.r2}
+
+        echo "Removed Human reads from the microbiome"                 
+        """
