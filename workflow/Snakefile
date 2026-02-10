@@ -14,6 +14,8 @@ ROOT_DIR = Path.cwd()
 # Tool image directories
 FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
 FASTP = f"{ROOT_DIR}/bin/fastp.sif"
+ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
+MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
@@ -24,13 +26,30 @@ READS = ["R1","R2"] # Forward and reverse reads
 
 rule all:
     input:
-        # What I want -FASTQC report
+        # FastQC reports
         expand(
             os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
             sample = SAMPLES,
             read = READS
+        ),
+        # fastp outputs
+        expand(
+            os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
+            sample = SAMPLES,
+            read = READS
+        ),
+
+        # Adaptor removal outputs
+        expand(
+            os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
+            sample = SAMPLES,
+            read = READS
+        ),
+
+        # Multiqc reports
+        directory(
+            os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report")
         )
-    
 
 # Step 1 - FASTQC
 rule fastqc_raw:
@@ -52,9 +71,7 @@ rule fastqc_raw:
         output_dir = f"{RESULTS_DIR}/01_fastqc_raw"
     shell:
         """
-        # Create output directory, if it does not exist
-        if [ ! -d {params.output_dir} ]; then \
-            echo 
+        # Create output directory
         mkdir -p {params.output_dir}     
         
         echo "Running FastQC on {wildcards.sample}..."
@@ -69,21 +86,123 @@ rule fastqc_raw:
         echo "FastQC completed successfully for {wildcards.sample}"
         """
 
+# Step 2 - fastp (Quality filtering and adapter trimming)
+# Qualified Quality Phred: 30
+# trim_poly_g
+# dont_eval_duplication
+# Here we perform remive reads if their quality is less than 30 and remove the polyG tails
 rule fastp:
     input:
         r1 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R1.fastq.gz"),
         r2 = lambda w: os.path.join(DATA_DIR, f"{w.sample}_R2.fastq.gz")
-
     output:
-        r1_out = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R1.fastq.gz"),
-        r2_out = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R2.fastq.gz")
-
+        r1_out = os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_R1.fastq.gz"),
+        r2_out = os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_R2.fastq.gz"),
+        html = os.path.join(RESULTS_DIR, "02_fastp", "{sample}.fastp.html"),
+        json = os.path.join(RESULTS_DIR, "02_fastp", "{sample}.fastp.json")
+    log:
+        os.path.join(RESULTS_DIR, "02_fastp", "{sample}.log")
     params:
         fastp = FASTP,
         output_dir = f"{RESULTS_DIR}/02_fastp"
+    
+    shell: 
+        """
+        # Create output directory
+        mkdir -p {params.output_dir}
+        
+        echo "Running fastp on {wildcards.sample}..."
+        
+        # Run fastp with bind mounts - SEPARATE R1/R2 processing
+        apptainer exec \
+            --bind {DATA_DIR}:{DATA_DIR} \
+            --bind {params.output_dir}:{params.output_dir} \
+            {params.fastp} fastp \
+                --in1 {input.r1} \
+                --in2 {input.r2} \
+                --out1 {output.r1_out} \
+                --out2 {output.r2_out} \
+                --html {output.html} \
+                --json {output.json} \
+                --dont_eval_duplication \
+                --qualified_quality_phred 30 \
+                --thread 4 \
+                --trim_poly_g &> {log}
+        
+        echo "fastp completed successfully for {wildcards.sample}"
+        """
+
+
+# Step3
+rule adapter_removal:
+    input:
+        r1 = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R1.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R2.fastq.gz")
+
+    output:
+        trimmed_r1 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R1.fastq.gz"),
+        trimmed_r2 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz")
+
+    params:
+        adapter_removal = ADAPTER_REMOVAL,
+        output_dir = f"{RESULTS_DIR}/03_trimmed",
+        prefix = os.path.join(RESULTS_DIR,"03_trimmed","{sample}"),
+        common_adapters = os.path.join(ROOT_DIR,"bin","common_adapters.txt") 
+
     shell:
         """
+        mkdir -p {params.output_dir}
         
+        echo "Running Adapter Removal on {wildcards.sample}"
+        # Run the adapter removal command
+        apptainer exec \
+            --bind {DATA_DIR}:{DATA_DIR} \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            {params.adapter_removal} AdapterRemoval \
+                --gzip \
+                --file1 {input.r1} \
+                --file2 {input.r2} \
+                --output1 {output.trimmed_r1} \
+                --output2 {output.trimmed_r2} \
+                --discarded {params.prefix}.discarded.fastq.gz \
+                --singleton {params.prefix}.singleton.fastq.gz \
+                --settings {params.prefix}.settings \
+                --adapter-list {params.common_adapters} \
+                --trimns \
+                --trimqualities \
+                --threads 4
 
+        echo "Adapter Removal completeed sucessfully for {wildcards.sample}"
+        
+        """
+
+# Step4 - MultiQC
+rule multiqc:
+    input:
+        # Raw fastqc, fastp, adapter removal
+        raw_fastqc_results = os.path.join(RESULTS_DIR, "01_fastqc_raw"),
+        fastp_results = os.path.join(RESULTS_DIR, "02_fastp"),
+        adapter_removal_results = os.path.join(RESULTS_DIR, "03_trimmed")
+    
+    output:
+        multiqc_report = directory(
+            os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report")
+        )
+    
+    params:
+        multiqc = MULTIQC,
+        output_dir = f"{RESULTS_DIR}/04_multiqc"
+
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        apptainer exec \
+            --bind {DATA_DIR}:{DATA_DIR} \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            {params.multiqc} multiqc \
+                {input.raw_fastqc_results} {input.fastp_results} {input.adapter_removal_results} \
+                -o {output.multiqc_report}
 
         """
+

@@ -12,11 +12,15 @@ SHELL := bash
 # URLS for bioinformatics tools as images
 FASTQC_URL := oras://community.wave.seqera.io/library/fastqc:0.12.1--104d26ddd9519960
 FASTP_URL := oras://community.wave.seqera.io/library/fastp:1.1.0--52619d3aa919a246
+ADAPTER_REMOVAL_URL := oras://community.wave.seqera.io/library/adapterremoval:2.3.4--ed2f98d4afa36f48
+MULTIQC_URL := oras://community.wave.seqera.io/library/multiqc:1.33--e3576ddf588fa00d
 
 # Bioninformatics tools as .sif files
 TOOL_DIR := bin
 FASTQC_IMG := fastqc.sif
 FASTP_IMG := fastp.sif
+ADAPTER_REMOVAL_IMG := adapter_removal.sif
+MULTIQC_IMG := multiqc.sif
 
 
 hello: # Hello Makefile
@@ -60,7 +64,7 @@ conda_env: environment.yml
 	@echo "[conda_env] ok.."
 
 
-download: $(FASTQC_IMG) $(FASTP_IMG)
+download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG)
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
 		mkdir -p "$(TOOL_DIR)";\
@@ -83,4 +87,20 @@ $(FASTP_IMG):
 		apptainer pull "$(TOOL_DIR)/$@" "$(FASTP_URL)";\
 	else \
 		echo "Fastqc already exists.";\
+	fi
+
+$(ADAPTER_REMOVAL_IMG):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Dowloading adapter removal tool." ;\
+		apptainer pull "$(TOOL_DIR)/$@" "$(ADAPTER_REMOVAL_URL)" ;\
+	else \
+		echo "Adapter removal already exists." ;\
+	fi
+
+$(MULTIQC_IMG):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Dowloading multiqc tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(MULTIQC_URL)" ;\
+	else \
+		echo "Multiqc image alread exists";\
 	fi
