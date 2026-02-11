@@ -252,8 +252,8 @@ rule remove_human_reads:
                 > {params.output_dir}/{wildcards.sample}.sam 2> {log}
         
         rm {params.output_dir}/{wildcards.sample}.sam 
-        mv {params.output_dir}/{wildcards.sample}_clean.1.gz {output.r1}
-        mv {params.output_dir}/{wildcards.sample}_clean.2.gz {output.r2}
+        mv {params.output_dir}/{wildcards.sample}_clean.1 {output.r1}
+        mv {params.output_dir}/{wildcards.sample}_clean.2 {output.r2}
 
         echo "Removed Human reads from the microbiome"                 
         """
