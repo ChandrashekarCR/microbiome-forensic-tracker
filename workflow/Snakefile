@@ -65,9 +65,9 @@ rule all:
 
         # Error correction
         expand(
-            os.path.join(RESULTS_DIR,"06_error_correction","{sample}_{read}_corrected.fastq.gz"),
+            os.path.join(RESULTS_DIR,"06_error_correction","{sample}_{read}.fastq.00.0_0.cor.fastq.gz"),
             sample = SAMPLES,
-            read = READS
+            read = ["1", "2"]
         )
 
 # Step 1 - FASTQC
@@ -276,117 +276,38 @@ rule error_correction:
         r2 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R2_clean.fastq.gz")
     
     output:
-        r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R1_corrected.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R2_corrected.fastq.gz")
-
-    resources:
-        mem_mb=24000,
-        runtime=240
+        r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_1.fastq.00.0_0.cor.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_2.fastq.00.0_0.cor.fastq.gz")
 
     params:
-        tmp_r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R1.fastq.gz"),
-        tmp_r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R2.fastq.gz"),
-        tadpole = TADPOLE,
-        repair = REPAIR,
-        output_dir = f"{RESULTS_DIR}/06_error_correction"
+        spades = SPADES,
+        sample_output_dir = f"{RESULTS_DIR}/06_error_correction/{{sample}}_spades_temp"
 
     log:
-        repair_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_tmp.log",
-        tadpole_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_corrected.log"
+        spades_log = f"{RESULTS_DIR}/06_error_correction/{{sample}}.log"
 
     shell:
         """
-        mkdir -p {params.output_dir}
+        # Create clean output directory for this sample
+        rm -rf {params.sample_output_dir}
+        mkdir -p {params.sample_output_dir}
 
-        # Step 1: Repair paired-end reads
-        {params.repair} \
-            in={input.r1} \
-            in2={input.r2} \
-            out={params.tmp_r1} \
-            out2={params.tmp_r2} \
-            repair=t \
-            -Xmx20g \
-            -eoom > {log.repair_bash} 2>&1
-
-        # Validate repair output
-        if [ ! -s "{params.tmp_r1}" ] || [ ! -s "{params.tmp_r2}" ]; then
-            echo "ERROR: Repair step failed - output files are empty"
-            exit 1
-        fi
+        # Run SPAdes error correction with correct parameter name
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            {params.spades} spades.py \
+                --only-error-correction \
+                --meta \
+                -t 4 \
+                -m 12000 \
+                -1 {input.r1} \
+                -2 {input.r2} \
+                -o {params.sample_output_dir} > {log.spades_log} 2>&1
         
-        # Multi-tier error correction with robust fallbacks
-        echo "Starting error correction for {wildcards.sample}..." > {log.tadpole_bash}
+        # Move the corrected files to expected output locations
+        mv {params.sample_output_dir}/corrected/*_1.fastq.00.0_0.cor.fastq.gz {output.r1}
+        mv {params.sample_output_dir}/corrected/*_2.fastq.00.0_0.cor.fastq.gz {output.r2}
         
-        # Attempt 1: Standard tadpole with conservative settings
-        if {params.tadpole} \
-            mode=correct \
-            in={params.tmp_r1} \
-            in2={params.tmp_r2} \
-            out={output.r1} \
-            out2={output.r2} \
-            -Xmx16g \
-            threads=1 \
-            buildthreads=1 \
-            k=25 \
-            conservative=t \
-            prealloc=f \
-            ecc=t \
-            reassemble=t \
-            pincer=f \
-            tail=f >> {log.tadpole_bash} 2>&1; then
-            
-            echo "Standard tadpole correction completed successfully" >> {log.tadpole_bash}
-            rm -f {params.tmp_r1} {params.tmp_r2}
-            
-        # Attempt 2: Tadpole with minimal threading and smaller kmer
-        elif {params.tadpole} \
-            mode=correct \
-            in={params.tmp_r1} \
-            in2={params.tmp_r2} \
-            out={output.r1} \
-            out2={output.r2} \
-            -Xmx12g \
-            threads=1 \
-            buildthreads=1 \
-            k=21 \
-            conservative=t \
-            prealloc=f \
-            ecc=t \
-            reassemble=f \
-            aggressive=f >> {log.tadpole_bash} 2>&1; then
-            
-            echo "Minimal tadpole correction completed successfully" >> {log.tadpole_bash}
-            rm -f {params.tmp_r1} {params.tmp_r2}
-            
-        # Attempt 3: Use BBDuk for lighter error correction
-        elif /home/chandru/binp51/bin/bbmap/bbduk.sh \
-            in={params.tmp_r1} \
-            in2={params.tmp_r2} \
-            out={output.r1} \
-            out2={output.r2} \
-            mode=correct \
-            ecc=t \
-            aggressive=f \
-            -Xmx8g \
-            threads=1 >> {log.tadpole_bash} 2>&1; then
-            
-            echo "BBDuk error correction completed successfully" >> {log.tadpole_bash}
-            rm -f {params.tmp_r1} {params.tmp_r2}
-            
-        # Fallback: Use repaired reads (still valuable for pipeline)
-        else
-            echo "All error correction methods failed, using high-quality repaired reads as final output" >> {log.tadpole_bash}
-            echo "Repaired reads are still processed through: repair.sh -> quality filtering -> host removal" >> {log.tadpole_bash}
-            cp {params.tmp_r1} {output.r1}
-            cp {params.tmp_r2} {output.r2}
-            rm -f {params.tmp_r1} {params.tmp_r2}
-        fi
-        
-        # Validate final output exists
-        if [ ! -s "{output.r1}" ] || [ ! -s "{output.r2}" ]; then
-            echo "CRITICAL ERROR: No output files generated"
-            exit 1
-        fi
-        
-        echo "Error correction step completed for {wildcards.sample}" >> {log.tadpole_bash}
+        # Clean up temporary directory
+        rm -rf {params.sample_output_dir}
         """
