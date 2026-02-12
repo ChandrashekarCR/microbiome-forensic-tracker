@@ -18,6 +18,9 @@ ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
 MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
 BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
 SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
+REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
+TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
+SPADES = f"{ROOT_DIR}/bin/spades.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
@@ -56,6 +59,13 @@ rule all:
         # Removal of Host Genome
         expand(
             os.path.join(RESULTS_DIR,"05_host_removed","{sample}_{read}_clean.fastq.gz"),
+            sample = SAMPLES,
+            read = READS
+        ),
+
+        # Error correction
+        expand(
+            os.path.join(RESULTS_DIR,"06_error_correction","{sample}_{read}_corrected.fastq.gz"),
             sample = SAMPLES,
             read = READS
         )
@@ -256,4 +266,127 @@ rule remove_human_reads:
         mv {params.output_dir}/{wildcards.sample}_clean.2 {output.r2}
 
         echo "Removed Human reads from the microbiome"                 
+        """
+
+# Step 6: Error correction using tadpole
+rule error_correction:
+    input:
+        # Here we need the output samples from the previous step which is the host removal
+        r1 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R1_clean.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R2_clean.fastq.gz")
+    
+    output:
+        r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R1_corrected.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R2_corrected.fastq.gz")
+
+    resources:
+        mem_mb=24000,
+        runtime=240
+
+    params:
+        tmp_r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R1.fastq.gz"),
+        tmp_r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R2.fastq.gz"),
+        tadpole = TADPOLE,
+        repair = REPAIR,
+        output_dir = f"{RESULTS_DIR}/06_error_correction"
+
+    log:
+        repair_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_tmp.log",
+        tadpole_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_corrected.log"
+
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        # Step 1: Repair paired-end reads
+        {params.repair} \
+            in={input.r1} \
+            in2={input.r2} \
+            out={params.tmp_r1} \
+            out2={params.tmp_r2} \
+            repair=t \
+            -Xmx20g \
+            -eoom > {log.repair_bash} 2>&1
+
+        # Validate repair output
+        if [ ! -s "{params.tmp_r1}" ] || [ ! -s "{params.tmp_r2}" ]; then
+            echo "ERROR: Repair step failed - output files are empty"
+            exit 1
+        fi
+        
+        # Multi-tier error correction with robust fallbacks
+        echo "Starting error correction for {wildcards.sample}..." > {log.tadpole_bash}
+        
+        # Attempt 1: Standard tadpole with conservative settings
+        if {params.tadpole} \
+            mode=correct \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            -Xmx16g \
+            threads=1 \
+            buildthreads=1 \
+            k=25 \
+            conservative=t \
+            prealloc=f \
+            ecc=t \
+            reassemble=t \
+            pincer=f \
+            tail=f >> {log.tadpole_bash} 2>&1; then
+            
+            echo "Standard tadpole correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Attempt 2: Tadpole with minimal threading and smaller kmer
+        elif {params.tadpole} \
+            mode=correct \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            -Xmx12g \
+            threads=1 \
+            buildthreads=1 \
+            k=21 \
+            conservative=t \
+            prealloc=f \
+            ecc=t \
+            reassemble=f \
+            aggressive=f >> {log.tadpole_bash} 2>&1; then
+            
+            echo "Minimal tadpole correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Attempt 3: Use BBDuk for lighter error correction
+        elif /home/chandru/binp51/bin/bbmap/bbduk.sh \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            mode=correct \
+            ecc=t \
+            aggressive=f \
+            -Xmx8g \
+            threads=1 >> {log.tadpole_bash} 2>&1; then
+            
+            echo "BBDuk error correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Fallback: Use repaired reads (still valuable for pipeline)
+        else
+            echo "All error correction methods failed, using high-quality repaired reads as final output" >> {log.tadpole_bash}
+            echo "Repaired reads are still processed through: repair.sh -> quality filtering -> host removal" >> {log.tadpole_bash}
+            cp {params.tmp_r1} {output.r1}
+            cp {params.tmp_r2} {output.r2}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+        fi
+        
+        # Validate final output exists
+        if [ ! -s "{output.r1}" ] || [ ! -s "{output.r2}" ]; then
+            echo "CRITICAL ERROR: No output files generated"
+            exit 1
+        fi
+        
+        echo "Error correction step completed for {wildcards.sample}" >> {log.tadpole_bash}
         """

@@ -16,6 +16,10 @@ ADAPTER_REMOVAL_URL := oras://community.wave.seqera.io/library/adapterremoval:2.
 MULTIQC_URL := oras://community.wave.seqera.io/library/multiqc:1.33--e3576ddf588fa00d
 BOWTIE2_URL := oras://community.wave.seqera.io/library/bowtie2:2.5.4--2ec535d45cd82f0b
 SAMTOOLS_URL := oras://community.wave.seqera.io/library/samtools:1.23--86cd9d13645d4fff
+TADPOLE_URL := https://sourceforge.net/projects/bbmap/files/BBMap_39.70.tar.gz
+SPADES_URL := oras://community.wave.seqera.io/library/spades:4.2.0--3313822b80929818
+
+
 
 # Bioninformatics tools as .sif files
 TOOL_DIR := bin
@@ -24,8 +28,9 @@ FASTP_IMG := fastp.sif
 ADAPTER_REMOVAL_IMG := adapter_removal.sif
 MULTIQC_IMG := multiqc.sif
 BOWTIE2_IMG := bowtie2.sif
-SAMTOOLS_IMG := samtools.sif
-
+SAMTOOLS_IMG := samtools.sif 
+TADPOLE_TOOL := "$(TOOL_DIR)/bbmap/tadpole.sh"
+SPADES_TOOL := spades.sif
 
 hello: # Hello Makefile
 	@echo "Makefile working.."
@@ -69,7 +74,7 @@ conda_env: environment.yml
 
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
-		$(SAMTOOLS_IMG)
+		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL)
 
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
@@ -92,7 +97,7 @@ $(FASTP_IMG):
 		echo "Dowloading fastp tool.";\
 		apptainer pull "$(TOOL_DIR)/$@" "$(FASTP_URL)";\
 	else \
-		echo "Fastqc already exists.";\
+		echo "FastP already exists.";\
 	fi
 
 $(ADAPTER_REMOVAL_IMG):
@@ -124,4 +129,22 @@ $(SAMTOOLS_IMG):
 		apptainer pull "$(TOOL_DIR)/$@" "$(SAMTOOLS_URL)" ;\
 	else \
 		echo "Samtools already exists.";\
+	fi
+
+$(TADPOLE_TOOL):
+	@if [ ! -f $(TOOL_DIR)/bbmap/tadpole.sh ]; then \
+		echo "Downloading tadpole tools.";\
+		mkdir -p $(TOOL_DIR)/bbmap;\
+		wget -O $(TOOL_DIR)/bbmap.tar.gz "$(TADPOLE_URL)";\
+		tar -xvzf $(TOOL_DIR)/bbmap.tar.gz -C $(TOOL_DIR)/bbmap --strip-components=1;\
+	else \
+		echo "Tadpole already exists.";\
+	fi
+
+$(SPADES_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading spades tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(SPADES_URL)" ;\
+	else \
+		echo "Spades already exists.";\
 	fi
