@@ -18,7 +18,7 @@ BOWTIE2_URL := oras://community.wave.seqera.io/library/bowtie2:2.5.4--2ec535d45c
 SAMTOOLS_URL := oras://community.wave.seqera.io/library/samtools:1.23--86cd9d13645d4fff
 TADPOLE_URL := https://sourceforge.net/projects/bbmap/files/BBMap_39.70.tar.gz
 SPADES_URL := oras://community.wave.seqera.io/library/spades:4.2.0--3313822b80929818
-
+KRAKEN2_URL := oras://community.wave.seqera.io/library/kraken2:2.17.1--1738c34504f3fb18
 
 
 # Bioninformatics tools as .sif files
@@ -31,6 +31,7 @@ BOWTIE2_IMG := bowtie2.sif
 SAMTOOLS_IMG := samtools.sif 
 TADPOLE_TOOL := "$(TOOL_DIR)/bbmap/tadpole.sh"
 SPADES_TOOL := spades.sif
+KRAKEN2_TOOL := kraken2.sif
 
 hello: # Hello Makefile
 	@echo "Makefile working.."
@@ -74,7 +75,7 @@ conda_env: environment.yml
 
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
-		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL)
+		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL)
 
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
@@ -147,4 +148,12 @@ $(SPADES_TOOL):
 		apptainer pull "$(TOOL_DIR)/$@" "$(SPADES_URL)" ;\
 	else \
 		echo "Spades already exists.";\
+	fi
+
+$(KRAKEN2_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading kraken2 tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(KRAKEN2_URL)" ;\
+	else \
+		echo "Kraken2 already exists.";\
 	fi

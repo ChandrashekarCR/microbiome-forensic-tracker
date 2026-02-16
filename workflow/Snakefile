@@ -21,6 +21,7 @@ SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
 REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
 TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
 SPADES = f"{ROOT_DIR}/bin/spades.sif"
+KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
@@ -30,10 +31,14 @@ READS = ["R1","R2"] # Forward and reverse reads
 
 # Host Genome (Human - hG38)
 HOST_GENOME = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+# Kraken2 and Bracken Database (core-nt - 307G)
+KRAKEN2_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database"
+BRACKEN_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database"
+READ_LEN = 150
 
 rule all:
     input:
-        # FastQC reports
+        # FastQC Raw reports
         expand(
             os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
             sample = SAMPLES,
@@ -53,22 +58,30 @@ rule all:
             read = READS
         ),
 
-        # Multiqc reports
-        os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report","multiqc_report.html"),
-
         # Removal of Host Genome
         expand(
-            os.path.join(RESULTS_DIR,"05_host_removed","{sample}_{read}_clean.fastq.gz"),
+            os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
             sample = SAMPLES,
             read = READS
         ),
 
         # Error correction
         expand(
-            os.path.join(RESULTS_DIR,"06_error_correction","{sample}_{read}_corrected.fastq.gz"),
+            os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
             sample = SAMPLES,
             read = READS
-        )
+        ),
+
+        # FastQC Processed reports
+        expand(
+            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
+            sample = SAMPLES,
+            read = READS
+        ),
+
+        # MultiQC
+        os.path.join(RESULTS_DIR,"07_multiqc")
+
 
 # Step 1 - FASTQC
 rule fastqc_raw:
@@ -160,7 +173,10 @@ rule adapter_removal:
 
     output:
         trimmed_r1 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R1.fastq.gz"),
-        trimmed_r2 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz")
+        trimmed_r2 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz"),
+        settings = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.settings"),
+        discarded = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.discarded.fastq.gz"),
+        singleton = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.singleton.fastq.gz")
 
     params:
         adapter_removal = ADAPTER_REMOVAL,
@@ -195,36 +211,6 @@ rule adapter_removal:
         
         """
 
-# Step4 - MultiQC
-rule multiqc:
-    input:
-        # Raw fastqc, fastp, adapter removal
-        raw_fastqc_results = os.path.join(RESULTS_DIR, "01_fastqc_raw"),
-        fastp_results = os.path.join(RESULTS_DIR, "02_fastp"),
-        adapter_removal_results = os.path.join(RESULTS_DIR, "03_trimmed")
-    
-    output:
-        multiqc_report = directory(
-            os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report")
-        )
-    
-    params:
-        multiqc = MULTIQC,
-        output_dir = f"{RESULTS_DIR}/04_multiqc"
-
-    shell:
-        """
-        mkdir -p {params.output_dir}
-
-        apptainer exec \
-            --bind {DATA_DIR}:{DATA_DIR} \
-            --bind {RESULTS_DIR}:{RESULTS_DIR} \
-            {params.multiqc} multiqc \
-                {input.raw_fastqc_results} {input.fastp_results} {input.adapter_removal_results} \
-                -o {output.multiqc_report}
-
-        """
-
 # Step 5 - Removal of Human Reads
 rule remove_human_reads:
     input:
@@ -233,17 +219,17 @@ rule remove_human_reads:
         r2 = lambda w: os.path.join(RESULTS_DIR,"03_trimmed", f"{w.sample}_trimmed_R2.fastq.gz")
 
     output:
-        r1 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R1_clean.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R2_clean.fastq.gz")
+        r1 = os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R1_clean.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R2_clean.fastq.gz")
 
 
     params:
         bowtie2 = BOWTIE2,
-        output_dir = f"{RESULTS_DIR}/05_host_removed",
+        output_dir = f"{RESULTS_DIR}/04_host_removed",
         host_genome = HOST_GENOME,
     
     log:
-        os.path.join(RESULTS_DIR, "05_host_removed", "{sample}.log")
+        os.path.join(RESULTS_DIR, "04_host_removed", "{sample}.log")
 
     shell:
         """
@@ -269,30 +255,32 @@ rule remove_human_reads:
         """
 
 # Step 6: Error correction using tadpole
+# srun --partition=lu48 --cpus-per-task=24 --mem=128G --time=01:0:00 --pty bash
+# This much amount of reources is needed for error correction to run smoothly
 rule error_correction:
     input:
         # Here we need the output samples from the previous step which is the host removal
-        r1 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R1_clean.fastq.gz"),
-        r2 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R2_clean.fastq.gz")
+        r1 = lambda w: os.path.join(RESULTS_DIR,"04_host_removed",f"{w.sample}_R1_clean.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"04_host_removed",f"{w.sample}_R2_clean.fastq.gz")
     
     output:
-        r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R1_corrected.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_R2_corrected.fastq.gz")
+        r1 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_R1_corrected.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_R2_corrected.fastq.gz")
 
     resources:
         mem_mb=24000,
         runtime=240
 
     params:
-        tmp_r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R1.fastq.gz"),
-        tmp_r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_tmp_R2.fastq.gz"),
+        tmp_r1 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_tmp_R1.fastq.gz"),
+        tmp_r2 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_tmp_R2.fastq.gz"),
         tadpole = TADPOLE,
         repair = REPAIR,
-        output_dir = f"{RESULTS_DIR}/06_error_correction"
+        output_dir = f"{RESULTS_DIR}/05_error_correction"
 
     log:
-        repair_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_tmp.log",
-        tadpole_bash = f"{RESULTS_DIR}/06_error_correction/{{sample}}_corrected.log"
+        repair_bash = f"{RESULTS_DIR}/05_error_correction/{{sample}}_tmp.log",
+        tadpole_bash = f"{RESULTS_DIR}/05_error_correction/{{sample}}_corrected.log"
 
     shell:
         """
@@ -389,4 +377,104 @@ rule error_correction:
         fi
         
         echo "Error correction step completed for {wildcards.sample}" >> {log.tadpole_bash}
+        """
+
+# Step 7: FASTQC Processed reads
+rule fastqc_processed:
+    input:
+        r1 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R1_corrected.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R2_corrected.fastq.gz")
+
+    output:
+        # HTML and zip files
+        html_r1 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.html"),
+        zip_r1 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.zip"),
+        html_r2 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.html"),
+        zip_r2 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.zip")
+
+    log:
+        os.path.join(RESULTS_DIR,"06_fastqc_post", "{sample}.log")
+    
+    params:
+        fastqc = FASTQC,
+        output_dir = os.path.join(RESULTS_DIR, "06_fastqc_post")
+
+    shell:
+        """
+        # Create output directory
+        mkdir -p {params.output_dir}     
+        
+        echo "Running FastQC on {wildcards.sample}..."
+        
+        # Run FastQC with bind mounts for /lunarc/nobackup
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind {params.output_dir}:{params.output_dir} \
+            {params.fastqc} \
+            fastqc {input.r1} {input.r2} -o {params.output_dir} -t 4
+        
+        echo "FastQC completed successfully for {wildcards.sample}"
+        """
+
+
+# Step 8 - MultiQC
+rule multiqc:
+    input:
+        # Depend on actual files, not directories
+        expand(os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"), sample=SAMPLES, read=READS),
+        expand(os.path.join(RESULTS_DIR, "02_fastp", "{sample}.fastp.json"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.settings"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "04_host_removed", "{sample}.log"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_corrected.log"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"), sample=SAMPLES, read=READS)
+    
+    output:
+        multiqc_report = directory(os.path.join(RESULTS_DIR,"07_multiqc"))
+    
+    params:
+        multiqc = MULTIQC,
+        output_dir = f"{RESULTS_DIR}/07_multiqc",
+        search_dirs = f"{RESULTS_DIR}"
+
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            {params.multiqc} multiqc \
+                {params.search_dirs} \
+                -o {output.multiqc_report}
+        """
+
+# Step 9 - Kraken2
+rule kraken:
+    input:
+        r1 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R1_corrected.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R2_corrected.fastq.gz")
+
+    output:
+        kraken = os.path.join(RESULTS_DIR, "08_kraken2","{sample}","kraken.tsv"),
+        kraken_report = os.path.join(RESULTS_DIR, "08_kraken2", "{sample}")
+    
+    log:
+        os.path.join(RESULTS_DIR,"08_kraken2","{sample}.log")
+
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"08_kraken2","{sample}"),
+        database = KRAKEN2_DB,
+        kraken2 = KRAKEN2
+
+    shell:
+        """
+        mkdir -p {params.out_dir}
+
+        apptainer exec \
+            --bind {RESULTD_DIR}:{RESULTS_DIR} \
+            {params.kraken2} kraken2 \
+                --db {params.database} \
+                --threads 30 \
+                --report {output.kraken_erport} \
+                --output {output.kraken} \
+                --paired {input.r1} {input.r2} > {log} 2&>1
         """
