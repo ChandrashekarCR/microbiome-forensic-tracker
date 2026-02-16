@@ -25,15 +25,15 @@ KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-RESULTS_DIR = "/home/chandru/binp51/results"
+RESULTS_DIR = "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
 SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:3]
 READS = ["R1","R2"] # Forward and reverse reads
 
 # Host Genome (Human - hG38)
 HOST_GENOME = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
 # Kraken2 and Bracken Database (core-nt - 307G)
-KRAKEN2_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database"
-BRACKEN_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database"
+KRAKEN2_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
+BRACKEN_DB = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
 READ_LEN = 150
 
 rule all:
@@ -45,32 +45,32 @@ rule all:
             read = READS
         ),
         # fastp outputs
-        expand(
-            os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
-
-        # Adaptor removal outputs
-        expand(
-            os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
+        #expand(
+        #    os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+#
+        ## Adaptor removal outputs
+        #expand(
+        #    os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
 
         # Removal of Host Genome
-        expand(
-            os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
+        #expand(
+        #    os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
 
         # Error correction
-        expand(
-            os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
+        #expand(
+        #    os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
 
         # FastQC Processed reports
         expand(
@@ -80,7 +80,13 @@ rule all:
         ),
 
         # MultiQC
-        os.path.join(RESULTS_DIR,"07_multiqc")
+        os.path.join(RESULTS_DIR,"07_multiqc"),
+
+        # Kraken2 - Taxonomic classificaiton
+        expand(
+            os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
+            sample = SAMPLES
+        )
 
 
 # Step 1 - FASTQC
@@ -455,10 +461,15 @@ rule kraken:
 
     output:
         kraken = os.path.join(RESULTS_DIR, "08_kraken2","{sample}","kraken.tsv"),
-        kraken_report = os.path.join(RESULTS_DIR, "08_kraken2", "{sample}")
+        kraken_report = os.path.join(RESULTS_DIR, "08_kraken2", "{sample}","kraken_report.tsv")
     
     log:
         os.path.join(RESULTS_DIR,"08_kraken2","{sample}.log")
+
+    resources:
+        mem_mb = 320000 # 320G for kraken2 and database
+    
+    threads: 28
 
     params:
         out_dir = os.path.join(RESULTS_DIR,"08_kraken2","{sample}"),
@@ -470,11 +481,12 @@ rule kraken:
         mkdir -p {params.out_dir}
 
         apptainer exec \
-            --bind {RESULTD_DIR}:{RESULTS_DIR} \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind /lunarc/nobackup/projects/snic2019-34-3/:/lunarc/nobackup/projects/snic2019-34-3/ \
             {params.kraken2} kraken2 \
                 --db {params.database} \
-                --threads 30 \
-                --report {output.kraken_erport} \
+                --threads {threads} \
+                --report {output.kraken_report} \
                 --output {output.kraken} \
-                --paired {input.r1} {input.r2} > {log} 2&>1
+                --paired {input.r1} {input.r2} > {log} 2>&1
         """
