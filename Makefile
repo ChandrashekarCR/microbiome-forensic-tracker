@@ -63,6 +63,8 @@ clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type d -name __pycache__ -exec rm -rf {} + 
 	@echo "[clean] ok" 
 
+lint: # Linting python scripts
+	
 
 conda_env: environment.yml
 	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \

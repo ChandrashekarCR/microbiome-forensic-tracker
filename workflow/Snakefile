@@ -28,7 +28,7 @@ BRACKEN = f"{ROOT_DIR}/bin/bracken.sif"
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
 RESULTS_DIR = "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
-SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:15]
+SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:35]
 READS = ["R1","R2"] # Forward and reverse reads
 RANKS = ['species','genus','family','order','class','phylum']
 
