@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
 
 from helper_scripts import get_fastq_samples
+from standardize_bracken import standardize_bracken, concat_tables
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
@@ -22,12 +23,14 @@ REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
 TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
 SPADES = f"{ROOT_DIR}/bin/spades.sif"
 KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
+BRACKEN = f"{ROOT_DIR}/bin/bracken.sif"
 
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
 RESULTS_DIR = "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
 SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:10]
 READS = ["R1","R2"] # Forward and reverse reads
+RANKS = ['species','genus','family','order','class','phylum']
 
 # Host Genome (Human - hG38)
 HOST_GENOME = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
@@ -83,9 +86,29 @@ rule all:
         os.path.join(RESULTS_DIR,"07_multiqc"),
 
         # Kraken2 - Taxonomic classificaiton
+        #expand(
+        #    os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
+        #    sample = SAMPLES
+        #),
+
+        # Bracken - Classificaiton report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Standardize Bracken Report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Merge kraken-bracken reports
         expand(
-            os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
-            sample = SAMPLES
+            os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv"),
+            rank = RANKS
         )
 
 
@@ -490,3 +513,71 @@ rule kraken:
                 --output {output.kraken} \
                 --paired {input.r1} {input.r2} > {log} 2>&1
         """
+
+# Step 10: Bracken
+rule bracken:
+    input:
+        kraken_report = os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken_report.tsv")
+
+    output:
+        bracken_report = os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv")
+    log:
+        bracken_log = os.path.join(RESULTS_DIR,"09_bracken","{sample}.{rank}.out")
+    
+    params:
+        bracken = BRACKEN,
+        database = BRACKEN_DB,
+        out_dir = os.path.join(RESULTS_DIR,"09_bracken","{sample}"),
+        rank = lambda wildcards: '{}'.format(wildcards.rank)[:1].capitalize()
+
+    shell:
+        """
+        mkdir -p {params.out_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind  /lunarc/nobackup/projects/snic2019-34-3/:/lunarc/nobackup/projects/snic2019-34-3/ \
+            {params.bracken} bracken \
+                -r {READ_LEN} \
+                -i {input.kraken_report} \
+                -o {output.bracken_report} \
+                -d {params.database} \
+                -l {params.rank} > {log.bracken_log} 2>&1
+        """
+
+# Step 11: Rule Standardize Bracken
+rule standardize_bracken:
+    input:
+        bracken_report = os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv")
+
+    output:
+        std_bracken_report = os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv")
+    
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"10_standardized_bracken"),
+        min_abd = 0.001
+    
+    run:
+        
+        if not exists(str(params.out_dir)):
+            os.makedirs(str(params.out_dir))
+        
+        standardize_bracken(str(input.bracken_report),str(params.out_dir),float(params.min_abd))
+
+# Step 12: Merge standardized Bracken reports by rank
+rule merge_bracken:
+    input:
+        lambda wildcards: expand(os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"), 
+                                sample=SAMPLES, rank=wildcards.rank)
+    output:
+        merged_report = os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv")
+    
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"11_final_reports")
+    
+    run:
+      
+        if not os.path.exists(str(params.out_dir)):
+            os.makedirs(str(params.out_dir))
+        
+        concat_tables(list(input), str(output.merged_report))
