@@ -26,7 +26,7 @@ KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
 # Samples folder for the Malmo samples
 DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
 RESULTS_DIR = "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
-SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:3]
+SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:10]
 READS = ["R1","R2"] # Forward and reverse reads
 
 # Host Genome (Human - hG38)

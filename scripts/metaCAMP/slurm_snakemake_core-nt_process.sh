@@ -4,7 +4,7 @@
 #SBATCH --partition=gpua40
 #SBATCH --cpus-per-task=28
 #SBATCH --mem=400G
-#SBATCH --time=2:00:00
+#SBATCH --time=3:00:00
 #SBATCH --output=snakemake_kraken2_%j.out
 #SBATCH --error=snakemake_kraken2_%j.err
 
@@ -26,7 +26,7 @@ snakemake \
     --snakefile workflow/Snakefile \
     --cores $SNAKEMAKE_CORES \
     --jobs $SNAKEMAKE_JOBS \
-    --resources mem_mb=480000 \
+    --resources mem_mb=380000 \
     --latency-wait 50 \
     2>&1 | tee snakemake_run_$(date +%Y%m%d_%H%M%S).log
 
