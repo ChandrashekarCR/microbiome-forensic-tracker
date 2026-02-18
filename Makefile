@@ -59,9 +59,11 @@ install: venv
 	fi
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
-	@find . -type f -name *.{err,out,log} -delete
-	@find . -type d -name __pycache__ -exec rm -rf {} + 
-	@echo "[clean] ok" 
+	@find . -type f -name "*.err" -delete
+	@find . -type f -name "*.out" -delete
+	@find . -type f -name "*.log" -delete
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@echo "[clean] ok"
 
 lint: # Linting python scripts
 	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
