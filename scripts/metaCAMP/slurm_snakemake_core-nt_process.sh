@@ -2,7 +2,7 @@
 #SBATCH --job-name=snakemake_kraken2
 #SBATCH -A lu2025-2-11
 #SBATCH --partition=gpua40
-#SBATCH --cpus-per-task=28
+#SBATCH --cpus-per-task=36
 #SBATCH --mem=400G
 #SBATCH --time=1:30:00
 #SBATCH --output=snakemake_kraken2_%j.out
@@ -18,7 +18,7 @@ conda activate snakemake
 cd /home/chandru/binp51/
 
 # Set snakemake configuration
-export SNAKEMAKE_CORES=28
+export SNAKEMAKE_CORES=30
 export SNAKEMAKE_JOBS=8
 
 # Run snakemake with parallelization
