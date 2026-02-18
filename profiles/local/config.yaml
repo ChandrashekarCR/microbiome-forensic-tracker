@@ -1,0 +1,13 @@
+# Local profile for testing and small runs (1-5 samples)
+# Usage snakemake --profile profiles/local -n
+
+
+cluster: "{sbatch cluster_params}"
+cores: 10
+jobs: 4
+
+# Resources limit for node
+resources:
+  - mem_mb=16000
+  - runtime=120
+  - tmpdir=1000
