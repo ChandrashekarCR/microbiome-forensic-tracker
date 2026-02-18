@@ -4,7 +4,7 @@
 #SBATCH --partition=gpua40
 #SBATCH --cpus-per-task=28
 #SBATCH --mem=400G
-#SBATCH --time=4:00:00
+#SBATCH --time=1:30:00
 #SBATCH --output=snakemake_kraken2_%j.out
 #SBATCH --error=snakemake_kraken2_%j.err
 

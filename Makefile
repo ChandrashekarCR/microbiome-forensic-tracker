@@ -59,12 +59,13 @@ install: venv
 	fi
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
-	@find . -type f -name *.err -delete
+	@find . -type f -name *.{err,out,log} -delete
 	@find . -type d -name __pycache__ -exec rm -rf {} + 
 	@echo "[clean] ok" 
 
 lint: # Linting python scripts
-	
+	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
+	@echo "[lint] ok"	
 
 conda_env: environment.yml
 	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
