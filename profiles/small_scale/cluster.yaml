@@ -2,82 +2,76 @@
 # Resource allocation per rule for 5-10 samples
 
 __default__:
-  account: "lu2025-2-11"
-  partition: "lu48"
-  time: "01:00:00"
-  cpus: "2"
-  mem: "4G"
-  job_name: "smk_{rule}_{wildcards}"
-  output: "logs/slurm/{rule}_{wildcards}_%j.out"
-  error: "logs/slurm/{rule}_{wildcards}_%j.err"
-  extra: ""
+  slurm_account: "lu2025-2-11" 
+  slurm_partition: "lu48"
+  runtime: 60  # minutes
+  mem_mb: 4000
+  cpus: 2
 
-# Fast I/O tasks - use lu48 nodes
+# Fast I/O tasks
 fastqc_raw:
-  partition: "lu48"
-  time: "00:30:00"
-  cpus: "4"
-  mem: "8G"
+  slurm_partition: "lu48"
+  runtime: 30
+  cpus: 4
+  mem_mb: 8000
 
 fastqc_processed:
-  partition: "lu48"
-  time: "00:30:00"
-  cpus: "4"
-  mem: "8G"
+  slurm_partition: "lu48" 
+  runtime: 30
+  cpus: 4
+  mem_mb: 8000
 
 fastp:
-  partition: "lu48"
-  time: "01:00:00"
-  cpus: "4"
-  mem: "16G"
+  slurm_partition: "lu48"
+  runtime: 60
+  cpus: 4
+  mem_mb: 16000
 
 adapter_removal:
-  partition: "lu48"
-  time: "02:00:00"
-  cpus: "4"
-  mem: "8G"
+  slurm_partition: "lu48"
+  runtime: 120
+  cpus: 4
+  mem_mb: 8000
 
-# Medium resource tasks - lu48 nodes
 remove_human_reads:
-  partition: "lu48"
-  time: "03:00:00"
-  cpus: "8"
-  mem: "32G"
+  slurm_partition: "lu48"
+  runtime: 180
+  cpus: 8
+  mem_mb: 32000
 
 error_correction:
-  partition: "lu48"
-  time: "04:00:00"
-  cpus: "4"
-  mem: "64G"  # Conservative for small samples
+  slurm_partition: "lu48"
+  runtime: 240
+  cpus: 4
+  mem_mb: 64000
 
 multiqc:
-  partition: "lu48"
-  time: "00:30:00"
-  cpus: "2"
-  mem: "8G"
+  slurm_partition: "lu48"
+  runtime: 30
+  cpus: 2
+  mem_mb: 8000
 
-# High memory tasks - GPU nodes
+# High memory tasks
 kraken:
-  partition: "gpua40"
-  time: "04:00:00"
-  cpus: "30"
-  mem: "400G"  # Load full 307GB database + working memory
+  slurm_partition: "gpua40"
+  runtime: 240  # 4 hours in minutes
+  cpus: 30
+  mem_mb: 400000
 
-# Post-processing - lu48 nodes
 bracken:
-  partition: "lu48"
-  time: "01:00:00"
-  cpus: "4"
-  mem: "16G"
+  slurm_partition: "lu48"
+  runtime: 60
+  cpus: 4
+  mem_mb: 16000
 
 standardize_bracken:
-  partition: "lu48"
-  time: "00:30:00"
-  cpus: "2"
-  mem: "8G"
+  slurm_partition: "lu48"
+  runtime: 30
+  cpus: 2
+  mem_mb: 8000
 
 merge_bracken:
-  partition: "lu48"
-  time: "00:30:00"
-  cpus: "2"
-  mem: "16G"
+  slurm_partition: "lu48"
+  runtime: 30
+  cpus: 2
+  mem_mb: 16000

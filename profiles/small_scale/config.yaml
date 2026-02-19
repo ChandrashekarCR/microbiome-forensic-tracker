@@ -2,9 +2,14 @@
 # Usage: snakemake --profile profiles/small_scale --cores 200
 
 # Basic cluster configuration
-cluster: "sbatch --parsable {cluster.extra} {cluster.account} {cluster.partition} {cluster.time} {cluster.cpus} {cluster.mem} {cluster.job_name} {cluster.output} {cluster.error}"
-cluster-status: "profiles/slurm-status.py"
-cluster-cancel: "scancel"
+executor: slurm
+restart-times: 1
+default-resources:
+  - slurm_account=lu2025-2-11
+  - slurm_partition=lu48
+  - runtime=60
+  - mem_mb=4000
+  - cpus=2
 
 # Resource limits for small scale
 cores: 200  # Total cores across cluster
@@ -13,18 +18,13 @@ max-jobs-per-second: 5  # Prevent job spam
 local-cores: 2        # Cores for local rules
 
 # Job management
-restart-times: 3
 latency-wait: 30        # Wait time for files to appear
 keep-going: true        # Continue on non-critical failures
 
 # Cluster configuration file
-cluster-config: "profiles/small_scale/cluster.yaml"
 
 # Output and logging
 printshellcmds: true
-reason: true
-show-failed-logs: true
-log-level: "INFO"
 
 # Use conda environments from main environment
 use-conda: true
