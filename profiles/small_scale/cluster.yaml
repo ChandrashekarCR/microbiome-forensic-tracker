@@ -1,0 +1,83 @@
+# Small Scale Cluster Configuration
+# Resource allocation per rule for 5-10 samples
+
+__default__:
+  account: "lu2025-2-11"
+  partition: "lu48"
+  time: "01:00:00"
+  cpus: "2"
+  mem: "4G"
+  job_name: "smk_{rule}_{wildcards}"
+  output: "logs/slurm/{rule}_{wildcards}_%j.out"
+  error: "logs/slurm/{rule}_{wildcards}_%j.err"
+  extra: ""
+
+# Fast I/O tasks - use lu48 nodes
+fastqc_raw:
+  partition: "lu48"
+  time: "00:30:00"
+  cpus: "4"
+  mem: "8G"
+
+fastqc_processed:
+  partition: "lu48"
+  time: "00:30:00"
+  cpus: "4"
+  mem: "8G"
+
+fastp:
+  partition: "lu48"
+  time: "01:00:00"
+  cpus: "4"
+  mem: "16G"
+
+adapter_removal:
+  partition: "lu48"
+  time: "02:00:00"
+  cpus: "4"
+  mem: "8G"
+
+# Medium resource tasks - lu48 nodes
+remove_human_reads:
+  partition: "lu48"
+  time: "03:00:00"
+  cpus: "8"
+  mem: "32G"
+
+error_correction:
+  partition: "lu48"
+  time: "04:00:00"
+  cpus: "4"
+  mem: "64G"  # Conservative for small samples
+
+multiqc:
+  partition: "lu48"
+  time: "00:30:00"
+  cpus: "2"
+  mem: "8G"
+
+# High memory tasks - GPU nodes
+kraken:
+  partition: "gpua40"
+  time: "04:00:00"
+  cpus: "30"
+  mem: "400G"  # Load full 307GB database + working memory
+
+# Post-processing - lu48 nodes
+bracken:
+  partition: "lu48"
+  time: "01:00:00"
+  cpus: "4"
+  mem: "16G"
+
+standardize_bracken:
+  partition: "lu48"
+  time: "00:30:00"
+  cpus: "2"
+  mem: "8G"
+
+merge_bracken:
+  partition: "lu48"
+  time: "00:30:00"
+  cpus: "2"
+  mem: "16G"
