@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=6:00:00
+#SBATCH --time=00:10:00
 
 # Test the pipeline for a few samples. 5-10 samples
 
