@@ -26,7 +26,6 @@ conda-frontend: "mamba"
 
 # Efficieny Reporting
 slurm-efficiency-report: true
-slurm-efficiency-report-path: /logs/efficiency_report.csv
 
 # Resource sepcifications for each step
 default-resources:

@@ -15,6 +15,7 @@ __pycache__*
 /data
 /bin
 /results
+/logs
 
 # Ignore files 
 *.out

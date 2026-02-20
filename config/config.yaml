@@ -12,7 +12,7 @@ data:
 samples:
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 20 # Limit for testing
+  max_samples: 30 # Limit for testing
   read_length: 150
 
 # Tool paths (Container images)
