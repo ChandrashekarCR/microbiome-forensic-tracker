@@ -1,5 +1,12 @@
 # Test scripts with few resources
 #srun --partition=lu48 --cpus-per-task=6 --mem=16G --time=1:00:00 --pty bash
+# To run snakemake on a single node for 1-2 samples use the the slurms script /scripts/snakemake_slurm/slurm_snakemake_core-nt_process.sh
+# To run snakemake on a small scale 5-20 samples use the following command
+"""   
+    screen -S snakemake
+    conda activate snakemake
+    snakemake --snakefile workflows/Snakefile --profile profiles/small_scale > /logs/snakemake_master_samll_scale.log 2>&1   
+"""
 
 configfile: "config/config.yaml"
 

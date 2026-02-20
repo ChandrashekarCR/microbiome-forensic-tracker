@@ -18,11 +18,15 @@ keep-going: true        # Continue on non-critical failures
 # Cluster configuration file
 
 # Output and logging
-printshellcmds: true
+printshellcmds: false
 
 # Use conda environments from main environment
 use-conda: true
 conda-frontend: "mamba"
+
+# Efficieny Reporting
+slurm-efficiency-report: true
+slurm-efficiency-report-path: /logs/efficiency_report.csv
 
 # Resource sepcifications for each step
 default-resources:
@@ -39,42 +43,49 @@ set-resources:
     runtime: "1h"
     cpus: 4
     mem_mb: 8000
+    slurm_job_name: "fastqc_raw"
   
   fastqc_processed:
     slurm_partition: "lu48" 
     runtime: "1h"
     cpus: 4
     mem_mb: 8000
+    slurm_job_name: "fastqc_processed"
   
   fastp:
     slurm_partition: "lu48"
     runtime: "2h"
     cpus: 4
     mem_mb: 16000
+    slurm_job_name: "fastp"
   
   adapter_removal:
     slurm_partition: "lu48"
     runtime: "2h"
     cpus: 4
     mem_mb: 8000
+    slurm_job_name: "adapter_removal"
   
   remove_human_reads:
     slurm_partition: "lu48"
     runtime: "3h"
     cpus: 8
     mem_mb: 32000
-  
+    slurm_job_name: "remove_human_reads"
+
   error_correction:
     slurm_partition: "lu48"
     runtime: "4h"
     cpus: 4
     mem_mb: 64000
+    slurm_job_name: "error_correction"
   
   multiqc:
     slurm_partition: "lu48"
     runtime: "1h"
     cpus: 2
     mem_mb: 8000
+    slurm_job_name: "multiqc"
   
   # High memory tasks
   kraken:
@@ -82,21 +93,25 @@ set-resources:
     runtime: "4h"  # 4 hours in minutes
     cpus: 30
     mem_mb: 400000
+    slurm_job_name: "kraken"
   
   bracken:
     slurm_partition: "lu48"
     runtime: "1h"
     cpus: 4
     mem_mb: 16000
+    slurm_job_name: "bracken"
   
   standardize_bracken:
     slurm_partition: "lu48"
     runtime: "1h"
     cpus: 2
     mem_mb: 8000
+    slurm_job_name: "standardize_bracken"
   
   merge_bracken:
     slurm_partition: "lu48"
     runtime: "1h"
     cpus: 2
     mem_mb: 16000
+    slurm_job_name: "merge_bracken"
