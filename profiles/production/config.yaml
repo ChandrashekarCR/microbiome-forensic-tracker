@@ -1,0 +1,38 @@
+# Production Profile for LUNARC - All 330 samples
+# Usage: snakemake --profile profiles/production --cores 500
+
+# Cluster configuration for high-throughput
+cluster: "sbatch --parsable {cluster.extra} {cluster.account} {cluster.partition} {cluster.time} {cluster.cpus} {cluster.mem} {cluster.job_name} {cluster.output} {cluster.error}"
+cluster-status: "profiles/slurm-status.py"
+cluster-cancel: "scancel"
+
+# High-throughput settings
+cores: 500               # Total cores across cluster (multiple nodes)
+jobs: 100               # Max concurrent SLURM jobs (aggressive parallelization)
+max-jobs-per-second: 10 # Higher job submission rate
+local-cores: 4          # More local cores for coordination
+
+# Advanced job management
+restart-times: 5
+latency-wait: 60        # Longer wait for large-scale operations
+keep-going: true
+max-status-checks-per-second: 1
+
+# Resource management
+cluster-config: "profiles/production/cluster.yaml"
+
+# Optimize for production
+printshellcmds: false   # Reduce log verbosity
+reason: false
+show-failed-logs: true
+log-level: "WARNING"    # Only show important messages
+
+# Performance optimization
+use-conda: true
+conda-frontend: "mamba"
+conda-cleanup-pkgs: "tarballs"
+
+# Job grouping for efficiency
+group-components:
+  preprocessing: 50     # Group small preprocessing jobs
+  postprocessing: 20    # Group post-processing jobs

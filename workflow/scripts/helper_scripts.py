@@ -3,7 +3,6 @@
 # Import libraries
 import os
 import glob
-import re
 
 def get_fastq_samples(samples_dir, read1_suffix, read2_suffix):
     """
@@ -28,8 +27,8 @@ def get_fastq_samples(samples_dir, read1_suffix, read2_suffix):
         #print(os.path.basename(file))
         basename = os.path.basename(file)
         sample_name = basename.replace(read1_suffix,"")
-        forward_read = file
-        reverse_read = os.path.join(samples_dir, f"{sample_name}{read2_suffix}")
+        #forward_read = file
+        #reverse_read = os.path.join(samples_dir, f"{sample_name}{read2_suffix}")
         #samples.append([(forward_read,reverse_read)]) # For now we just retrun 5 samples to see if the pipeline is working.
         samples.append(sample_name)
     return samples

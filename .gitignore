@@ -19,3 +19,8 @@ __pycache__*
 # Ignore files 
 *.out
 *.err
+*.log
+*.png
+
+# Ignore the database and all the malmo.db inside it
+/database

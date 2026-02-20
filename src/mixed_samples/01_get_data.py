@@ -3,7 +3,6 @@
 import pandas as pd
 import os
 import argparse
-from collections import Counter
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 

@@ -1,0 +1,102 @@
+# Small Scale Profile for LUNARC - 5-10 samples
+# Usage: snakemake --profile profiles/small_scale --cores 200
+
+# Basic cluster configuration
+executor: slurm
+restart-times: 1
+
+# Resource limits for small scale
+cores: 200  # Total cores across cluster
+jobs: 20    # Max concurrent SLURM jobs (conservative for small scale)
+max-jobs-per-second: 5  # Prevent job spam
+local-cores: 2        # Cores for local rules
+
+# Job management
+latency-wait: 30        # Wait time for files to appear
+keep-going: true        # Continue on non-critical failures
+
+# Cluster configuration file
+
+# Output and logging
+printshellcmds: true
+
+# Use conda environments from main environment
+use-conda: true
+conda-frontend: "mamba"
+
+# Resource sepcifications for each step
+default-resources:
+  slurm_account: lu2025-2-11
+  slurm_partition: lu48
+  runtime: "1h"
+  mem_mb: 4000
+  cpus: 2
+
+set-resources:
+  # Fast I/O tasks
+  fastqc_raw:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 4
+    mem_mb: 8000
+  
+  fastqc_processed:
+    slurm_partition: "lu48" 
+    runtime: "1h"
+    cpus: 4
+    mem_mb: 8000
+  
+  fastp:
+    slurm_partition: "lu48"
+    runtime: "2h"
+    cpus: 4
+    mem_mb: 16000
+  
+  adapter_removal:
+    slurm_partition: "lu48"
+    runtime: "2h"
+    cpus: 4
+    mem_mb: 8000
+  
+  remove_human_reads:
+    slurm_partition: "lu48"
+    runtime: "3h"
+    cpus: 8
+    mem_mb: 32000
+  
+  error_correction:
+    slurm_partition: "lu48"
+    runtime: "4h"
+    cpus: 4
+    mem_mb: 64000
+  
+  multiqc:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 2
+    mem_mb: 8000
+  
+  # High memory tasks
+  kraken:
+    slurm_partition: "gpua40"
+    runtime: "4h"  # 4 hours in minutes
+    cpus: 30
+    mem_mb: 400000
+  
+  bracken:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 4
+    mem_mb: 16000
+  
+  standardize_bracken:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 2
+    mem_mb: 8000
+  
+  merge_bracken:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 2
+    mem_mb: 16000

@@ -1,6 +1,8 @@
 # Test scripts with few resources
 #srun --partition=lu48 --cpus-per-task=6 --mem=16G --time=1:00:00 --pty bash
 
+configfile: "config/config.yaml"
+
 import os
 import sys
 from pathlib import Path
@@ -9,66 +11,120 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
 
 from helper_scripts import get_fastq_samples
+from standardize_bracken import standardize_bracken, concat_tables
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
-FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
-FASTP = f"{ROOT_DIR}/bin/fastp.sif"
-ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
-MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
-BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
-SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
-REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
-TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
-SPADES = f"{ROOT_DIR}/bin/spades.sif"
+#FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
+#FASTP = f"{ROOT_DIR}/bin/fastp.sif"
+#ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
+#MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
+#BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
+#SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
+#REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
+#TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
+#SPADES = f"{ROOT_DIR}/bin/spades.sif"
+#KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
+#BRACKEN = f"{ROOT_DIR}/bin/bracken.sif"
+TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
 
 # Samples folder for the Malmo samples
-DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-RESULTS_DIR = "/home/chandru/binp51/results"
-SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:3]
+DATA_DIR = config['data']['raw_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
+RESULTS_DIR = config['data']['results_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
+SAMPLES = get_fastq_samples(
+            DATA_DIR, 
+            config['samples']['pattern_r1'],
+            config['samples']['pattern_r2'])[:config['samples']['max_samples']]
 READS = ["R1","R2"] # Forward and reverse reads
+RANKS = config['taxonomy']['ranks'] #['species','genus','family','order','class','phylum']
 
+# Database paths
 # Host Genome (Human - hG38)
-HOST_GENOME = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+HOST_GENOME = config['databases']['human_genome'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+
+# Common Adapters
+COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
+
+# Kraken2 and Bracken Database (core-nt - 307G)
+KRAKEN2_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
+BRACKEN_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
+READ_LEN = config['samples']['read_length'] # 150
+
+# Enable/disable pipeline steps
+STEPS = config['pipeline']['steps']
 
 rule all:
     input:
-        # FastQC reports
+        # FastQC Raw reports
         expand(
             os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
             sample = SAMPLES,
             read = READS
         ),
         # fastp outputs
-        expand(
-            os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
+        #expand(
+        #    os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
 
-        # Adaptor removal outputs
-        expand(
-            os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
-            sample = SAMPLES,
-            read = READS
-        ),
-
-        # Multiqc reports
-        os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report","multiqc_report.html"),
+        ## Adaptor removal outputs
+        #expand(
+        #    os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
 
         # Removal of Host Genome
+        #expand(
+        #    os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        # Error correction
+        #expand(
+        #    os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        # FastQC Processed reports
         expand(
-            os.path.join(RESULTS_DIR,"05_host_removed","{sample}_{read}_clean.fastq.gz"),
+            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
             sample = SAMPLES,
             read = READS
         ),
 
-        # Error correction
+        # MultiQC
+        os.path.join(RESULTS_DIR,"07_multiqc"),
+
+        # Kraken2 - Taxonomic classificaiton
+        #expand(
+        #    os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
+        #    sample = SAMPLES
+        #),
+
+        # Bracken - Classificaiton report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Standardize Bracken Report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Merge kraken-bracken reports
         expand(
-            os.path.join(RESULTS_DIR,"06_error_correction","{sample}_{read}.fastq.00.0_0.cor.fastq.gz"),
-            sample = SAMPLES,
-            read = ["1", "2"]
+            os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv"),
+            rank = RANKS
         )
+
 
 # Step 1 - FASTQC
 rule fastqc_raw:
@@ -84,9 +140,16 @@ rule fastqc_raw:
     
     log:
         os.path.join(RESULTS_DIR,"01_fastqc_raw", "{sample}.log")
+    
+    threads: 
+        config['resources']['fastqc']['threads']
+
+    resources:
+        mem_mb = config['resources']['fastqc']['mem_mb'],
+        runtime = config['resources']['fastqc']['runtime_min']
 
     params:
-        fastqc = FASTQC,
+        fastqc = TOOLS['fastqc'],
         output_dir = f"{RESULTS_DIR}/01_fastqc_raw"
     shell:
         """
@@ -100,7 +163,7 @@ rule fastqc_raw:
             --bind {DATA_DIR}:{DATA_DIR} \
             --bind {params.output_dir}:{params.output_dir} \
             {params.fastqc} \
-            fastqc {input.r1} {input.r2} -o {params.output_dir} -t 4
+            fastqc {input.r1} {input.r2} -o {params.output_dir} -t {threads}
         
         echo "FastQC completed successfully for {wildcards.sample}"
         """
@@ -121,9 +184,20 @@ rule fastp:
         json = os.path.join(RESULTS_DIR, "02_fastp", "{sample}.fastp.json")
     log:
         os.path.join(RESULTS_DIR, "02_fastp", "{sample}.log")
+
+    threads:
+        config['resources']['fastp']['threads']
+
+    resources:
+        mem_mb = config['resources']['fastp']['mem_mb'],
+        runtime = config['resources']['fastp']['runtime_min']
+
     params:
-        fastp = FASTP,
-        output_dir = f"{RESULTS_DIR}/02_fastp"
+        fastp = TOOLS['fastp'],
+        output_dir = f"{RESULTS_DIR}/02_fastp",
+        quality = config['parameters']['fastp']['qualified_quality_phred'],
+        trim_poly_g = "--trim_poly_g" if config['parameters']['fastp']['trim_poly_g'] else "",
+        dont_eval_dup = "--dont_eval_duplication" if config['parameters']['fastp']['dont_eval_duplication'] else ""
     
     shell: 
         """
@@ -143,10 +217,10 @@ rule fastp:
                 --out2 {output.r2_out} \
                 --html {output.html} \
                 --json {output.json} \
-                --dont_eval_duplication \
-                --qualified_quality_phred 30 \
-                --thread 4 \
-                --trim_poly_g &> {log}
+                {params.dont_eval_dup} \
+                --qualified_quality_phred {params.quality} \
+                --thread {threads} \
+                {params.trim_poly_g} &> {log}
         
         echo "fastp completed successfully for {wildcards.sample}"
         """
@@ -160,13 +234,25 @@ rule adapter_removal:
 
     output:
         trimmed_r1 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R1.fastq.gz"),
-        trimmed_r2 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz")
+        trimmed_r2 = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz"),
+        settings = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.settings"),
+        discarded = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.discarded.fastq.gz"),
+        singleton = os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.singleton.fastq.gz")
+
+    threads:
+        config['resources']['adapter_removal']['threads']
+
+    resources:
+        mem_mb = config['resources']['adapter_removal']['mem_mb'],
+        runtime = config['resources']['adapter_removal']['runtime_min']
 
     params:
-        adapter_removal = ADAPTER_REMOVAL,
+        adapter_removal = TOOLS['adapter_removal'],
         output_dir = f"{RESULTS_DIR}/03_trimmed",
         prefix = os.path.join(RESULTS_DIR,"03_trimmed","{sample}"),
-        common_adapters = os.path.join(ROOT_DIR,"bin","common_adapters.txt") 
+        common_adapters = COMMON_ADAPTERS, #os.path.join(ROOT_DIR,"bin","common_adapters.txt") 
+        trimns_flag = "--trimns" if config['parameters']['adapter_removal']['trimns'] else '',
+        trimqualities_flag = "--trimqualities" if config['parameters']['adapter_removal']['trimqualities'] else ''
 
     shell:
         """
@@ -187,42 +273,12 @@ rule adapter_removal:
                 --singleton {params.prefix}.singleton.fastq.gz \
                 --settings {params.prefix}.settings \
                 --adapter-list {params.common_adapters} \
-                --trimns \
-                --trimqualities \
-                --threads 4
+                {params.trimns_flag} \
+                {params.trimqualities_flag} \
+                --threads {threads}
 
         echo "Adapter Removal completeed sucessfully for {wildcards.sample}"
         
-        """
-
-# Step4 - MultiQC
-rule multiqc:
-    input:
-        # Raw fastqc, fastp, adapter removal
-        raw_fastqc_results = os.path.join(RESULTS_DIR, "01_fastqc_raw"),
-        fastp_results = os.path.join(RESULTS_DIR, "02_fastp"),
-        adapter_removal_results = os.path.join(RESULTS_DIR, "03_trimmed")
-    
-    output:
-        multiqc_report = directory(
-            os.path.join(RESULTS_DIR,"04_multiqc/filter_reads_multiqc_report")
-        )
-    
-    params:
-        multiqc = MULTIQC,
-        output_dir = f"{RESULTS_DIR}/04_multiqc"
-
-    shell:
-        """
-        mkdir -p {params.output_dir}
-
-        apptainer exec \
-            --bind {DATA_DIR}:{DATA_DIR} \
-            --bind {RESULTS_DIR}:{RESULTS_DIR} \
-            {params.multiqc} multiqc \
-                {input.raw_fastqc_results} {input.fastp_results} {input.adapter_removal_results} \
-                -o {output.multiqc_report}
-
         """
 
 # Step 5 - Removal of Human Reads
@@ -233,17 +289,24 @@ rule remove_human_reads:
         r2 = lambda w: os.path.join(RESULTS_DIR,"03_trimmed", f"{w.sample}_trimmed_R2.fastq.gz")
 
     output:
-        r1 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R1_clean.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR, "05_host_removed", "{sample}_R2_clean.fastq.gz")
+        r1 = os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R1_clean.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R2_clean.fastq.gz")
 
+    threads:
+        config['resources']['bowtie2']['threads']
+
+    resources:
+        mem_mb = config['resources']['bowtie2']['mem_mb'],
+        runtime = config['resources']['bowtie2']['runtime_min']
 
     params:
-        bowtie2 = BOWTIE2,
-        output_dir = f"{RESULTS_DIR}/05_host_removed",
+        bowtie2 = TOOLS['bowtie2'],
+        output_dir = f"{RESULTS_DIR}/04_host_removed",
         host_genome = HOST_GENOME,
+        sensitivity = f"--{config['parameters']['bowtie2']['sensitivity']}"
     
     log:
-        os.path.join(RESULTS_DIR, "05_host_removed", "{sample}.log")
+        os.path.join(RESULTS_DIR, "04_host_removed", "{sample}.log")
 
     shell:
         """
@@ -253,8 +316,8 @@ rule remove_human_reads:
             --bind {RESULTS_DIR}:{RESULTS_DIR} \
             --bind /lunarc/nobackup:/lunarc/nobackup \
             {params.bowtie2} bowtie2 \
-                --very-sensitive \
-                --threads 8 \
+                {params.sensitivity} \
+                --threads {threads} \
                 -x {params.host_genome} \
                 --un-conc-gz {params.output_dir}/{wildcards.sample}_clean \
                 -1 {input.r1} \
@@ -269,45 +332,328 @@ rule remove_human_reads:
         """
 
 # Step 6: Error correction using tadpole
+# srun --partition=lu48 --cpus-per-task=24 --mem=128G --time=01:0:00 --pty bash
+# This much amount of reources is needed for error correction to run smoothly
 rule error_correction:
     input:
         # Here we need the output samples from the previous step which is the host removal
-        r1 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R1_clean.fastq.gz"),
-        r2 = lambda w: os.path.join(RESULTS_DIR,"05_host_removed",f"{w.sample}_R2_clean.fastq.gz")
+        r1 = lambda w: os.path.join(RESULTS_DIR,"04_host_removed",f"{w.sample}_R1_clean.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"04_host_removed",f"{w.sample}_R2_clean.fastq.gz")
     
     output:
-        r1 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_1.fastq.00.0_0.cor.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR,"06_error_correction","{sample}_2.fastq.00.0_0.cor.fastq.gz")
+        r1 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_R1_corrected.fastq.gz"),
+        r2 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_R2_corrected.fastq.gz")
+
+    threads:
+        config['resources']['error_correction']['threads']
+
+    resources:
+        mem_mb = config['resources']['error_correction']['mem_mb'],
+        runtime = config['resources']['error_correction']['runtime_min']
 
     params:
-        spades = SPADES,
-        sample_output_dir = f"{RESULTS_DIR}/06_error_correction/{{sample}}_spades_temp"
+        tmp_r1 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_tmp_R1.fastq.gz"),
+        tmp_r2 = os.path.join(RESULTS_DIR,"05_error_correction","{sample}_tmp_R2.fastq.gz"),
+        tadpole = TOOLS['tadpole'],
+        repair = TOOLS['repair'],
+        bbduk = TOOLS['bbduk'],
+        output_dir = f"{RESULTS_DIR}/05_error_correction",
+        # Error correction parameters
+        memory_gb = config['parameters']['error_correction']['memory_gb'],
+        k_size = config['parameters']['error_correction']['k_size'],
+        ecc = "ecc=t" if config['parameters']['error_correction']['ecc'] else "ecc=f",
+        reassemble = "reassemble=t" if config['parameters']['error_correction']['reassemble'] else "reassemble=f",
+        aggressive = "aggressive=t" if config['parameters']['error_correction']['aggressive'] else "aggressive=f",
+        conservative = "conservative=t" if config['parameters']['error_correction']['conservative'] else "conservative=f"
 
     log:
-        spades_log = f"{RESULTS_DIR}/06_error_correction/{{sample}}.log"
+        repair_bash = f"{RESULTS_DIR}/05_error_correction/{{sample}}_tmp.log",
+        tadpole_bash = f"{RESULTS_DIR}/05_error_correction/{{sample}}_corrected.log"
 
     shell:
         """
-        # Create clean output directory for this sample
-        rm -rf {params.sample_output_dir}
-        mkdir -p {params.sample_output_dir}
+        mkdir -p {params.output_dir}
 
-        # Run SPAdes error correction with correct parameter name
+        # Step 1: Repair paired-end reads
+        {params.repair} \
+            in={input.r1} \
+            in2={input.r2} \
+            out={params.tmp_r1} \
+            out2={params.tmp_r2} \
+            repair=t \
+            -Xmx{params.memory_gb}g \
+            -eoom > {log.repair_bash} 2>&1
+
+        # Validate repair output
+        if [ ! -s "{params.tmp_r1}" ] || [ ! -s "{params.tmp_r2}" ]; then
+            echo "ERROR: Repair step failed - output files are empty"
+            exit 1
+        fi
+        
+        # Multi-tier error correction with robust fallbacks
+        echo "Starting error correction for {wildcards.sample}..." > {log.tadpole_bash}
+        
+        # Attempt 1: Standard tadpole with conservative settings
+        if {params.tadpole} \
+            mode=correct \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            -Xmx{params.memory_gb}g \
+            threads={threads} \
+            buildthreads={threads} \
+            k={params.k_size} \
+            {params.conservative} \
+            prealloc=f \
+            {params.ecc} \
+            {params.reassemble} \
+            pincer=f \
+            tail=f >> {log.tadpole_bash} 2>&1; then
+            
+            echo "Standard tadpole correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Attempt 2: Tadpole with minimal threading and smaller kmer
+        elif {params.tadpole} \
+            mode=correct \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            -Xmx12g \
+            threads=1 \
+            buildthreads=1 \
+            k=21 \
+            conservative=t \
+            prealloc=f \
+            ecc=t \
+            reassemble=f \
+            aggressive=f >> {log.tadpole_bash} 2>&1; then
+            
+            echo "Minimal tadpole correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Attempt 3: Use BBDuk for lighter error correction
+        elif {params.bbduk} \
+            in={params.tmp_r1} \
+            in2={params.tmp_r2} \
+            out={output.r1} \
+            out2={output.r2} \
+            mode=correct \
+            ecc=t \
+            aggressive=f \
+            -Xmx8g \
+            threads=1 >> {log.tadpole_bash} 2>&1; then
+            
+            echo "BBDuk error correction completed successfully" >> {log.tadpole_bash}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+            
+        # Fallback: Use repaired reads (still valuable for pipeline)
+        else
+            echo "All error correction methods failed, using high-quality repaired reads as final output" >> {log.tadpole_bash}
+            echo "Repaired reads are still processed through: repair.sh -> quality filtering -> host removal" >> {log.tadpole_bash}
+            cp {params.tmp_r1} {output.r1}
+            cp {params.tmp_r2} {output.r2}
+            rm -f {params.tmp_r1} {params.tmp_r2}
+        fi
+        
+        # Validate final output exists
+        if [ ! -s "{output.r1}" ] || [ ! -s "{output.r2}" ]; then
+            echo "CRITICAL ERROR: No output files generated"
+            exit 1
+        fi
+        
+        echo "Error correction step completed for {wildcards.sample}" >> {log.tadpole_bash}
+        """
+
+# Step 7: FASTQC Processed reads
+rule fastqc_processed:
+    input:
+        r1 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R1_corrected.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R2_corrected.fastq.gz")
+
+    output:
+        # HTML and zip files
+        html_r1 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.html"),
+        zip_r1 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.zip"),
+        html_r2 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.html"),
+        zip_r2 = os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.zip")
+
+    log:
+        os.path.join(RESULTS_DIR,"06_fastqc_post", "{sample}.log")
+
+    threads: 
+        config['resources']['fastqc']['threads']
+
+    resources:
+        mem_mb = config['resources']['fastqc']['mem_mb'],
+        runtime = config['resources']['fastqc']['runtime_min']
+    
+    params:
+        fastqc = TOOLS['fastqc'],
+        output_dir = os.path.join(RESULTS_DIR, "06_fastqc_post")
+
+    shell:
+        """
+        # Create output directory
+        mkdir -p {params.output_dir}     
+        
+        echo "Running FastQC on {wildcards.sample}..."
+        
+        # Run FastQC with bind mounts for /lunarc/nobackup
         apptainer exec \
             --bind {RESULTS_DIR}:{RESULTS_DIR} \
-            {params.spades} spades.py \
-                --only-error-correction \
-                --meta \
-                -t 4 \
-                -m 12000 \
-                -1 {input.r1} \
-                -2 {input.r2} \
-                -o {params.sample_output_dir} > {log.spades_log} 2>&1
+            --bind {params.output_dir}:{params.output_dir} \
+            {params.fastqc} \
+            fastqc {input.r1} {input.r2} -o {params.output_dir} -t {threads}
         
-        # Move the corrected files to expected output locations
-        mv {params.sample_output_dir}/corrected/*_1.fastq.00.0_0.cor.fastq.gz {output.r1}
-        mv {params.sample_output_dir}/corrected/*_2.fastq.00.0_0.cor.fastq.gz {output.r2}
-        
-        # Clean up temporary directory
-        rm -rf {params.sample_output_dir}
+        echo "FastQC completed successfully for {wildcards.sample}"
         """
+
+
+# Step 8 - MultiQC
+rule multiqc:
+    input:
+        # Depend on actual files, not directories
+        expand(os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"), sample=SAMPLES, read=READS),
+        expand(os.path.join(RESULTS_DIR, "02_fastp", "{sample}.fastp.json"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.settings"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "04_host_removed", "{sample}.log"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_corrected.log"), sample=SAMPLES),
+        expand(os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"), sample=SAMPLES, read=READS)
+    
+    output:
+        multiqc_report = directory(os.path.join(RESULTS_DIR,"07_multiqc"))
+
+    resources:
+        mem_mb = config['resources']['multiqc']['mem_mb'],
+        runtime = config['resources']['multiqc']['runtime_min']
+    
+    params:
+        multiqc = TOOLS['multiqc'],
+        output_dir = f"{RESULTS_DIR}/07_multiqc",
+        search_dirs = f"{RESULTS_DIR}"
+
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            {params.multiqc} multiqc \
+                {params.search_dirs} \
+                -o {output.multiqc_report}
+        """
+
+# Step 9 - Kraken2
+rule kraken:
+    input:
+        r1 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R1_corrected.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR,"05_error_correction",f"{w.sample}_R2_corrected.fastq.gz")
+
+    output:
+        kraken = os.path.join(RESULTS_DIR, "08_kraken2","{sample}","kraken.tsv"),
+        kraken_report = os.path.join(RESULTS_DIR, "08_kraken2", "{sample}","kraken_report.tsv")
+    
+    log:
+        os.path.join(RESULTS_DIR,"08_kraken2","{sample}.log")
+
+    resources:
+        mem_mb = config['resources']['kraken2']['mem_mb'], # 320G for kraken2 and database
+        runtime = config['resources']['kraken2']['runtime_min']
+
+    threads:
+        config['resources']['kraken2']['threads']
+
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"08_kraken2","{sample}"),
+        database = KRAKEN2_DB,
+        kraken2 = TOOLS['kraken2']
+
+    shell:
+        """
+        mkdir -p {params.out_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind /lunarc/nobackup/projects/snic2019-34-3/:/lunarc/nobackup/projects/snic2019-34-3/ \
+            {params.kraken2} kraken2 \
+                --db {params.database} \
+                --threads {threads} \
+                --report {output.kraken_report} \
+                --output {output.kraken} \
+                --paired {input.r1} {input.r2} > {log} 2>&1
+        """
+
+# Step 10: Bracken
+rule bracken:
+    input:
+        kraken_report = os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken_report.tsv")
+
+    output:
+        bracken_report = os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv")
+    log:
+        bracken_log = os.path.join(RESULTS_DIR,"09_bracken","{sample}.{rank}.out")
+
+    resources:
+        mem_mb = config['resources']['bracken']['mem_mb'],
+        runtime = config['resources']['bracken']['runtime_min']
+
+    params:
+        bracken = TOOLS['bracken'],
+        database = BRACKEN_DB,
+        out_dir = os.path.join(RESULTS_DIR,"09_bracken","{sample}"),
+        rank = lambda wildcards: '{}'.format(wildcards.rank)[:1].capitalize()
+
+    shell:
+        """
+        mkdir -p {params.out_dir}
+
+        apptainer exec \
+            --bind {RESULTS_DIR}:{RESULTS_DIR} \
+            --bind  /lunarc/nobackup/projects/snic2019-34-3/:/lunarc/nobackup/projects/snic2019-34-3/ \
+            {params.bracken} bracken \
+                -r {READ_LEN} \
+                -i {input.kraken_report} \
+                -o {output.bracken_report} \
+                -d {params.database} \
+                -l {params.rank} > {log.bracken_log} 2>&1
+        """
+
+# Step 11: Rule Standardize Bracken
+rule standardize_bracken:
+    input:
+        bracken_report = os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv")
+
+    output:
+        std_bracken_report = os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv")
+    
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"10_standardized_bracken"),
+        min_abd = 0.001
+    
+    run:
+        
+        if not exists(str(params.out_dir)):
+            os.makedirs(str(params.out_dir))
+        
+        standardize_bracken(str(input.bracken_report),str(params.out_dir),float(params.min_abd))
+
+# Step 12: Merge standardized Bracken reports by rank
+rule merge_bracken:
+    input:
+        lambda wildcards: expand(os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"), 
+                                sample=SAMPLES, rank=wildcards.rank)
+    output:
+        merged_report = os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv")
+    
+    params:
+        out_dir = os.path.join(RESULTS_DIR,"11_final_reports")
+    
+    run:
+      
+        if not os.path.exists(str(params.out_dir)):
+            os.makedirs(str(params.out_dir))
+        
+        concat_tables(list(input), str(output.merged_report))

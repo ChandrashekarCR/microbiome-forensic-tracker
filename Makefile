@@ -18,7 +18,8 @@ BOWTIE2_URL := oras://community.wave.seqera.io/library/bowtie2:2.5.4--2ec535d45c
 SAMTOOLS_URL := oras://community.wave.seqera.io/library/samtools:1.23--86cd9d13645d4fff
 TADPOLE_URL := https://sourceforge.net/projects/bbmap/files/BBMap_39.70.tar.gz
 SPADES_URL := oras://community.wave.seqera.io/library/spades:4.2.0--3313822b80929818
-
+KRAKEN2_URL := oras://community.wave.seqera.io/library/kraken2:2.17.1--1738c34504f3fb18
+BRACKEN_URL := oras://community.wave.seqera.io/library/bracken:3.1--77382b4340548c89
 
 
 # Bioninformatics tools as .sif files
@@ -31,6 +32,8 @@ BOWTIE2_IMG := bowtie2.sif
 SAMTOOLS_IMG := samtools.sif 
 TADPOLE_TOOL := "$(TOOL_DIR)/bbmap/tadpole.sh"
 SPADES_TOOL := spades.sif
+KRAKEN2_TOOL := kraken2.sif
+BRACKEN_TOOL := bracken.sif
 
 hello: # Hello Makefile
 	@echo "Makefile working.."
@@ -56,10 +59,15 @@ install: venv
 	fi
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
-	@find . -type f -name *.err -delete
-	@find . -type d -name __pycache__ -exec rm -rf {} + 
-	@echo "[clean] ok" 
+	@find . -type f -name "*.err" -delete
+	@find . -type f -name "*.out" -delete
+	@find . -type f -name "*.log" -delete
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@echo "[clean] ok"
 
+lint: # Linting python scripts
+	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
+	@echo "[lint] ok"	
 
 conda_env: environment.yml
 	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
@@ -74,7 +82,7 @@ conda_env: environment.yml
 
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
-		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL)
+		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL)
 
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
@@ -147,4 +155,20 @@ $(SPADES_TOOL):
 		apptainer pull "$(TOOL_DIR)/$@" "$(SPADES_URL)" ;\
 	else \
 		echo "Spades already exists.";\
+	fi
+
+$(KRAKEN2_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading kraken2 tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(KRAKEN2_URL)" ;\
+	else \
+		echo "Kraken2 already exists.";\
+	fi
+
+$(BRACKEN_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading bracken tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(BRACKEN_URL)" ;\
+	else \
+		echo "Bracken already exists.";\
 	fi

@@ -1,0 +1,128 @@
+# Project Configuration
+project_name: "malmo_metagenomics_pipeline"
+author: "ChandrashekarCR"
+version: "1.0"
+
+# Data Directories
+data:
+  raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
+  results_dir : "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
+
+# Sample Configuration
+samples:
+  pattern_r1: "_R1.fastq.gz"
+  pattern_r2: "_R2.fastq.gz"
+  max_samples: 20 # Limit for testing
+  read_length: 150
+
+# Tool paths (Container images)
+tools:
+  fastqc: "bin/fastqc.sif"
+  fastp: "bin/fastp.sif"
+  adapter_removal: "bin/adapter_removal.sif"
+  multiqc: "bin/multiqc.sif"
+  bowtie2: "bin/bowtie2.sif"
+  samtools: "bin/samtools.sif"
+  repair: "bin/bbmap/repair.sh"
+  tadpole: "bin/bbmap/tadpole.sh"
+  bbduk: "bin/bbmap/bbduk.sh"
+  spades: "bin/spades.sif"
+  kraken2: "bin/kraken2.sif"
+  bracken: "bin/bracken.sif"
+
+# Reference Database
+databases:
+  human_genome: "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+  kraken2_db: "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
+  common_adapters: "bin/common_adapters.txt"
+
+# Analysis Parameters:
+parameters:
+  # Quality Control
+  fastp:
+    qualified_quality_phred: 30
+    trim_poly_g: true
+    dont_eval_duplication: true
+
+  # Adapter removal
+  adapter_removal:
+    trimns: true
+    trimqualities: true
+
+  # Remove human reads
+  bowtie2:
+    sensitivity: "very-sensitive"
+
+  # Error correction
+  error_correction:
+    memory_gb: 20
+    k_size: 25
+    conservative: true
+    ecc: true
+    reassemble: true
+    aggressive: false
+
+  # Taxonomic classification
+  kraken:
+
+  bracken:
+
+# Taxonomic Ranks
+taxonomy:
+  ranks: ['species','genus','family','order','class','phylum']
+
+# Resource Allocation
+resources:
+  fastqc:
+    mem_mb: 2000
+    runtime_min: 30
+    threads: 4
+  
+  fastp:
+    mem_mb: 4000
+    runtime_min: 60
+    threads: 4
+  
+  adapter_removal:
+    mem_mb: 4000
+    runtime_min: 120
+    threads: 4
+
+  bowtie2:
+    mem_mb: 16000
+    runtime_min: 180
+    threads: 8
+  
+  error_correction:
+    mem_mb: 24000
+    runtime_min: 240
+    threads: 1 # Set this to 1 or there is some error that says that if we use multiple threads it does not work as expected
+
+  multiqc:
+    mem_mb: 2000
+    runtime_min: 30
+  
+  kraken2:
+    mem_mb: 320000
+    runtime_min: 480
+    threads: 30
+  
+  bracken:
+    mem_mb: 8000
+    runtime_min: 60
+
+
+# Pipeline Control
+pipeline:
+  steps:
+    fastqc_raw: true
+    fastp: true
+    adapter_removal: true
+    host_removal: true
+    error_correction: true
+    fastqc_post: true
+    multiqc: true
+    kraken2: true
+    bracken: true
+    standardize_bracken: true
+    merge_reports: true
