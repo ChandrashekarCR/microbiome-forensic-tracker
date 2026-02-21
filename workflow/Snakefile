@@ -12,6 +12,7 @@ configfile: "config/config.yaml"
 
 import os
 import sys
+import subprocess
 from pathlib import Path
 
 # Add the scripts directory to the Python path (absolute path)
@@ -59,6 +60,66 @@ READ_LEN = config['samples']['read_length'] # 150
 
 # Enable/disable pipeline steps
 STEPS = config['pipeline']['steps']
+
+# ---------------------------------------------------------------------------
+# GPU Partition distributor for Kraken2
+#
+# WHY NOT JUST USE sinfo:
+#   Snakemake evaluates all resource lambdas at schedule-build time, not one
+#   by one at the moment each sbatch is called. So if 20 jobs are ready at
+#   once, sinfo sees aurora with 4 idle nodes and ALL 20 jobs get assigned
+#   aurora before any of them actually start.
+#
+# FIX - capacity-aware distributor:
+#   Track how many jobs we have already dispatched to each partition this
+#   session. Fill aurora (4 nodes) first, then gpua40 (6), gpua100 (6),
+#   gpua40i (6). Once all 22 slots are filled, round-robin from the
+#   least-used partition onward.
+#
+# Node counts from: sinfo -N -o "%P %m %c"
+#   aurora   4 nodes  768 GB  24 cores
+#   gpua40   6 nodes  512 GB  48 cores
+#   gpua100  6 nodes  512 GB  48 cores
+#   gpua40i  6 nodes  512 GB  32 cores   (gpua100i excluded - only 380 GB)
+# ---------------------------------------------------------------------------
+_GPU_PARTITION_NODES = {
+    'aurora':  4,
+    'gpua40':  6,
+    # gpua100 excluded: AssocGrpMemLimit - account lu2025-2-11 exceeds memory
+    #                   quota when requesting 380GB on this partition
+    'gpua100': 6,
+    'gpua40i': 6,
+}
+GPU_PARTITION_PRIORITY = list(_GPU_PARTITION_NODES.keys())  # priority order
+
+# Mutable counter - persists for the lifetime of the Snakemake process
+_partition_dispatched = {p: 0 for p in GPU_PARTITION_PRIORITY}
+
+def select_best_partition(wildcards=None):
+    """
+    Distribute kraken jobs across GPU partitions by node capacity.
+
+    Fills partitions in priority order:
+      aurora (4) -> gpua40 (6) -> gpua100 (6) -> gpua40i (6)
+    After all 22 slots are taken, round-robins from the least-used partition.
+    """
+    # Fill each partition up to its node capacity before moving on
+    for partition in GPU_PARTITION_PRIORITY:
+        capacity = _GPU_PARTITION_NODES[partition]
+        if _partition_dispatched[partition] < capacity:
+            _partition_dispatched[partition] += 1
+            print(
+                f"[partition selector] {partition} "
+                f"({_partition_dispatched[partition]}/{capacity} slots used)"
+            )
+            return partition
+
+    # All 22 slots filled (happens when >22 kraken jobs are ready at once).
+    # Round-robin: pick whichever partition has the fewest dispatched jobs.
+    least = min(_partition_dispatched, key=_partition_dispatched.get)
+    _partition_dispatched[least] += 1
+    print(f"[partition selector] All slots full - round-robin to {least}")
+    return least
 
 rule all:
     input:
@@ -568,7 +629,8 @@ rule kraken:
 
     resources:
         mem_mb = config['resources']['kraken2']['mem_mb'], # 320G for kraken2 and database
-        runtime = config['resources']['kraken2']['runtime_min']
+        runtime = config['resources']['kraken2']['runtime_min'],
+        slurm_partition = select_best_partition  # aurora -> gpua40 -> gpua100 -> gpua40i
 
     threads:
         config['resources']['kraken2']['threads']

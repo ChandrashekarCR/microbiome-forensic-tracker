@@ -12,7 +12,7 @@ data:
 samples:
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 70 # Limit for testing
+  max_samples: 220 # Limit for testing
   read_length: 150
 
 # Tool paths (Container images)
@@ -71,8 +71,7 @@ parameters:
 taxonomy:
   ranks: ['species','genus','family','order','class','phylum']
 
-# Resource Allocation (OPTIMIZED based on efficiency analysis)
-# 20.7% memory reduction, 55.9% CPU reduction potential
+# Resource allocation for each rule
 resources:
   fastqc:
     mem_mb: 1000         

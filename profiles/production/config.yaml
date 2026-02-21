@@ -22,31 +22,32 @@ printshellcmds: false   # Reduce log verbosity
 # Performance optimization
 use-conda: true
 conda-frontend: "mamba"
-conda-cleanup-pkgs: "tarballs"
+
+# Efiicieny Reporting
 slurm-efficiency-report: true
+slurm-efficiency-report-path: "./logs/"
 
 # Production resource allocation (OPTIMIZED based on efficiency data)
-default-resources:
-  slurm_account: lu2025-2-11
-  slurm_partition: lu48
-  runtime: "1h"
-  mem_mb: 4000
-  cpus: 2
+#default-resources:
+#  slurm_account: lu2025-2-11
+#  slurm_partition: lu48
+#  runtime: "1h"
+#  mem_mb: 4000
+#  cpus: 2
 
 set-resources:
-  # Fast I/O tasks - OPTIMIZED for production scale
   fastqc_raw:
     slurm_partition: "lu48"
-    runtime: "1h"         # Buffer for production scale
-    cpus: 2               # Optimized from 4 (48.6% efficiency)
-    mem_mb: 4000          # Increased from small scale for safety
+    runtime: "1h"         
+    cpus: 4               
+    mem_mb: 4000          
     slurm_job_name: "prod_fastqc_raw"
   
   fastqc_processed:
     slurm_partition: "lu48" 
     runtime: "1h"
-    cpus: 2               # Optimized from 4 (48.8% efficiency)
-    mem_mb: 1000
+    cpus: 4               # Optimized from 4 (48.8% efficiency)
+    mem_mb: 4000
     slurm_job_name: "prod_fastqc_processed"
   
   fastp:
@@ -84,12 +85,13 @@ set-resources:
     mem_mb: 8000          # More memory for 330 samples
     slurm_job_name: "prod_multiqc"
   
-  # High memory tasks - CRITICAL PRODUCTION OPTIMIZATION
+  # High memory tasks - partition selected at runtime by select_best_partition()
+  # in workflow/Snakefile (checks aurora -> gpua40 -> gpua100 -> gpua40i availability)
   kraken:
-    slurm_partition: "gpua40"
-    runtime: "2h"         # Conservative for production
-    cpus: 12              # Optimized from 30 (7% efficiency - massive waste)
-    mem_mb: 380000        # Conservative from 400000
+    # slurm_partition is intentionally NOT set here - the Snakefile lambda sets it
+    runtime: "2h"        
+    cpus: 12              
+    mem_mb: 380000        
     slurm_job_name: "prod_kraken"
   
   bracken:
@@ -113,7 +115,3 @@ set-resources:
     mem_mb: 8000          # More memory for large merge operation
     slurm_job_name: "prod_merge_bracken"
 
-# Job grouping for efficiency
-group-components:
-  preprocessing: 50     # Group small preprocessing jobs
-  postprocessing: 20    # Group post-processing jobs
