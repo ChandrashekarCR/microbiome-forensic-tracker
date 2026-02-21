@@ -86,12 +86,13 @@ set-resources:
     slurm_job_name: "prod_multiqc"
   
   # High memory tasks - partition selected at runtime by select_best_partition()
-  # in workflow/Snakefile (checks aurora -> gpua40 -> gpua100 -> gpua40i availability)
+  # in workflow/Snakefile (fills: aurora(4 nodes, 768GB) -> gpua40(6 nodes, 512GB) -> gpua40i(6 nodes, 512GB))
+  # gpua100 EXCLUDED: account lu2025-2-11 has AssocGrpMemLimit on that partition
   kraken:
     # slurm_partition is intentionally NOT set here - the Snakefile lambda sets it
-    runtime: "2h"        
-    cpus: 12              
-    mem_mb: 380000        
+    runtime: "2h"
+    cpus: 12
+    mem_mb: 460000        # core-nt DB=310GB + index + buffers + OS ~= 400-420GB; 460GB = safe headroom
     slurm_job_name: "prod_kraken"
   
   bracken:

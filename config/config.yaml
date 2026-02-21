@@ -12,7 +12,7 @@ data:
 samples:
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 220 # Limit for testing
+  max_samples: 100 # Running 100 samples
   read_length: 150
 
 # Tool paths (Container images)
@@ -103,8 +103,8 @@ resources:
     runtime_min: 15      
   
   kraken2:
-    mem_mb: 380000       
-    runtime_min: 30      
+    mem_mb: 460000        # core-nt DB=310GB + index + buffers + OS ~= 400-420GB; 460GB = safe headroom
+    runtime_min: 120      # 2 hours - kraken2 on large samples can take 60-90 min
     threads: 12          
   
   bracken:

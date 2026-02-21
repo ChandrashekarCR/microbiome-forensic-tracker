@@ -61,35 +61,11 @@ READ_LEN = config['samples']['read_length'] # 150
 # Enable/disable pipeline steps
 STEPS = config['pipeline']['steps']
 
-# ---------------------------------------------------------------------------
-# GPU Partition distributor for Kraken2
-#
-# WHY NOT JUST USE sinfo:
-#   Snakemake evaluates all resource lambdas at schedule-build time, not one
-#   by one at the moment each sbatch is called. So if 20 jobs are ready at
-#   once, sinfo sees aurora with 4 idle nodes and ALL 20 jobs get assigned
-#   aurora before any of them actually start.
-#
-# FIX - capacity-aware distributor:
-#   Track how many jobs we have already dispatched to each partition this
-#   session. Fill aurora (4 nodes) first, then gpua40 (6), gpua100 (6),
-#   gpua40i (6). Once all 22 slots are filled, round-robin from the
-#   least-used partition onward.
-#
-# Node counts from: sinfo -N -o "%P %m %c"
-#   aurora   4 nodes  768 GB  24 cores
-#   gpua40   6 nodes  512 GB  48 cores
-#   gpua100  6 nodes  512 GB  48 cores
-#   gpua40i  6 nodes  512 GB  32 cores   (gpua100i excluded - only 380 GB)
-# ---------------------------------------------------------------------------
 _GPU_PARTITION_NODES = {
     'aurora':  4,
     'gpua40':  6,
-    # gpua100 excluded: AssocGrpMemLimit - account lu2025-2-11 exceeds memory
-    #                   quota when requesting 380GB on this partition
-    'gpua100': 6,
-    'gpua40i': 6,
-}
+    'gpua40i': 6
+    }
 GPU_PARTITION_PRIORITY = list(_GPU_PARTITION_NODES.keys())  # priority order
 
 # Mutable counter - persists for the lifetime of the Snakemake process
@@ -100,8 +76,8 @@ def select_best_partition(wildcards=None):
     Distribute kraken jobs across GPU partitions by node capacity.
 
     Fills partitions in priority order:
-      aurora (4) -> gpua40 (6) -> gpua100 (6) -> gpua40i (6)
-    After all 22 slots are taken, round-robins from the least-used partition.
+      aurora (4) -> gpua40 (6) -> gpua40i (6)
+    After all 16 slots are taken, round-robins from the least-used partition.
     """
     # Fill each partition up to its node capacity before moving on
     for partition in GPU_PARTITION_PRIORITY:
@@ -114,7 +90,7 @@ def select_best_partition(wildcards=None):
             )
             return partition
 
-    # All 22 slots filled (happens when >22 kraken jobs are ready at once).
+    # All 16 slots filled (happens when >16 kraken jobs are ready at once).
     # Round-robin: pick whichever partition has the fewest dispatched jobs.
     least = min(_partition_dispatched, key=_partition_dispatched.get)
     _partition_dispatched[least] += 1
@@ -628,9 +604,9 @@ rule kraken:
         os.path.join(RESULTS_DIR,"08_kraken2","{sample}.log")
 
     resources:
-        mem_mb = config['resources']['kraken2']['mem_mb'], # 320G for kraken2 and database
+        mem_mb = config['resources']['kraken2']['mem_mb'], # 460G: core-nt DB 310G + index/buffers/OS; aurora routes to ca19-ca22 (768G) only at this size
         runtime = config['resources']['kraken2']['runtime_min'],
-        slurm_partition = select_best_partition  # aurora -> gpua40 -> gpua100 -> gpua40i
+        slurm_partition = select_best_partition  # fills: aurora(4) -> gpua40(6) -> gpua40i(6)
 
     threads:
         config['resources']['kraken2']['threads']
@@ -703,10 +679,7 @@ rule standardize_bracken:
         min_abd = 0.001
     
     run:
-        
-        if not exists(str(params.out_dir)):
-            os.makedirs(str(params.out_dir))
-        
+        os.makedirs(str(params.out_dir), exist_ok=True)
         standardize_bracken(str(input.bracken_report),str(params.out_dir),float(params.min_abd))
 
 # Step 12: Merge standardized Bracken reports by rank
@@ -721,8 +694,5 @@ rule merge_bracken:
         out_dir = os.path.join(RESULTS_DIR,"11_final_reports")
     
     run:
-      
-        if not os.path.exists(str(params.out_dir)):
-            os.makedirs(str(params.out_dir))
-        
+        os.makedirs(str(params.out_dir), exist_ok=True)
         concat_tables(list(input), str(output.merged_report))
