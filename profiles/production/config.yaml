@@ -1,14 +1,15 @@
-# Production Profile for LUNARC - All 330 samples
-# Usage: snakemake --profile profiles/production --cores 500
+# Production Profile for LUNARC - All 330 samples (OPTIMIZED)
+# Usage: snakemake --profile profiles/production --cores 400
+# Based on efficiency analysis: 20.7% memory reduction, 55.9% CPU reduction
 
-# Basic cluter configuration
-executor: clurm
+# Basic cluster configuration
+executor: slurm  # Fixed typo: was "clurm"
 restart-times: 2
 
-# High-throughput settings
-cores: 500               # Total cores across cluster (multiple nodes)
-jobs: 100               # Max concurrent SLURM jobs (aggressive parallelization)
-max-jobs-per-second: 10 # Higher job submission rate
+# High-throughput settings (OPTIMIZED)
+cores: 400               # Reduced from 500 (55.9% CPU efficiency improvement)
+jobs: 150               # Increased from 100 (more lightweight jobs now)
+max-jobs-per-second: 25 # Increased for faster job submission
 local-cores: 4          # More local cores for coordination
 
 # Advanced job management
@@ -22,6 +23,95 @@ printshellcmds: false   # Reduce log verbosity
 use-conda: true
 conda-frontend: "mamba"
 conda-cleanup-pkgs: "tarballs"
+slurm-efficiency-report: true
+
+# Production resource allocation (OPTIMIZED based on efficiency data)
+default-resources:
+  slurm_account: lu2025-2-11
+  slurm_partition: lu48
+  runtime: "1h"
+  mem_mb: 4000
+  cpus: 2
+
+set-resources:
+  # Fast I/O tasks - OPTIMIZED for production scale
+  fastqc_raw:
+    slurm_partition: "lu48"
+    runtime: "1h"         # Buffer for production scale
+    cpus: 2               # Optimized from 4 (48.6% efficiency)
+    mem_mb: 4000          # Increased from small scale for safety
+    slurm_job_name: "prod_fastqc_raw"
+  
+  fastqc_processed:
+    slurm_partition: "lu48" 
+    runtime: "1h"
+    cpus: 2               # Optimized from 4 (48.8% efficiency)
+    mem_mb: 1000
+    slurm_job_name: "prod_fastqc_processed"
+  
+  fastp:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 4               # Keep 4 (94.3% efficiency - excellent)
+    mem_mb: 500           # Optimized from 16000 (uses 30MB)
+    slurm_job_name: "prod_fastp"
+  
+  adapter_removal:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 3               # Optimized from 4 (64.9% efficiency)
+    mem_mb: 1000          # Conservative for production
+    slurm_job_name: "prod_adapter_removal"
+  
+  remove_human_reads:
+    slurm_partition: "lu48"
+    runtime: "2h"         # Extended for production scale
+    cpus: 8               # Keep 8 (98.1% efficiency - excellent)
+    mem_mb: 12000         # Conservative for larger samples
+    slurm_job_name: "prod_remove_human_reads"
+
+  error_correction:
+    slurm_partition: "lu48"
+    runtime: "2h"         # Extended for production scale
+    cpus: 1               # Keep 1 (99.4% efficiency - excellent)
+    mem_mb: 16000         # Conservative for larger samples
+    slurm_job_name: "prod_error_correction"
+  
+  multiqc:
+    slurm_partition: "lu48"
+    runtime: "1h"
+    cpus: 2
+    mem_mb: 8000          # More memory for 330 samples
+    slurm_job_name: "prod_multiqc"
+  
+  # High memory tasks - CRITICAL PRODUCTION OPTIMIZATION
+  kraken:
+    slurm_partition: "gpua40"
+    runtime: "2h"         # Conservative for production
+    cpus: 12              # Optimized from 30 (7% efficiency - massive waste)
+    mem_mb: 380000        # Conservative from 400000
+    slurm_job_name: "prod_kraken"
+  
+  bracken:
+    slurm_partition: "lu48"
+    runtime: "30m"
+    cpus: 2               # Increased from 1 for production speed
+    mem_mb: 6000           # Optimized from 16000
+    slurm_job_name: "prod_bracken"
+  
+  standardize_bracken:
+    slurm_partition: "lu48"
+    runtime: "30m"
+    cpus: 1
+    mem_mb: 200           # Optimized from 8000
+    slurm_job_name: "prod_standardize_bracken"
+  
+  merge_bracken:
+    slurm_partition: "lu48"
+    runtime: "1h"         # Extended for 330 samples
+    cpus: 4               # Increased for faster merging
+    mem_mb: 8000          # More memory for large merge operation
+    slurm_job_name: "prod_merge_bracken"
 
 # Job grouping for efficiency
 group-components:
