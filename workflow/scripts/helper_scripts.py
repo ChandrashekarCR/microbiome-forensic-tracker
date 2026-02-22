@@ -33,10 +33,3 @@ def get_fastq_samples(samples_dir, read1_suffix, read2_suffix):
         samples.append(sample_name)
     return samples
 
-
-
-#get_fastq_samples("/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files", 'R1.fastq.gz','R2.fastq.gz')
-    
-#DATA_DIR = "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files/"
-#SAMPLES = get_fastq_samples(DATA_DIR, '_R1.fastq.gz','_R2.fastq.gz')[:5]
-#print(SAMPLES)
