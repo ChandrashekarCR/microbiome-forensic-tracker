@@ -23,17 +23,6 @@ from standardize_bracken import standardize_bracken, concat_tables
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
-#FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
-#FASTP = f"{ROOT_DIR}/bin/fastp.sif"
-#ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
-#MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
-#BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
-#SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
-#REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
-#TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
-#SPADES = f"{ROOT_DIR}/bin/spades.sif"
-#KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
-#BRACKEN = f"{ROOT_DIR}/bin/bracken.sif"
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
 
 # Samples folder for the Malmo samples
@@ -61,6 +50,32 @@ READ_LEN = config['samples']['read_length'] # 150
 # Enable/disable pipeline steps
 STEPS = config['pipeline']['steps']
 
+# Apptainer bind helper
+def _apptainer_binds(paths: list) -> str:
+    """
+    Apptainer generally needs the path to be expliciting stated if they are not part of the 
+    build image. In most cases we need to bind the path when we run each tool.
+    For each path we bind its top-level mount point so the same string works
+    on LUNARC (/lunarc/nobackup/...) and on cloud (s3-fuse mounts, /data, etc.)
+    The actual paths are passed directly no hardcoding of /lunarc anywhere.
+
+    Example:
+        _apptainer_binds(["/lunarc/nobackup/projects/snic/chandru", "/home/chandru/binp51/results"])
+        -> "--bind /lunarc/nobackup/projects/snic/chandru:/lunarc/nobackup/projects/snic/chandru
+            --bind /home/chandru/binp51/results:/home/chandru/binp51/results"
+    """
+    seen = set()
+    flags = []
+    for p in paths:
+        # Use the path itself (file or directory), it will accept both
+        mount = str(Path(p).resolve())
+        if mount not in seen:
+            seen.add(mount)
+            flags.append(f"--bind {mount}:{mount}")
+    return " ".join(flags)
+
+
+# Dynamic partitioning of resources
 _GPU_PARTITION_NODES = {
     'aurora':  4,
     'gpua40':  6,
