@@ -144,7 +144,7 @@ rule remove_human_reads:
         output_dir = f"{RESULTS_DIR}/04_host_removed",
         host_genome = HOST_GENOME,
         sensitivity = f"--{config['parameters']['bowtie2']['sensitivity']}",
-        bind_paths = lambda w: _apptainer_binds([RESULTS_DIR, HOST_GENOME])
+        bind_paths = lambda w: _apptainer_binds([RESULTS_DIR, os.path.dirname(HOST_GENOME)])
     
     log:
         os.path.join(RESULTS_DIR, "04_host_removed", "{sample}.log")

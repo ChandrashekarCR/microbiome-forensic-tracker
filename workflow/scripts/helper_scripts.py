@@ -85,10 +85,10 @@ def get_sample_r2(sample_df:pd.DataFrame, sample:str) -> str:
 def get_sample_names(sample_df: pd.DataFrame) -> str:
     return list(sample_df.index)
 
-print(load_sample_sheet(
-    tsv_path="/home/chandru/binp51/config/samples.tsv",
-    max_samples=10
-))
+#print(load_sample_sheet(
+#    tsv_path="/home/chandru/binp51/config/samples.tsv",
+#    max_samples=10
+#))
 
 #df = load_sample_sheet(
 #    tsv_path="/home/chandru/binp51/config/samples.tsv",
