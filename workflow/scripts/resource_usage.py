@@ -2,13 +2,13 @@ import pandas as pd
 import re
 
 # Read the efficient report
-df = pd.read_csv("/home/chandru/binp51/logs/efficiency_report.csv")
+df = pd.read_csv("/home/chandru/binp51/logs/efficiency_report_master_1.csv")
 df = df.dropna(axis=1)
 df['JobID'] = df['JobID'].astype(int)
 job_ids = list(df['JobID'])
 
 rule_sample = []
-with open('/home/chandru/binp51/logs/snakemake_master.log','r') as f:
+with open('/home/chandru/binp51/logs/snakemake_master_1.log','r') as f:
     for line in f:
         for job_id in job_ids:
             match = re.search(str(job_id),line)
@@ -36,3 +36,5 @@ rule_report_df = rule_report_df.rename(columns={'Elapsed_sec':'elapsed_sec',
                                                 'NCPUS':'ncpus',
                                                 "CPU Efficiency (%)":'max_cpu_efficiency_perc',
                                                 "Memory Usage (%)":"memory_usage_perc"})
+
+print(rule_report_df)
