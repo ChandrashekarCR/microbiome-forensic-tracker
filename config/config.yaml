@@ -30,6 +30,7 @@ tools:
   spades: "bin/spades.sif"
   kraken2: "bin/kraken2.sif"
   bracken: "bin/bracken.sif"
+  pandaseq: "bin/pandaseq.sif"
 
 # Reference Database
 databases:
