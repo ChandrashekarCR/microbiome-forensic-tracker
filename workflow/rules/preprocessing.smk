@@ -153,7 +153,7 @@ rule remove_human_reads:
         """
         mkdir -p {params.output_dir}
 
-        apptainer exec {params.bind_path} {params.bowtie2} bowtie2 \
+        apptainer exec {params.bind_paths} {params.bowtie2} bowtie2 \
                 {params.sensitivity} \
                 --threads {threads} \
                 -x {params.host_genome} \

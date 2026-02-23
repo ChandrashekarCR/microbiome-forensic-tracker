@@ -11,7 +11,7 @@ import glob
 import pandas as pd
 from pathlib import Path
 
-def load_sample_sheet(tsv_path: str, max_sample: int = None) -> pd.DataFrame:
+def load_sample_sheet(tsv_path: str, max_samples: int = None) -> pd.DataFrame:
     """
     Load the sample sheet from the config file
     """
@@ -37,8 +37,10 @@ def load_sample_sheet(tsv_path: str, max_sample: int = None) -> pd.DataFrame:
     df = df.dropna(subset=['sample','r1','r2'])
 
     # Apply max number of samples to be procesed
-    if max_sample:
-        df = df.iloc[:max_sample,:]
+    if max_samples:
+        df = df.iloc[:max_samples,:]
+    
+    df = df.set_index("sample",drop=True)
     
     return df
 
@@ -81,10 +83,16 @@ def get_sample_r2(sample_df:pd.DataFrame, sample:str) -> str:
 
 # Get all the names of the sample
 def get_sample_names(sample_df: pd.DataFrame) -> str:
-    return list(sample_df['sample'])
+    return list(sample_df.index)
 
 print(load_sample_sheet(
     tsv_path="/home/chandru/binp51/config/samples.tsv",
-    max_sample=10
+    max_samples=10
 ))
 
+#df = load_sample_sheet(
+#    tsv_path="/home/chandru/binp51/config/samples.tsv",
+#    max_samples=10
+#)
+#
+#print(get_sample_names(df))
