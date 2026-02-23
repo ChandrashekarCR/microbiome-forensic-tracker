@@ -6,8 +6,30 @@ BERT-S rules:
 """
 rule merge_reads:
     input:
-        r1 = lambda w: os.path.join(RESULTS_DIR, f"{w.sample}_R1.fastq.gz"),
-        r2 = lambda w: os.path.join(RESULTS_DIR, f"{w.sample}_R2.fastq.gz")
+        r1 = lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"),
+        r2 = lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz")
     
     output:
-        merged_reads = os.path.join(RESULTS_DIR,"")
+        merged_reads = os.path.join(RESULTS_DIR, "12_merged_reads","{sample}_aligned.fastq"),
+        unmerged_reads = os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}_unaligned.fastq")
+    
+    log:
+        merge_log = os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}.log")
+    
+    threads:
+        pass
+    
+    resources:
+        pass
+    
+    params:
+        output_dir = os.path.join(RESULTS_DIR, "12_merged_reads"),
+        pandaseq = TOOLS["pandaseq"],
+    
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        
+        
+        """
