@@ -6,13 +6,14 @@ version: "1.0"
 # Data Directories
 data:
   raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-  results_dir : "/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
+  results_dir : "/home/chandru/binp51/results/"
 
 # Sample Configuration
 samples:
+  sample_sheet: "config/samples.tsv" # Sample sheet
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 330 # Running 200 samples
+  max_samples: 3 # Running 200 samples
   read_length: 150
 
 # Tool paths (Container images)
@@ -29,6 +30,7 @@ tools:
   spades: "bin/spades.sif"
   kraken2: "bin/kraken2.sif"
   bracken: "bin/bracken.sif"
+  pandaseq: "bin/pandaseq.sif"
 
 # Reference Database
 databases:

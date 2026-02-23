@@ -18,49 +18,72 @@ from pathlib import Path
 # Add the scripts directory to the Python path (absolute path)
 sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
 
-from helper_scripts import get_fastq_samples
+from helper_scripts import get_fastq_samples, load_sample_sheet, get_sample_names
 from standardize_bracken import standardize_bracken, concat_tables
+from select_partition import select_best_partition
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
-#FASTQC = f"{ROOT_DIR}/bin/fastqc.sif"
-#FASTP = f"{ROOT_DIR}/bin/fastp.sif"
-#ADAPTER_REMOVAL = f"{ROOT_DIR}/bin/adapter_removal.sif"
-#MULTIQC = f"{ROOT_DIR}/bin/multiqc.sif"
-#BOWTIE2 = f"{ROOT_DIR}/bin/bowtie2.sif"
-#SAMTOOLS = f"{ROOT_DIR}/bin/samtools.sif"
-#REPAIR = f"{ROOT_DIR}/bin/bbmap/repair.sh"
-#TADPOLE = f"{ROOT_DIR}/bin/bbmap/tadpole.sh"
-#SPADES = f"{ROOT_DIR}/bin/spades.sif"
-#KRAKEN2 = f"{ROOT_DIR}/bin/kraken2.sif"
-#BRACKEN = f"{ROOT_DIR}/bin/bracken.sif"
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
 
 # Samples folder for the Malmo samples
 DATA_DIR = config['data']['raw_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
 RESULTS_DIR = config['data']['results_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
-SAMPLES = get_fastq_samples(
-            DATA_DIR, 
-            config['samples']['pattern_r1'],
-            config['samples']['pattern_r2'])[:config['samples']['max_samples']]
+#SAMPLES = get_fastq_samples(
+#            DATA_DIR, 
+#            config['samples']['pattern_r1'],
+#            config['samples']['pattern_r2'])[:config['samples']['max_samples']]
 READS = ["R1","R2"] # Forward and reverse reads
 RANKS = config['taxonomy']['ranks'] #['species','genus','family','order','class','phylum']
 
 # Database paths
 # Host Genome (Human - hG38)
 HOST_GENOME = config['databases']['human_genome'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
-
 # Common Adapters
 COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
-
 # Kraken2 and Bracken Database (core-nt - 307G)
 KRAKEN2_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
 BRACKEN_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
 READ_LEN = config['samples']['read_length'] # 150
 
+# Sample sheet
+SAMPLE_DF = load_sample_sheet(
+    config['samples']['sample_sheet'],
+    max_samples = config['samples']['max_samples']
+)
+
+SAMPLES = get_sample_names(SAMPLE_DF)
+
 # Enable/disable pipeline steps
 STEPS = config['pipeline']['steps']
 
+# Apptainer bind helper
+def _apptainer_binds(paths: list) -> str:
+    """
+    Apptainer generally needs the path to be expliciting stated if they are not part of the 
+    build image. In most cases we need to bind the path when we run each tool.
+    For each path we bind its top-level mount point so the same string works
+    on LUNARC (/lunarc/nobackup/...) and on cloud (s3-fuse mounts, /data, etc.)
+    The actual paths are passed directly no hardcoding of /lunarc anywhere.
+
+    Example:
+        _apptainer_binds(["/lunarc/nobackup/projects/snic/chandru", "/home/chandru/binp51/results"])
+        -> "--bind /lunarc/nobackup/projects/snic/chandru:/lunarc/nobackup/projects/snic/chandru
+            --bind /home/chandru/binp51/results:/home/chandru/binp51/results"
+    """
+    seen = set()
+    flags = []
+    for p in paths:
+        # Use the path itself (file or directory), it will accept both
+        mount = str(Path(p).resolve())
+        if mount not in seen:
+            seen.add(mount)
+            flags.append(f"--bind {mount}:{mount}")
+    return " ".join(flags)
+
+
+'''
+# Dynamic partitioning of resources
 _GPU_PARTITION_NODES = {
     'aurora':  4,
     'gpua40':  6,
@@ -696,3 +719,81 @@ rule merge_bracken:
     run:
         os.makedirs(str(params.out_dir), exist_ok=True)
         concat_tables(list(input), str(output.merged_report))
+'''
+
+rule all:
+    input:
+        # FastQC Raw reports
+        expand(
+            os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
+            sample = SAMPLES,
+            read = READS
+        ),
+        # fastp outputs
+        #expand(
+        #    os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        ## Adaptor removal outputs
+        #expand(
+        #    os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        # Removal of Host Genome
+        #expand(
+        #    os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        # Error correction
+        #expand(
+        #    os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
+        #    sample = SAMPLES,
+        #    read = READS
+        #),
+
+        # FastQC Processed reports
+        expand(
+            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
+            sample = SAMPLES,
+            read = READS
+        ),
+
+        # MultiQC
+        os.path.join(RESULTS_DIR,"07_multiqc"),
+
+        # Kraken2 - Taxonomic classificaiton
+        #expand(
+        #    os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
+        #    sample = SAMPLES
+        #),
+
+        # Bracken - Classificaiton report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Standardize Bracken Report
+        #expand(
+        #    os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"),
+        #    sample = SAMPLES,
+        #    rank = RANKS
+        #),
+
+        # Merge kraken-bracken reports
+        expand(
+            os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv"),
+            rank = RANKS
+        )
+
+include: "rules/qc.smk"
+include: "rules/preprocessing.smk"
+include: "rules/classification.smk"
+include: "rules/postprocessing.smk"

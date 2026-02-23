@@ -20,7 +20,7 @@ TADPOLE_URL := https://sourceforge.net/projects/bbmap/files/BBMap_39.70.tar.gz
 SPADES_URL := oras://community.wave.seqera.io/library/spades:4.2.0--3313822b80929818
 KRAKEN2_URL := oras://community.wave.seqera.io/library/kraken2:2.17.1--1738c34504f3fb18
 BRACKEN_URL := oras://community.wave.seqera.io/library/bracken:3.1--77382b4340548c89
-
+PANDASEQ_URL := docker://dromero93/pandaseq:latest
 
 # Bioninformatics tools as .sif files
 TOOL_DIR := bin
@@ -34,6 +34,7 @@ TADPOLE_TOOL := "$(TOOL_DIR)/bbmap/tadpole.sh"
 SPADES_TOOL := spades.sif
 KRAKEN2_TOOL := kraken2.sif
 BRACKEN_TOOL := bracken.sif
+PANDASEQ_TOOL := pandaseq.sif
 
 hello: # Hello Makefile
 	@echo "Makefile working.."
@@ -82,7 +83,8 @@ conda_env: environment.yml
 
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
-		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL)
+		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \
+		 $(PANDASEQ_TOOL)
 
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
@@ -171,4 +173,12 @@ $(BRACKEN_TOOL):
 		apptainer pull "$(TOOL_DIR)/$@" "$(BRACKEN_URL)" ;\
 	else \
 		echo "Bracken already exists.";\
+	fi
+
+$(PANDASEQ_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading pandaseq tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(PANDASEQ_URL)" ;\
+	else \
+		echo "Pandaseq already exists.";\
 	fi
