@@ -1,7 +1,9 @@
 """
 BERT-S rules:
     - merge_reads: Merge the forward and reverse reads
-    - dereplication: We do not need BERT-S embeddings for repeated or duplicated sequences
+    - dereplication: We do not need BERT-S embeddings for repeated or duplicated sequences. There can be a problem when we have the
+        same read (for example kinases coding part) present in all the samples in all species and they will have the same embedding.
+        This should not be the case, becuase we need to have an embedding which is different? Need to think about this part in detail.
 
 """
 rule merge_reads:
