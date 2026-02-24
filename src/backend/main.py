@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from pydantic import BaseModel
 import sqlite3
 import os
 import subprocess
@@ -19,16 +20,52 @@ SessionLocal = sessionmaker(autcommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Database Model
-class User(Base):
+class Samples(Base):
     __tablename__ = "users"
-    id = Column()
-    user = Column()
-    email = Column()
-    sample_name = Column()
-    status = Column()
-    r1_path = Column()
-    r2_path = Column()
-    date = Column()
+    id = Column(Integer, primary_key=True, index=True) # Unique id
+    user = Column(String(100), nullable=False)
+    email = Column(String(100),nullable=False, unique=True)
+    sample_name = Column(String(100),nullable=False)
+    status = Column(String(100),default="Pending") # This should get update as th process is running
+    r1_path = Column(String(100), nullable=False) # User will just upload the file
+    r2_path = Column(String(100), nullable=False)
+    date = Column(DateTime,nullable=False)
+
+Base.metadata.create_all(engine)
+
+# Pydantic Models (Dataclass)
+class SampleCreate(BaseModel):
+    user: str
+    email: str
+    sample_name: str
+    status: str
+    r1_path: str
+    r2_path: str
+    date: DateTime
+
+class SampleResponse(BaseModel):
+    id: int
+    user: str
+    email: str
+    sample_name: str
+    status: str
+    r1_path: str
+    r2_path: str
+    date: DateTime
+
+    class Config:
+        from_attributes = True
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+get_db()
 
 # Database configuration
 DB_PATH = "malmo.db"
