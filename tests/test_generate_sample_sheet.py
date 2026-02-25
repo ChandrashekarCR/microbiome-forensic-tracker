@@ -8,7 +8,7 @@ sys.path.insert(0, str(root))
 
 from workflow.scripts.generate_sample_sheet import generate_sample_sheet
 
-# Test that TSC is created correctly from fake FASTQ files
+# Test that TSV is created correctly from fake FASTQ files
 def test_generate_sample_sheet_basic(tmp_path):
 
     # Create fake fastq files

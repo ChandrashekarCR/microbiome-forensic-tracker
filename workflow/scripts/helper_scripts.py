@@ -33,6 +33,15 @@ def load_sample_sheet(tsv_path: str, max_samples: int = None) -> pd.DataFrame:
             f"Required: sample, r1, r2"
         )
 
+    # Check if there exists both forward and reverse reads
+    for _, row in df.iterrows():
+        sample = row["sample"]
+        r1 = row["r1"]
+        r2 = row["r2"]
+
+        if not Path(r1).exists() or not Path(r2).exists():
+            raise FileNotFoundError(f"Missing a correct file path for {sample}")
+    
     # Drop empty rows
     df = df.dropna(subset=['sample','r1','r2'])
 
