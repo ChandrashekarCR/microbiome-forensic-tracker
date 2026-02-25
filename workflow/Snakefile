@@ -82,8 +82,6 @@ def _apptainer_binds(paths: list) -> str:
     return " ".join(flags)
 
 
-
-
 rule all:
     input:
         # FastQC Raw reports
@@ -154,9 +152,15 @@ rule all:
         expand(
             os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv"),
             rank = RANKS
+        ),
+
+        expand(
+            os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}_aligned.fastq.gz"),
+            sample = SAMPLES
         )
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
+include: "rules/bert.smk"

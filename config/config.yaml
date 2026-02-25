@@ -113,6 +113,10 @@ resources:
     mem_mb: 2000         
     runtime_min: 15      
 
+  pandaseq:
+    mem_mb: 6000
+    runtime_min: 60
+    threads: 4
 
 # Pipeline Control
 pipeline:
