@@ -6,14 +6,14 @@ version: "1.0"
 # Data Directories
 data:
   raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-  results_dir : "/home/chandru/lu2025-12-38/Students/chandru"
+  results_dir : "/home/chandru/binp51/results/" #"/home/chandru/lu2025-12-38/Students/chandru"
 
 # Sample Configuration
 samples:
   sample_sheet: "config/samples.tsv" # Sample sheet
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 330 # Running 330 samples
+  max_samples: 5 # Running 5 samples
   read_length: 150
 
 # Tool paths (Container images)
