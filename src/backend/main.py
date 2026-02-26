@@ -8,11 +8,18 @@ from pydantic import BaseModel
 import sqlite3
 import os
 import subprocess
+import shutil
 from pathlib import Path
 
 
 # FastAPI app
 app = FastAPI()
+
+# Database configuration
+DB_PATH = "malmo.db"
+UPLOAD_DIR = Path("uploads")
+SNAKEFILE = Path("workflow/Snakefile")
+UPLOAD_DIR.mkdir(parents=True,exist_ok=True)
 
 # Database setup
 engine = create_engine("sqilte:///malmo_test.db", connect_args={"check_same_thread":False})
@@ -67,11 +74,7 @@ def get_db():
 
 get_db()
 
-# Database configuration
-DB_PATH = "malmo.db"
-UPLOAD_DIR = Path("uploads")
-SNAKEFILE = Path("workflow/Snakefile")
-UPLOAD_DIR.mkdir(parents=True,exist_ok=True)
+
 
 templates = Jinja2Templates(directory="templates") # Name of the directory
 
@@ -108,12 +111,25 @@ async def upload_sample(
     r2: UploadFile = File(..., description="Reverse read (R2) fastq.gz")
 ):
     # Validate file extension
-    pass
+    for f in (r1,r2):
+        if f.filename.endswith((".fastq.gz",".fq.gz")):
+            raise HTTPException(
+                status_code= 400,
+                detail=f"File '{f.filename}' must be in fastq.gz or fq.gz format"
+            )
+        
+    # Save the upload files
+    sample_dir = UPLOAD_DIR / sample_name
+    sample_dir.mkdir(parents=True, exist_ok=True)
 
-@app.get("/posts", include_in_schema=False)
-def home(request: Request):
-    return templates.TemplateResponse(request, "home.html", {"posts":posts, "title":"Home"})
+    r1_path = sample_dir / r1.filename
+    r2_path = sample_dir / r2.filename
 
-@app.get("/api/posts")
-def get_posts():
-    return posts
+    with open(r1_path, "wb") as r1_out:
+        shutil.copyfileobj(r1.file, r1_out)
+    with open(r2_path, "wb") as r2_out:
+        shutil.copyfileobj(r2.file, r2_out)
+
+    # Insert job record
+    
+
