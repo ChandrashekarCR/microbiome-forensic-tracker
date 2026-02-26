@@ -13,6 +13,7 @@ from workflow.scripts.helper_scripts import load_sample_sheet, get_sample_r1, ge
 def test_load_sample_sheet(tmp_path):
     # Create a fake file to test
     
+    # Arrange
     (tmp_path / "a.fastq.gz").touch()
     (tmp_path / "b.fastq.gz").touch()
     (tmp_path / "c.fastq.gz").touch()
@@ -26,9 +27,11 @@ def test_load_sample_sheet(tmp_path):
         f"S2\t{tmp_path/'c.fastq.gz'}\t{tmp_path/'d.fastq.gz'}\n"
     )
 
+    # Act
     df = load_sample_sheet(str(tsv))
 
     # Test if it is a valid sample sheet
+    # Assert
     assert isinstance(df, pd.DataFrame)
     assert list(df.index) == ["S1","S2"]
     assert list(df.columns) == ["r1","r2"]
@@ -71,3 +74,27 @@ def test_max_samples(tmp_path):
 
     assert len(df) == 2
     assert list(df.index) == ["S1", "S2"]
+
+# Use Fixtures so that we do not repeat the tsv setup across tests
+@pytest.fixture
+def sample_df(tmp_path):
+    # Arrange
+    (tmp_path / "a.fastq.gz").touch()
+    (tmp_path / "b.fastq.gz").touch()
+    tsv = tmp_path / "samples.tsv"
+
+    tsv.write_text(
+        "sample\tr1\tr2\n"
+        f"S1\t{tmp_path/'a.fastq.gz'}\t{tmp_path/'b.fastq.gz'}\n"
+    )
+
+    return load_sample_sheet(str(tsv))
+
+def test_get_sample_r1(sample_df):
+    assert get_sample_r1(sample_df, "S1").endswith("a.fastq.gz")
+
+def test_get_sample_r2(sample_df):
+    assert get_sample_r2(sample_df, 'S1').endswith("b.fastq.gz")
+
+def test_get_sample_names(sample_df):
+    assert get_sample_names(sample_df) == ["S1"]
