@@ -11,47 +11,48 @@ import glob
 import pandas as pd
 from pathlib import Path
 
-def load_sample_sheet(tsv_path: str, max_samples: int = None) -> pd.DataFrame:
-    """
-    Load the sample sheet from the config file
-    """
+REQUIRED_COLUMNS = {"sample", "r1", "r2"}
+
+# Read the sample sheets
+def read_sample_sheet(tsv_path: str) -> pd.DataFrame:
     path = Path(tsv_path)
     if not path.exists():
         raise FileNotFoundError(
             f"Sample sheet not found: {tsv_path}\n"
             f"Generate it with the generate_sample_sheet.py script."
         )
-    
-    df = pd.read_csv(path,sep="\t",dtype=str)
+    return pd.read_csv(path, sep="\t", dtype=str)
 
-    # Validation of the file
-    required_columns = {"sample","r1", "r2"}
-    missing_columns = required_columns - set(df.columns)
+# Validate the sample sheets
+def validate_sample_sheet(df: pd.DataFrame) -> pd.DataFrame:
+    missing_columns = REQUIRED_COLUMNS - set(df.columns)
     if missing_columns:
         raise ValueError(
             f"sample.tsv is missing columns: {missing_columns}\n"
             f"Required: sample, r1, r2"
         )
 
-    # Check if there exists both forward and reverse reads
+    df = df.dropna(subset=["sample", "r1", "r2"])
+    return df
+
+# Check if paths mentioned in the fastq files are correct
+def check_fastq_paths_exist(df: pd.DataFrame) -> None:
     for _, row in df.iterrows():
         sample = row["sample"]
         r1 = row["r1"]
         r2 = row["r2"]
-
         if not Path(r1).exists() or not Path(r2).exists():
             raise FileNotFoundError(f"Missing a correct file path for {sample}")
-    
-    # Drop empty rows
-    df = df.dropna(subset=['sample','r1','r2'])
 
-    # Apply max number of samples to be procesed
+# Load the sample sheet
+def load_sample_sheet(tsv_path: str, max_samples: int | None = None) -> pd.DataFrame:
+    df = read_sample_sheet(tsv_path)
+    df = validate_sample_sheet(df)
+    check_fastq_paths_exist(df)
     if max_samples:
-        df = df.iloc[:max_samples,:]
-    
-    df = df.set_index("sample",drop=True)
-    
-    return df
+        df = df.iloc[:max_samples, :]
+    return df.set_index("sample", drop=True)
+
 
 # Get only the read 1 for a sample
 def get_sample_r1(sample_df:pd.DataFrame, sample:str) -> str:
@@ -65,10 +66,10 @@ def get_sample_r2(sample_df:pd.DataFrame, sample:str) -> str:
 def get_sample_names(sample_df: pd.DataFrame) -> str:
     return list(sample_df.index)
 
-#print(load_sample_sheet(
-#    tsv_path="/home/chandru/binp51/config/samples.tsv",
-#    max_samples=10
-#))
+print(load_sample_sheet(
+    tsv_path="/home/chandru/binp51/config/samples.tsv",
+    max_samples=10
+))
 
 #df = load_sample_sheet(
 #    tsv_path="/home/chandru/binp51/config/samples.tsv",
