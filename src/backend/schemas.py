@@ -22,7 +22,7 @@ There are two pydantic schemas that will do the following -:
 """
 # Create a sample when the user uploads
 class SampleCreate(BaseModel):
-    user: str
+    username: str
     email: str
     sample_name: str
 

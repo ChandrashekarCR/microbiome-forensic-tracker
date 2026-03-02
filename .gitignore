@@ -23,5 +23,7 @@ __pycache__*
 *.log
 *.png
 
-# Ignore the database and all the malmo.db inside it
-/database
+# Ignore the databases folders and all the malmo.db inside it
+# Also ignore uploads folder
+*databases
+*uploads

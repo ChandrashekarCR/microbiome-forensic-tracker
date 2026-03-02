@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 from pathlib import Path
 from .database import engine, get_db
@@ -7,6 +7,7 @@ from . import crud
 from .schemas import UserCreate, SampleCreate, SampleResponse
 from fastapi.responses import JSONResponse
 import shutil
+import json
 
 # Create all tables in the database on startup
 Base.metadata.create_all(bind=engine)
@@ -25,37 +26,35 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"message":"Microdentify",
-            "status":"running"            
+    return {"status":"running",
+            "message":"Microdentify"            
             }
 
 # Upload a new sample
 @app.post("/samples", response_model=SampleResponse, status_code=201)
 async def upload_sample(
     background_task: BackgroundTasks,
-    username: str,
-    email: str,
-    sample_name: str,
+    username: str = Form(..., description="Enter your username"),
+    email: str = Form(..., description="Enter your email"),
+    sample_name: str = Form(..., description="Enter the sample_name"),
     r1: UploadFile = File(..., description="Forward read R1.fastq.gz"),
-    r2: UploadFile = File(..., description="Forward read R2.fastq.gz"),
-    db: Session = Depends(get_db) #Injects database session
+    r2: UploadFile = File(..., description="Reverse read R2.fastq.gz"),
+    db: Session = Depends(get_db)
 ):
     """
     Upload paired FASTQ files and trigger Snakemake pipeline
-    
-    Depends(get_db):
-    - FastAPI calls get_db() automatically
-    - Gives you a database session
-    - Closes it when request is done
     """
-    
+
+    # Validate using Pydantic
+    sample_obj = SampleCreate(username=username, email=email, sample_name=sample_name)
+
     # Check if sample already exists
-    if crud.get_sample_by_name(db, sample_name):
+    if crud.get_sample_by_name(db, sample_obj.sample_name):
         raise HTTPException(
             status_code=400,
-            detail=f"Sample '{sample_name}' already exists"
+            detail=f"Sample '{sample_obj.sample_name}' already exists"
         )
-    
+
     # Validate file extensions
     for f, name in [(r1, "R1"), (r2, "R2")]:
         if not f.filename.endswith(('.fastq.gz', '.fq.gz')):
@@ -63,34 +62,34 @@ async def upload_sample(
                 status_code=400,
                 detail=f"{name} must be .fastq.gz or .fq.gz"
             )
-    
+
     # Save uploaded files to disk
-    sample_dir = UPLOAD_DIR / sample_name
+    sample_dir = UPLOAD_DIR / sample_obj.sample_name
     sample_dir.mkdir(parents=True, exist_ok=True)
-    
-    r1_path = sample_dir / f"{sample_name}_R1.fastq.gz"
-    r2_path = sample_dir / f"{sample_name}_R2.fastq.gz"
-    
+
+    r1_path = sample_dir / f"{r1.filename}"
+    r2_path = sample_dir / f"{r2.filename}"
+
     with open(r1_path, "wb") as f:
         shutil.copyfileobj(r1.file, f)
     with open(r2_path, "wb") as f:
         shutil.copyfileobj(r2.file, f)
-    
-    # 4. Create database record
-    sample = crud.create_sample(
+
+    # Create database record
+    new_sample = crud.create_sample(
         db=db,
-        username=username,  # Changed from 'user' to 'username'
-        email=email,
-        sample_name=sample_name,
+        username=sample_obj.username,
+        email=sample_obj.email,
+        sample_name=sample_obj.sample_name,
         r1_path=str(r1_path),
         r2_path=str(r2_path)
     )
-    
-    # 5. Queue pipeline in background (doesn't block the response)
-    
-    # 6. Return immediately with "pending" status
-    return sample
 
+    # We need to run the background snakemake operation
+    
+
+    # Return immediately with "pending" status
+    return new_sample
 
 @app.get("/samples")
 def list_samples(db: Session = Depends(get_db)):
@@ -102,7 +101,7 @@ def list_samples(db: Session = Depends(get_db)):
             {
                 "id": s.id,
                 "sample_name": s.sample_name,
-                "user": s.user,
+                "user": s.username,
                 "status": s.status,
                 "submitted_at": s.submitted_at
             }
