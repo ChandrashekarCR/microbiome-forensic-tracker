@@ -1,0 +1,23 @@
+# Single Run profile for LUNARC - 1 sample
+# Usage: 
+
+# Basic cluster configuration
+executor: slurm
+restart-times: 1
+
+
+# Resource limits for single run
+cores: 50
+jobs: 15
+max-jobs-per-second: 5
+local-cores: 2
+
+# Job management
+lactency-wait: 30
+keep-going: true
+
+# Output and logging
+pringshellcmds: false
+
+# Use conda environments from main environment
+use-conda: true
