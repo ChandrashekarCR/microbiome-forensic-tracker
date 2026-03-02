@@ -21,3 +21,103 @@ pringshellcmds: false
 
 # Use conda environments from main environment
 use-conda: true
+conda-frontend: "mamba"
+
+# Efficieny Reporting
+slurm-efficiency-report: true
+slurm-efficiency-report-path: "./logs/"
+
+# Resource sepcifications for each step
+default-resources:
+  slurm_account: lu2025-2-11
+  slurm_partition: lu48
+  runtime: "1h"
+  mem_mb: 4000
+  cpus: 2
+
+set-resources:
+  # Fast I/O tasks - OPTIMIZED based on efficiency data
+  fastqc_raw:
+    slurm_partition: "lu48"
+    runtime: "30m"        
+    cpus: 2               
+    mem_mb: 2000           
+    slurm_job_name: "fastqc_raw"
+  
+  fastqc_processed:
+    slurm_partition: "lu48" 
+    runtime: "30m"        
+    cpus: 2               
+    mem_mb: 2000          
+    slurm_job_name: "fastqc_processed"
+  
+  fastp:
+    slurm_partition: "lu48"
+    runtime: "30m"        
+    cpus: 4               
+    mem_mb: 200           
+    slurm_job_name: "fastp"
+  
+  adapter_removal:
+    slurm_partition: "lu48"
+    runtime: "30m"         
+    cpus: 3                
+    mem_mb: 500           
+    slurm_job_name: "adapter_removal"
+  
+  remove_human_reads:
+    slurm_partition: "lu48"
+    runtime: "45m"        
+    cpus: 8               
+    mem_mb: 8000          
+    slurm_job_name: "remove_human_reads"
+
+  error_correction:
+    slurm_partition: "lu48"
+    runtime: "1h"        
+    cpus: 1              
+    mem_mb: 12000        
+    slurm_job_name: "error_correction"
+  
+  multiqc:
+    slurm_partition: "lu48"
+    runtime: "15m"        
+    cpus: 1               
+    mem_mb: 2000          
+    slurm_job_name: "multiqc"
+  
+  # High memory tasks - CRITICAL OPTIMIZATION
+  kraken:
+    slurm_partition: "gpua40"
+    runtime: "30m"        
+    cpus: 8               
+    mem_mb: 350000        
+    slurm_job_name: "kraken"
+  
+  bracken:
+    slurm_partition: "lu48"
+    runtime: "15m"        
+    cpus: 1               
+    mem_mb: 3000          
+    slurm_job_name: "bracken"
+  
+  standardize_bracken:
+    slurm_partition: "lu48"
+    runtime: "15m"        
+    cpus: 1               
+    mem_mb: 100           
+    slurm_job_name: "standardize_bracken"
+  
+  merge_bracken:
+    slurm_partition: "lu48"
+    runtime: "15m"        
+    cpus: 1               
+    mem_mb: 100           
+    slurm_job_name: "merge_bracken"
+
+  merge_reads:
+    slurm_partition: "lu48"
+    runtime: "30m"
+    cpus: 2
+    mem_mb: 6000
+    slurm_job_name: "merge_reads"
