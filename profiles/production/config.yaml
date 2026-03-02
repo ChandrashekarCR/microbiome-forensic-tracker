@@ -3,7 +3,7 @@
 # Based on efficiency analysis: 20.7% memory reduction, 55.9% CPU reduction
 
 # Basic cluster configuration
-executor: slurm  # Fixed typo: was "clurm"
+executor: slurm  
 restart-times: 2
 
 # High-throughput settings (OPTIMIZED)
