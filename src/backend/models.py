@@ -5,7 +5,7 @@
 from sqlalchemy import Column, Integer, Float, String, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from database import Base
+from .database import Base
 
 # Table 1: samples
 # Tracks every sample uploaded by the users
@@ -39,6 +39,12 @@ class Samples(Base):
     results = relationship("AbundanceResult", back_populates="sample")
 
     def __repr__(self):
+        """
+        Return a string representation of this object for debugging and logging.
+
+        The representation includes the object's sample_name and status attributes
+        in the form "<Sample {sample_name} | {status}>". Returns a str.
+        """
         return f"<Sample {self.sample_name} | {self.status}>"
 
 
@@ -67,10 +73,15 @@ class AbundanceResult(Base):
 
     # Relationship
     # Links back to the sample table
-    sample = relationship("Sample", back_populates="results")
+    sample = relationship("Samples", back_populates="results")
 
     def __repr__(self):
         return f"<AbundanceResult {self.taxon_name}: {self.relative_abundance}>"
 
-# Table 3: Txonomic classificaiton
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True)

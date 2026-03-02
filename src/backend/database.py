@@ -1,17 +1,18 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from pathlib import Path
 
-URL_DATABASE = ""
-
+URL_DATABASE = "sqlite:///databases/malmo.db"
+Path("databases").mkdir(exist_ok=True)
 
 # This is the actual connection to the database
-engine = create_engine(connect_args={"check_same_thread": False}) # connect args is only needed for SQLite databas
+engine = create_engine(URL_DATABASE,connect_args={"check_same_thread": False}) # connect args is only needed for SQLite database
 
 # Each request opens a session, uses the database and then closes it.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# This is like the parent clas for all the tables
+# This is like the parent class for all the tables
 Base = declarative_base()
 
 # This function is used in every API end point. It opens a database session, gives it to the endpoint and the closes it when done.

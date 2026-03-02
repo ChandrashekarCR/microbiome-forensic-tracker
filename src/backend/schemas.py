@@ -8,6 +8,19 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, List
 
+# This part is for user registration
+class UserCreate(BaseModel):
+    name: str
+    email: str
+
+
+####### SAMPLE TABLE ########
+"""
+There are two pydantic schemas that will do the following -:
+1) SamplCreate - To represent data expected when creating an item.
+2) SampleResponse - To represent data to the user after a request has been made.
+"""
+# Create a sample when the user uploads
 class SampleCreate(BaseModel):
     user: str
     email: str
@@ -18,7 +31,7 @@ class SampleCreate(BaseModel):
 class SampleResponse(BaseModel):
     id: int
     sample_name: str
-    user: str
+    username: str  # Changed from 'user' to 'username'
     email: str
     status: str
     submitted_at: datetime
@@ -29,6 +42,11 @@ class SampleResponse(BaseModel):
     class Config:
         from_attributes = True # Allow reading from SQLAlchemy model
 
+
+####### ABUNDANCE TABLE #######
+"""
+
+"""
 class AbundanceItem(BaseModel):
     taxon_name: str
     taxon_id: Optional[str] = None
@@ -43,3 +61,4 @@ class SampleResults(BaseModel):
     sample_name: str
     status: str
     abundances: List[AbundanceItem]
+
