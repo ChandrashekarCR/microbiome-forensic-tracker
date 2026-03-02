@@ -27,24 +27,20 @@ ROOT_DIR = Path.cwd()
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
 
 # Samples folder for the Malmo samples
-DATA_DIR = config['data']['raw_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-RESULTS_DIR = config['data']['results_dir'] #"/lunarc/nobackup/projects/snic2019-34-3/Students/chandru"
-#SAMPLES = get_fastq_samples(
-#            DATA_DIR, 
-#            config['samples']['pattern_r1'],
-#            config['samples']['pattern_r2'])[:config['samples']['max_samples']]
-READS = ["R1","R2"] # Forward and reverse reads
-RANKS = config['taxonomy']['ranks'] #['species','genus','family','order','class','phylum']
+DATA_DIR = config['data']['raw_dir'] 
+RESULTS_DIR = config['data']['results_dir'] 
+READS = ["R1","R2"] 
+RANKS = config['taxonomy']['ranks'] 
 
 # Database paths
 # Host Genome (Human - hG38)
-HOST_GENOME = config['databases']['human_genome'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+HOST_GENOME = config['databases']['human_genome'] 
 # Common Adapters
 COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
 # Kraken2 and Bracken Database (core-nt - 307G)
-KRAKEN2_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
-BRACKEN_DB = config['databases']['kraken2_db'] #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
-READ_LEN = config['samples']['read_length'] # 150
+KRAKEN2_DB = config['databases']['kraken2_db'] 
+BRACKEN_DB = config['databases']['kraken2_db'] 
+READ_LEN = config['samples']['read_length'] 
 
 # Sample sheet
 SAMPLE_DF = load_sample_sheet(

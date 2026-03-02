@@ -1,9 +1,10 @@
+# Import libraries
 import os
 import shutil
 import pandas as pd
 
 
-def standardize_bracken(input_file, output_dir=None, min_abd = 0.001):
+def standardize_bracken(input_file: str, output_dir=None, min_abd: float = 0.001):
     df = pd.read_csv(input_file,sep='\t')
     abs_path = input_file.split('/') # This works only if the file format follows the pipeline conventions
     sample = abs_path[-2] 

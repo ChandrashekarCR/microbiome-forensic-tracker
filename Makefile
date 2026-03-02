@@ -70,6 +70,10 @@ lint: # Linting python scripts
 	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
 	@echo "[lint] ok"	
 
+test: # Run pytests for script
+	@pytest
+	@echo "[test] ok"
+
 conda_env: environment.yml
 	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
 		echo "Environment already exisits. Syncing packages.."; \
