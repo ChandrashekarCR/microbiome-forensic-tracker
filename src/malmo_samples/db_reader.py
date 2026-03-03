@@ -55,8 +55,10 @@ class DatabaseCreate:
         df['latitude'] = df['latitude'].astype(float)
         df['longitude'] = df['longitude'].astype(float)
         df['precision'] = df['precision'].astype(float)
+        df['date'] = pd.to_datetime(df['datetime']).dt.date
+        df['time'] = pd.to_datetime(df['datetime']).dt.time
 
-        cols = ['barcode','sample_id','name','latitude','longitude','altitude','precision']
+        cols = ['barcode','sample_id','name','latitude','longitude','altitude','precision','date','time']
     
         return df[cols]
 
@@ -110,5 +112,5 @@ class DatabaseCreate:
 
 
 
-#samples = DatabaseCreate(db="./databases/malmo.db")
-#print(samples.get_samples())
+samples = DatabaseCreate(db="./databases/malmo.db")
+print(samples.get_samples())

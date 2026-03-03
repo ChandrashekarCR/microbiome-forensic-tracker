@@ -1,0 +1,64 @@
+<div style="
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 12px;
+    width: 240px;
+    border-radius: 8px;
+    overflow: hidden;
+">
+    <!-- Header -->
+    <div style="
+        background: {{ color }};
+        color: white;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: bold;
+    ">
+        {{ sample_id }}
+    </div>
+
+    <!-- Body -->
+    <div style="padding: 10px 12px; background: #f8f9fa;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666; width:45%;">Barcode</td>
+                <td style="padding:4px; font-weight:bold;">{{ barcode }}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Collector</td>
+                <td style="padding:4px;">{{ name }}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Latitude</td>
+                <td style="padding:4px;">{{ "%.5f"|format(latitude) }}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Longitude</td>
+                <td style="padding:4px;">{{ "%.5f"|format(longitude) }}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Precision</td>
+                <td style="padding:4px;">{{ precision }} m</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Date</td>
+                <td style="padding:4px;">{{ date }}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; color:#666;">Time</td>
+                <td style="padding:4px;">{{ time }}</td>
+            </tr>
+            <tr>
+                <td style="padding:4px; color:#666;">Zone</td>
+                <td style="padding:4px;">
+                    <span style="
+                        background:{{ color }};
+                        color:white;
+                        padding:2px 6px;
+                        border-radius:10px;
+                        font-size:10px;
+                    ">{{ zone }}</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
