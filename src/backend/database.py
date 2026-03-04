@@ -1,35 +1,26 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 from pathlib import Path
 
-DB_PATH = "/home/chandru/binp51/database/malmo.db"
+URL_DATABASE = "sqlite:///databases/malmo.db"
+Path("databases").mkdir(exist_ok=True)
 
-# Get database connection
+# This is the actual connection to the database
+engine = create_engine(URL_DATABASE,connect_args={"check_same_thread": False}) # connect args is only needed for SQLite database
+
+# Each request opens a session, uses the database and then closes it.
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# This is like the parent class for all the tables
+Base = declarative_base()
+
+# This function is used in every API end point. It opens a database session, gives it to the endpoint and the closes it when done.
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    db = SessionLocal() # Opens the malmo_db database
 
-# Insert samples from the user input into the table
-def insert_sample(
-        user: str,
-        email: str,
-        sample_name: str,
-        r1_path: str,
-        r2_path: str
-):
-    # Insert a new sample into database
-    conn = get_db()
-    cursor = conn.execute(
-        """
-        INSERT INTO SAMPLES (user, email, sample_name, r1_path, r2_path)
-        VALUES (?, ?, ?, ?, ?)
-        """, (user, email, sample_name, r1_path, r2_path)
-    )
-    conn.commit()
-    sample_id =  cursor.lastrowid
-    conn.close()
-    return sample_id
+    try:
+        yield db # Give it whichever API endpoint needs it
+    finally:
+        db.close() # Then close the database at the end afeter utilizing it.
 
-# Update the sample status
-def update_sample_status(sample_id: int, status:str, **kwargs):
-    pass

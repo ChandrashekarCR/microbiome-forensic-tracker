@@ -1,119 +1,110 @@
-from fastapi import FastAPI, Request, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel
-import sqlite3
-import os
-import subprocess
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 from pathlib import Path
+from .database import engine, get_db
+from .models import Base
+from . import crud
+from .schemas import UserCreate, SampleCreate, SampleResponse
+from fastapi.responses import JSONResponse
+import shutil
+import json
 
+# Create all tables in the database on startup
+Base.metadata.create_all(bind=engine)
 
 # FastAPI app
-app = FastAPI()
+app = FastAPI(
+    title="Microdentify API",
+    description="Metagenomic sample processing, location prediction and profile estimation",
+    version="1.0.0"
+)
 
-# Database setup
-engine = create_engine("sqilte:///malmo_test.db", connect_args={"check_same_thread":False})
-SessionLocal = sessionmaker(autcommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-# Database Model
-class Samples(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True) # Unique id
-    user = Column(String(100), nullable=False)
-    email = Column(String(100),nullable=False, unique=True)
-    sample_name = Column(String(100),nullable=False)
-    status = Column(String(100),default="Pending") # This should get update as th process is running
-    r1_path = Column(String(100), nullable=False) # User will just upload the file
-    r2_path = Column(String(100), nullable=False)
-    date = Column(DateTime,nullable=False)
-
-Base.metadata.create_all(engine)
-
-# Pydantic Models (Dataclass)
-class SampleCreate(BaseModel):
-    user: str
-    email: str
-    sample_name: str
-    status: str
-    r1_path: str
-    r2_path: str
-    date: DateTime
-
-class SampleResponse(BaseModel):
-    id: int
-    user: str
-    email: str
-    sample_name: str
-    status: str
-    r1_path: str
-    r2_path: str
-    date: DateTime
-
-    class Config:
-        from_attributes = True
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-get_db()
-
-# Database configuration
-DB_PATH = "malmo.db"
+# Create a directory to store the uploaded files
 UPLOAD_DIR = Path("uploads")
-SNAKEFILE = Path("workflow/Snakefile")
-UPLOAD_DIR.mkdir(parents=True,exist_ok=True)
+UPLOAD_DIR.mkdir(exist_ok=True)
 
-templates = Jinja2Templates(directory="templates") # Name of the directory
-
-posts: list[dict] = [
-    {
-        "id":1,
-        "user":"chandru",
-        "sample": "zr0392_1",
-        "r1": "forward_read_path",
-        "r2": "reverse_read_path",
-        "date": "Feb 24, 2026"
-    },
-    {
-        "id":2,
-        "user":"eran",
-        "sample": "zr0392_2",
-        "r1": "forward_read_path",
-        "r2": "reverse_read_path",
-        "date": "Feb 23, 2026"
-    }
-]
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"message":"Microdentify"}
+    return {"status":"running",
+            "message":"Microdentify"            
+            }
 
-# 1) POST/samples - Upload R1 and R2, create a DB record, trigger snakemake
-@app.post("/samples")
+# Upload a new sample
+@app.post("/samples", response_model=SampleResponse, status_code=201)
 async def upload_sample(
-    background_tasks: BackgroundTasks,
-    sample_name: str,
-    user: str,
-    r1: UploadFile = File(..., description="Forward read (R1) fastq.gz"),
-    r2: UploadFile = File(..., description="Reverse read (R2) fastq.gz")
+    background_task: BackgroundTasks,
+    username: str = Form(..., description="Enter your username"),
+    email: str = Form(..., description="Enter your email"),
+    sample_name: str = Form(..., description="Enter the sample_name"),
+    r1: UploadFile = File(..., description="Forward read R1.fastq.gz"),
+    r2: UploadFile = File(..., description="Reverse read R2.fastq.gz"),
+    db: Session = Depends(get_db)
 ):
-    # Validate file extension
-    pass
+    """
+    Upload paired FASTQ files and trigger Snakemake pipeline
+    """
 
-@app.get("/posts", include_in_schema=False)
-def home(request: Request):
-    return templates.TemplateResponse(request, "home.html", {"posts":posts, "title":"Home"})
+    # Validate using Pydantic
+    sample_obj = SampleCreate(username=username, email=email, sample_name=sample_name)
 
-@app.get("/api/posts")
-def get_posts():
-    return posts
+    # Check if sample already exists
+    if crud.get_sample_by_name(db, sample_obj.sample_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sample '{sample_obj.sample_name}' already exists"
+        )
+
+    # Validate file extensions
+    for f, name in [(r1, "R1"), (r2, "R2")]:
+        if not f.filename.endswith(('.fastq.gz', '.fq.gz')):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{name} must be .fastq.gz or .fq.gz"
+            )
+
+    # Save uploaded files to disk
+    sample_dir = UPLOAD_DIR / sample_obj.sample_name
+    sample_dir.mkdir(parents=True, exist_ok=True)
+
+    r1_path = sample_dir / f"{r1.filename}"
+    r2_path = sample_dir / f"{r2.filename}"
+
+    with open(r1_path, "wb") as f:
+        shutil.copyfileobj(r1.file, f)
+    with open(r2_path, "wb") as f:
+        shutil.copyfileobj(r2.file, f)
+
+    # Create database record
+    new_sample = crud.create_sample(
+        db=db,
+        username=sample_obj.username,
+        email=sample_obj.email,
+        sample_name=sample_obj.sample_name,
+        r1_path=str(r1_path),
+        r2_path=str(r2_path)
+    )
+
+    # We need to run the background snakemake operation
+    
+
+    # Return immediately with "pending" status
+    return new_sample
+
+@app.get("/samples")
+def list_samples(db: Session = Depends(get_db)):
+    """List all submitted samples"""
+    samples = crud.get_all_samples(db)
+    return {
+        "total": len(samples),
+        "samples": [
+            {
+                "id": s.id,
+                "sample_name": s.sample_name,
+                "user": s.username,
+                "status": s.status,
+                "submitted_at": s.submitted_at
+            }
+            for s in samples
+        ]
+    }
