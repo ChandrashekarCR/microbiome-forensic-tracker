@@ -150,13 +150,15 @@ rule all:
             rank = RANKS
         ),
 
+        # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
         expand(
-            os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}_aligned.fastq.gz"),
+            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
             sample = SAMPLES
-        )
+        ),
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
-include: "rules/bert.smk"
+#include: "rules/bert.smk"
+include: "rules/assembly.smk"

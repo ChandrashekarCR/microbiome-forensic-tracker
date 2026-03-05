@@ -5,15 +5,15 @@ version: "1.0"
 
 # Data Directories
 data:
-  raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
-  results_dir : "/home/chandru/lu2025-12-38/Students/chandru" #"/home/chandru/lu2025-12-38/Students/chandru"
+  raw_dir:  "/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples" #/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files"
+  results_dir : "/home/chandru/binp51/results" #/home/chandru/lu2025-12-38/Students/chandru"
 
 # Sample Configuration
 samples:
-  sample_sheet: "config/samples.tsv" # Sample sheet
+  sample_sheet: "config/samples_test.tsv" # Sample sheet
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 330 # Running all samples
+  max_samples: 3 # Running 4 samples
   read_length: 150
 
 # Tool paths (Container images)
@@ -30,7 +30,7 @@ tools:
   spades: "bin/spades.sif"
   kraken2: "bin/kraken2.sif"
   bracken: "bin/bracken.sif"
-  pandaseq: "bin/pandaseq.sif"
+  megahit: "bin/megahit.sif"
 
 # Reference Database
 databases:
@@ -68,6 +68,32 @@ parameters:
   kraken:
 
   bracken:
+
+  # Assembly
+  megahit:
+    # min_contig_len: output anything >=500 bp from MEGAHIT itself.
+    # The filter_contigs rule will then apply the DNA-BERT-S window of 1000–10000 bp.
+    # Keeping 500 here avoids re-running MEGAHIT if the filter threshold changes later.
+    min_contig_len: 500
+
+    # preset: selects the k-mer schedule automatically — do NOT also set k_list.
+    # v1.2.9 presets available:
+    #   meta-sensitive : --min-count 1 --k-list 21,29,39,49,...,129,141
+    #     Fine k-mer steps (step≈10) up to k=141. Best for gut/oral metagenomics
+    #     where sensitivity matters more than speed. Each extra k size adds ~10-20
+    #     min per sample but produces longer, more contiguous contigs for DNA-BERT-S.
+    #   meta-large     : --k-min 27 --k-max 127 --k-step 10
+    #     Coarser steps; designed for soil/environmental with very complex communities.
+    #     Faster than meta-sensitive. Less suitable for Malmo gut/oral samples.
+    preset: "meta-sensitive"
+
+    # min_count: minimum k-mer multiplicity to keep during SdBG construction.
+    # The meta-sensitive preset sets this to 1 (keep all k-mers, including singletons).
+    # After tadpole error correction (step 05) most sequencing errors are already fixed,
+    # so k-mers appearing only once are likely real (rare organisms) not errors.
+    # Override to 2 here if you see many chimeric/fragmented contigs in QUAST output.
+    min_count: 1
+
 
 # Taxonomic Ranks
 taxonomy:
@@ -113,10 +139,22 @@ resources:
     mem_mb: 2000         
     runtime_min: 15      
 
-  pandaseq:
-    mem_mb: 6000
-    runtime_min: 60
-    threads: 4
+  megahit:
+    # threads: lu48 nodes have 32 physical cores. Using all of them maximises
+    # throughput per sample. Each sample is a separate SLURM job on its own node,
+    # so there is no contention between samples.
+    threads: 32
+
+    # mem_mb: lu48 nodes have 256 GB. We request 200 GB leaving ~56 GB for the OS,
+    # SLURM overhead, and the apptainer/glibc layers.
+    # In assembly.smk, MEGAHIT is given 90% of this (180 GB) via --memory in bytes.
+    mem_mb: 200000
+
+    # runtime_min: 24 h (1440 min). Complex metagenomes with 150 bp reads and
+    # meta-sensitive (13 k-mer iterations) can take 6-18 h per sample.
+    # The profile can override this with a shorter wall time once you have benchmarks.
+    runtime_min: 1440
+
 
 # Pipeline Control
 pipeline:
@@ -131,4 +169,3 @@ pipeline:
     kraken2: true
     bracken: true
     standardize_bracken: true
-    merge_reports: true
