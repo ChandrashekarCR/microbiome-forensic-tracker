@@ -1,0 +1,27 @@
+# queries.yaml
+# Targeted search terms for Skane/Sweden/Scandinavia microbiome data
+
+queries:
+  # Geographic + microbiome combos
+  - "soil microbiome Skane Sweden eDNA"
+  - "soil bacteria Sweden Scandinavia forest"
+  - "soil microbiome urban rural Malmo Gothenburg Stockholm"
+  - "environmental DNA Sweden habitat microorganism distribution"
+  - "16S rRNA microbiome Sweden soil grassland forest"
+  
+  # Forensic ecology
+  - "forensic soil eDNA provenance Scandinavia"
+  - "forensic microbiome soil bacteria crime scene"
+  - "soil microbiome geolocation forensic"
+  
+  # Specific environments in Skåne
+  - "wetland microbiome Sweden bacteria Scania"
+  - "agricultural soil bacteria Skane Sweden"
+  - "sewage microbiome Sweden wastewater bacteria"
+  - "garden soil bacteria urban Sweden microbiome"
+  - "coastal marine sediment microbiome Sweden"
+  - "forest soil fungi bacteria Sweden Scandinavia"
+  
+  # Trees / plant-associated
+  - "rhizosphere bacteria beech oak Sweden Scandinavia"
+  - "tree associated microbiome Fagus Quercus Sweden"

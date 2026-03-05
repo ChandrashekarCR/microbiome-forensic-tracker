@@ -33,3 +33,4 @@ __pycache__*
 
 # Ignore all the XML files being generated for RAG
 *.xml
+*.json
