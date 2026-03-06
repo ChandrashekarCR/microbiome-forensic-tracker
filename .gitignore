@@ -34,3 +34,4 @@ __pycache__*
 # Ignore all the XML files being generated for RAG
 *.xml
 *.json
+/src/rag/02_chunking/chunks/*.md
