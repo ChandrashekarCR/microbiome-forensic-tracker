@@ -17,7 +17,6 @@ OLLAMA_HOST  = "http://127.0.0.1:11434"   # ollama serve address
 OLLAMA_MODEL = "mistral"                   # must match: ollama list
 
 
-
 # Project directory
 os.chdir("/home/chandru/binp51/src/rag")
 

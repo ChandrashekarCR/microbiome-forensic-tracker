@@ -35,17 +35,18 @@ def _jats_xml_to_markdown(xml_path: Path) -> str:
         root = tree.getroot()
 
         # pmc-articleset wraps <article>; fall back to root if not found
-        article = root.find('.//article') or root
+        article_el = root.find('.//article')
+        article = article_el if article_el is not None else root
         sections: list[str] = []
 
-        # ── Title ────────────────────────────────────────────────────────────
+        # Title 
         title_el = article.find('.//article-title')
         if title_el is not None:
             t = ''.join(title_el.itertext()).strip()
             if t:
                 sections.append(f"# {t}")
 
-        # ── Abstract ─────────────────────────────────────────────────────────
+        # Abstract
         for abstract_el in article.findall('.//abstract'):
             sections.append("## Abstract")
             for elem in abstract_el.iter():
@@ -58,7 +59,7 @@ def _jats_xml_to_markdown(xml_path: Path) -> str:
                     if text:
                         sections.append(text)
 
-        # ── Body ─────────────────────────────────────────────────────────────
+        # Body 
         body_el = article.find('.//body')
         if body_el is not None:
             def _sec_to_md(sec_el: ET.Element, depth: int = 2) -> list[str]:
@@ -109,7 +110,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
         suffix = source.suffix.lower()
 
         if suffix == '.xml':
-            # PMC JATS XML → extract text → temp Markdown for Docling
+            # PMC JATS XML -> extract text -> temp Markdown for Docling
             md_text = _jats_xml_to_markdown(source)
             if not md_text.strip():
                 raise ValueError(f"No text could be extracted from {source.name}")
@@ -118,7 +119,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
             convert_source = temp_file
 
         elif suffix == '.txt':
-            # Plain text → temp Markdown (.txt is not supported by Docling)
+            # Plain text -> temp Markdown (.txt is not supported by Docling)
             temp_file = CHUNKS_DIR / f"_{pmid}_txt_temp.md"
             temp_file.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
             convert_source = temp_file
@@ -126,7 +127,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
         else:
             convert_source = source
 
-        print(f"  Converting: {convert_source.name}")
+        print(f"Converting: {convert_source.name}")
         result = converter.convert(str(convert_source))
         doc = result.document
 

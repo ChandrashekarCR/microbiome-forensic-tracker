@@ -35,3 +35,4 @@ __pycache__*
 *.xml
 *.json
 /src/rag/02_chunking/chunks/*.md
+/src/rag/04_vectorstore/chroma_db
