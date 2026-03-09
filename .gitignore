@@ -22,8 +22,20 @@ __pycache__*
 *.err
 *.log
 *.png
+*.txt
 
 # Ignore the databases folders and all the malmo.db inside it
 # Also ignore uploads folder
 *databases
 *uploads
+
+# Ignore API key files
+.env
+
+# Ignore all the XML files being generated for RAG
+*.xml
+*.json
+/src/rag/02_chunking/chunks/*.md
+/src/rag/04_vectorstore/chroma_db
+.src/rag/05_forensic_pipeline/reports/*
+/src/rag_ai
