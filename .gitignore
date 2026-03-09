@@ -27,8 +27,3 @@ __pycache__*
 # Also ignore uploads folder
 *databases
 *uploads
-
-
-# Ignore RAG files for now
-/src/rag/
-/src/rag_ai/

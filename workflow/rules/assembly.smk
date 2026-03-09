@@ -1,8 +1,8 @@
 """
 Assembly rules optimized for gut/oral metagenomics (Malmo cohort):
     - megahit_assembly: de novo assembly with meta-sensitive preset
-        Produces contigs for DNA-BERT-S embedding -> geolocation prediction features.
-    - filter_contigs: Keep 1000 - 10,000 bp contigs for DNA-BERT-S.
+        Produces contigs for DNA-BERT-S embedding → geolocation prediction features.
+    - filter_contigs: Keep 1000–10 000 bp contigs for DNA-BERT-S.
         Per the DNA-BERT-S paper, F1 improves significantly from 1024 bp to 8192 bp;
         contigs outside this window are discarded.
     - quast_assembly_qc: assembly quality assessment
@@ -26,7 +26,7 @@ rule megahit_assembly:
         megahit        = TOOLS['megahit'],
         output_dir     = os.path.join(RESULTS_DIR, "06_assembly", "{sample}"),
         min_contig_len = config['parameters']['megahit']['min_contig_len'],
-        k_list = config['parameters']['megahit']['k_list'],
+        preset         = config['parameters']['megahit']['preset'],
         min_count      = config['parameters']['megahit']['min_count'],
         # MEGAHIT --memory accepts a fraction (0–1 = % of machine RAM) OR
         # absolute bytes (>1). We pass 90% of the SLURM allocation as bytes
@@ -39,7 +39,8 @@ rule megahit_assembly:
         rm -rf {params.output_dir}
 
         echo "Starting MEGAHIT assembly for {wildcards.sample}" > {log.megahit_log}
-        echo "K-list: {params.k_list}" >> {log.megahit_log}
+        echo "Preset   : {params.preset}" >> {log.megahit_log}
+        echo "  -> sets k-list automatically; do NOT also pass --k-list" >> {log.megahit_log}
         echo "Min-count: {params.min_count}" >> {log.megahit_log}
         echo "Memory   : {params.memory_bytes} bytes | Threads: {threads}" >> {log.megahit_log}
 
@@ -60,7 +61,7 @@ rule megahit_assembly:
             -2 {input.r2} \
             --out-dir         {params.output_dir} \
             --tmp-dir         "$TMP_DIR" \
-            --k-list {params.k_list}
+            --presets         {params.preset} \
             --min-count       {params.min_count} \
             --min-contig-len  {params.min_contig_len} \
             --num-cpu-threads {threads} \
@@ -79,6 +80,8 @@ rule megahit_assembly:
         fi
 
         # Post-assembly statistics
+        # Contig file is typically 10–500 MB (much smaller than inputs), so
+        # reading it twice for stats is fast.
         num_contigs=$(grep -c "^>" {output.contigs})
         total_bp=$(awk '/^>/{{next}} {{sum += length($0)}} END {{print sum+0}}' {output.contigs})
 

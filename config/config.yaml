@@ -76,7 +76,7 @@ parameters:
     # Keeping 500 here avoids re-running MEGAHIT if the filter threshold changes later.
     min_contig_len: 500
 
-    # preset: selects the k-mer schedule automatically.
+    # preset: selects the k-mer schedule automatically — do NOT also set k_list.
     # v1.2.9 presets available:
     #   meta-sensitive : --min-count 1 --k-list 21,29,39,49,...,129,141
     #     Fine k-mer steps (step≈10) up to k=141. Best for gut/oral metagenomics
@@ -84,17 +84,15 @@ parameters:
     #     min per sample but produces longer, more contiguous contigs for DNA-BERT-S.
     #   meta-large     : --k-min 27 --k-max 127 --k-step 10
     #     Coarser steps; designed for soil/environmental with very complex communities.
-    #     Faster than meta-sensitive.
-    #preset: "meta-sensitive"
+    #     Faster than meta-sensitive. Less suitable for Malmo gut/oral samples.
+    preset: "meta-sensitive"
 
-    # Custom k-list to capture only
-    k_list: "21,31,41,51,61,71,81,91,101,121,141"
-
-    # min_count=2: Discard k-mers seen only once (likely sequencing errors).
-    # Soil has extreme diversity + residual errors even after tadpole.
-    # This reduces memory, speeds assembly, and filters chimeric contigs
-    # without losing organisms that would assemble to 1000+ bp anyway.
-    min_count: 2
+    # min_count: minimum k-mer multiplicity to keep during SdBG construction.
+    # The meta-sensitive preset sets this to 1 (keep all k-mers, including singletons).
+    # After tadpole error correction (step 05) most sequencing errors are already fixed,
+    # so k-mers appearing only once are likely real (rare organisms) not errors.
+    # Override to 2 here if you see many chimeric/fragmented contigs in QUAST output.
+    min_count: 1
 
 
 # Taxonomic Ranks
