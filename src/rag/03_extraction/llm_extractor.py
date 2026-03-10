@@ -204,16 +204,10 @@ def run_extraction():
 
     # Summary statistics
     total        = len(all_facts)
-    with_location = sum(1 for f in all_facts
-                        if f.get("location", "not specified") != "not specified")
-    sweden_facts  = sum(1 for f in all_facts
-                        if any(kw in f.get("location", "").lower()
-                               for kw in ("sweden", "skåne", "scania", "malmö", "scandinavia")))
+
 
     print(f"\n{'='*50}")
     print(f"Extracted     : {total} ecological facts")
-    print(f"With location : {with_location}")
-    print(f"Sweden/Skåne  : {sweden_facts}")
     print(f"Saved to      : {facts_path}")
     print(f"{'='*50}")
 

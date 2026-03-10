@@ -3,8 +3,13 @@
 # Import libraries
 import io
 import json
+import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+# Suppress the benign "sequence length > 512" tokenizer warning.
+# HybridChunker uses the tokenizer only as a token counter, not for inference.
+logging.getLogger("transformers.tokenization_utils_base").setLevel(logging.ERROR)
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.chunking import HybridChunker

@@ -1,6 +1,7 @@
 # This script is used to get releavant research papers from PubMed
 
 # Import libraries
+import http.client
 import os
 import time
 import json
@@ -104,17 +105,24 @@ def download_full_text_pmc(pmid:str) -> str | None:
             return None
         pmcid = pmcids[0]["Id"]
         
-        # Fetch full XML text from PMC
-        handle = Entrez.efetch(db="pmc", id=pmcid, rettype="xml", retmode="xml")
-        full_text = handle.read()
-        handle.close()
-        
-        # Save raw XML
+        # Fetch full XML text from PMC — retry on transient network drops
         xml_path = OUTPUT_DIR / f"PMC{pmcid}.xml"
-        with open(xml_path, "wb") as f:
-            f.write(full_text)
-        
-        return str(xml_path)
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                handle = Entrez.efetch(db="pmc", id=pmcid, rettype="xml", retmode="xml")
+                full_text = handle.read()
+                handle.close()
+                with open(xml_path, "wb") as f:
+                    f.write(full_text)
+                return str(xml_path)
+            except (http.client.IncompleteRead, ConnectionResetError, OSError) as e:
+                print(f"  [WARN] PMC{pmcid} read error (attempt {attempt}/{max_attempts}): {e}")
+                if attempt < max_attempts:
+                    time.sleep(2 ** attempt)  # 2s, 4s backoff
+                else:
+                    print(f"  [SKIP] PMC{pmcid} could not be downloaded after {max_attempts} attempts")
+                    return None
     except (IndexError, KeyError):
         return None  # Not in PMC (not open access)
 
