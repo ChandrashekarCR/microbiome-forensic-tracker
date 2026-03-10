@@ -28,7 +28,11 @@ class DNABERTSContigEmbedder:
         self.tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-S", trust_remote_code=True)
 
         # Load the model and move to device
-        self.model = AutoModel.from_pretrained("zhihan1996/DNABERT-S", trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(
+            "zhihan1996/DNABERT-S",
+            trust_remote_code=True,
+            low_cpu_mem_usage=False
+        )
         self.model.to(self.device)
 
         # Set to evaluation mode
@@ -60,9 +64,7 @@ class DNABERTSContigEmbedder:
         # Move tensor inputs to the model device (only move tensors)
         inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
                   for k, v in inputs.items()}
-        
-        print(inputs)
-        
+               
 
         # Generate embeddings
         with torch.no_grad():
@@ -70,15 +72,51 @@ class DNABERTSContigEmbedder:
 
 
             # Output last hidden state shape [1. num_tokens, 768]
-            hidden_states = outputs.last_hidden_state
+            hidden_states = outputs[0]
 
             if return_token_embeddings:
-                return hidden_states[0].cpu().numpy()
+                return hidden_states.cpu().numpy()
             
             # Mean pooling across all tokens
             embedding = hidden_states.mean(dim=1).squeeze().cpu().numpy()
 
         return embedding
+    
+    def embed_contigs(self, fasta_file, output_file=None, batch_size=12):
+        """
+        Generate embeddings for all contigs in a FASTA file
+        """
+
+        print(f"Processing contigs from: {fasta_file}")
+
+        # Load contifs
+        contigs = []
+        contig_ids = []
+        contig_lengths = []
+
+        for record in SeqIO.parse(fasta_file,"fasta"):
+            seq = str(record.seq).upper()
+            contigs.append(seq)
+            contig_ids.append(record.id)
+            contig_lengths.append(len(seq))
+        
+        print(f"Loaded {len(contigs)} contigs")
+        print(f"Length range: {min(contig_lengths)}-{max(contig_lengths)} contigs")
+
+
+        # Generate all embeddings
+        all_embeddings = []
+
+        for i in tqdm(range(0, len(contigs), batch_size),desc="Embeddings contigs"):
+            batch_seqs = contigs[i:i+batch_size]
+
+            # Tokenize batch
+            inputs = self.tokenizer(batch_seqs,return_tensors='pt',
+                truncation=True,
+                max_length=512,
+                padding=True,  # Pad to same length in batch
+                return_attention_mask=True
+            )
 
 
 
@@ -88,8 +126,10 @@ if __name__ == "__main__":
     # Initialize embedder
     embedder = DNABERTSContigEmbedder(device="cuda")
 
-    test_seq = "ATCGATCGATCGATCGATCG" * 50  # 1000bp test sequence
-    embedding = embedder.embed_sequence(test_seq)
-    print(f"Sequence length: {len(test_seq)} bp")
-    print(f"Embedding shape: {embedding.shape}")
-    print(f"Embedding (first 10 dims): {embedding[:10]}")
+    #test_seq = "ATCGATCGATCGATCGATCG" * 50  # 1000bp test sequence
+    #embedding = embedder.embed_sequence(test_seq)
+    #print(f"Sequence length: {len(test_seq)} bp")
+    #print(f"Embedding shape: {embedding.shape}")
+    #print(f"Embedding (first 10 dims): {embedding[:10]}")
+
+    embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
