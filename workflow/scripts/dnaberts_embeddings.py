@@ -82,7 +82,7 @@ class DNABERTSContigEmbedder:
 
         return embedding
     
-    def embed_contigs(self, fasta_file, output_file=None, batch_size=12):
+    def embed_contigs(self, fasta_file, output_file=None, batch_size=64, return_token_embeddings=False):
         """
         Generate embeddings for all contigs in a FASTA file
         """
@@ -118,6 +118,28 @@ class DNABERTSContigEmbedder:
                 return_attention_mask=True
             )
 
+            # Move tensor inputs to the model device (only move tensors)
+            inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
+                  for k, v in inputs.items()}
+
+            # Generate embeddings
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+
+
+                # Output last hidden state shape [1. num_tokens, 768]
+                hidden_states = outputs[0]
+
+                if return_token_embeddings:
+                    return hidden_states.cpu().numpy()
+
+                # Mean pooling across all tokens
+                embedding = hidden_states.mean(dim=1).squeeze().cpu().numpy()
+
+                all_embeddings.append(embedding)        
+        
+        
+        return all_embeddings
 
 
 
@@ -132,4 +154,5 @@ if __name__ == "__main__":
     #print(f"Embedding shape: {embedding.shape}")
     #print(f"Embedding (first 10 dims): {embedding[:10]}")
 
-    embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
+    embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
+    print(f"{embedding}")
