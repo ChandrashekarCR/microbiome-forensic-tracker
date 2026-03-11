@@ -5,17 +5,20 @@ import pandas as pd
 from Bio import SeqIO
 from transformers import pipeline
 from transformers import AutoTokenizer, AutoModel
+from transformers import pipeline
 from pathlib import Path
 import json
 from tqdm import tqdm
 
+# DNABERT-S model name
+MODEL_NAME = "zhihan1996/DNABERT-S"
 
 class DNABERTSContigEmbedder:
     """
     Generate DNABERT=S embedding for metagenomic assembled contigs.
     """
 
-    def __init__(self,model_name="zhihan1996/DNABERT-S", device="cuda"):
+    def __init__(self,model_name=MODEL_NAME, device="cuda"):
         # Resolve device: use cuda only if available
         if device == "cuda":
             dev_str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -25,15 +28,10 @@ class DNABERTSContigEmbedder:
         print(f"Loading DNABERT-S on {self.device}...")
 
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-S", trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
         # Load the model and move to device
-        self.model = AutoModel.from_pretrained(
-            "zhihan1996/DNABERT-S",
-            trust_remote_code=True,
-            low_cpu_mem_usage=False
-        )
-        self.model.to(self.device)
+        self.model = AutoModel.from_pretrained(MODEL_NAME, trust_remote_code=True, low_cpu_mem_usage=False).to(self.device)
 
         # Set to evaluation mode
         self.model.eval()
@@ -52,14 +50,7 @@ class DNABERTSContigEmbedder:
 
         # Tokenize
         # DNABERT-S max length is 512 tokens
-        inputs = self.tokenizer(
-            sequence,
-            return_tensors='pt',
-            truncation = True,   # Truncate if  > 512 tokens
-            max_length = 512,
-            padding = False,
-            return_attention_mask = True
-        )
+        inputs = self.tokenizer(sequence, return_tensors='pt', truncation = True, max_length = 512, padding = False, return_attention_mask = True)
 
         # Move tensor inputs to the model device (only move tensors)
         inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
@@ -114,7 +105,7 @@ class DNABERTSContigEmbedder:
             inputs = self.tokenizer(batch_seqs,return_tensors='pt',
                 truncation=True,
                 max_length=512,
-                padding=True,  # Pad to same length in batch
+                padding="longest",  # Pad to longest in the batch
                 return_attention_mask=True
             )
 
