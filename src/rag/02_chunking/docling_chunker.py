@@ -26,7 +26,7 @@ CHUNKS_DIR.mkdir(exist_ok=True, parents=True)
 
 # Use the same tokenizer as your embedding model (TOEKNIZER == EMBEDDING MODEL)
 TOKENIZER_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-MAX_TOKENS = 256  # Optimal for RAG: not too large, not too small
+MAX_TOKENS = 256  
 
 
 def _jats_xml_to_markdown(xml_path: Path) -> str:
