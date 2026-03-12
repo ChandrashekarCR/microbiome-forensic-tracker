@@ -24,6 +24,7 @@ class DNABERTSContigEmbedder:
             dev_str = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             dev_str = device
+            
         self.device = torch.device(dev_str)
         print(f"Loading DNABERT-S on {self.device}...")
 
