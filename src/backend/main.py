@@ -63,12 +63,9 @@ async def upload_sample(
                 detail=f"{name} must be .fastq.gz or .fq.gz"
             )
 
-    # Save uploaded filesmissing to disk
-    sample_dir = UPLOAD_DIR / sample_obj.sample_name
-    sample_dir.mkdir(parents=True, exist_ok=True)
-
-    r1_path = sample_dir / f"{r1.filename}"
-    r2_path = sample_dir / f"{r2.filename}"
+    # Save uploaded files to disk
+    r1_path = UPLOAD_DIR / f"{sample_name}_R1.fastq.gz"
+    r2_path = UPLOAD_DIR / f"{sample_name}_R2.fastq.gz"
 
     with open(r1_path, "wb") as f:
         shutil.copyfileobj(r1.file, f)
