@@ -39,3 +39,6 @@ __pycache__*
 /src/rag/04_vectorstore/chroma_db
 .src/rag/05_forensic_pipeline/reports/*
 /src/rag_ai
+
+# Ignore all files that store information on the sample runs in tsv
+./config/*.tsv

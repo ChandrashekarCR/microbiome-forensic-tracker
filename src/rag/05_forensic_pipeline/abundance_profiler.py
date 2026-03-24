@@ -127,7 +127,7 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
 
         sample_cols = [c for c in df.columns if c not in fixed_cols]
         if not sample_cols:
-            print(f"  [WARN] No sample columns in {csv_path.name}, skipping")
+            print(f"[WARN] No sample columns in {csv_path.name}, skipping")
             continue
 
         # Melt wide → long
@@ -139,15 +139,15 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
         )
         long = long.rename(columns={"clade": "taxon"})
         long["abundance"] = pd.to_numeric(long["abundance"], errors="coerce").fillna(0.0)
-        long["rank"]      = rank
+        long["rank"] = rank
         frames.append(long)
-        print(f"  Loaded {csv_path.name:45s}  rank={rank:8s}  rows={len(df)}")
+        print(f"Loaded {csv_path.name:45s}  rank={rank:8s}  rows={len(df)}")
 
     if not frames:
         raise ValueError("Could not load any Bracken tables")
 
     combined = pd.concat(frames, ignore_index=True)
-    print(f"  Total rows (all ranks, all samples): {len(combined)}")
+    print(f"Total rows (all ranks, all samples): {len(combined)}")
     return combined
 
 
@@ -337,9 +337,9 @@ def score_environments(retrieved: list[dict]) -> dict[str, float]:
 
     for fact in retrieved:
         env_raw    = fact["metadata"].get("environment", "").lower()
-        similarity = float(fact.get("similarity",                              0.0))
-        confidence = float(fact["metadata"].get("confidence",                  "0.5"))
-        abundance  = float(fact.get("query_abundance",                          0.0))
+        similarity = float(fact.get("similarity", 0.0))
+        confidence = float(fact["metadata"].get("confidence", "0.5"))
+        abundance  = float(fact.get("query_abundance", 0.0))
 
         # Map the raw environment string to the nearest canonical category
         canonical = _map_to_canonical(env_raw)
@@ -458,7 +458,7 @@ def generate_forensic_narrative(
     )
     return response.choices[0].message.content.strip()
 
-# ── Step 5: Assemble and save report ─────────────────────────────────────────
+# Step 5: Assemble and save report 
 
 def build_report(
     sample_id: str,

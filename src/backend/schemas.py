@@ -1,8 +1,8 @@
 # This does only thing. It defines the shape of data your API accepts and returns
 # What goes in and out of your API (Pydantic)
 
-# User sends data -> Pydantic validates it -> SQLAlchemy savies it
-# SQLAlchemy reads it -> Pydantic formats it -> User gets data OUT
+# User sends data -> Pydantic validates it -> SQLAlchemy saves it
+# SQLAlchemy reads it -> Pydantic formats it -> User gets data in a correct formatted way
 
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
