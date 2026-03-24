@@ -1,7 +1,12 @@
 import os 
 from pathlib import Path
+import subprocess
 
-def run_snakemake_pipeline(profile):
-    # TODO: Here I need to find I way to create a new config file for samples
-    # to run from the upload_samples.tsv 
-    pass 
+SNAKEFILE = ""
+PROFILE = ""
+CONFIG_FILE = ""
+
+def run_snakemake_pipeline():
+    cmd = ["snakemake",
+           "--snakefile" ,str(SNAKEFILE),
+           "--profile", str(PROFILE)]

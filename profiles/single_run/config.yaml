@@ -29,7 +29,7 @@ slurm-efficiency-report-path: "./logs/"
 
 # Resource sepcifications for each step
 default-resources:
-  slurm_account: lu2025-2-11
+  slurm_account: lu2026-2-20
   slurm_partition: lu48
   runtime: "1h"
   mem_mb: 4000

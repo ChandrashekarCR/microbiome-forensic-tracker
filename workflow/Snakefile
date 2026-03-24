@@ -8,7 +8,7 @@
     snakemake --snakefile workflows/Snakefile --profile profiles/small_scale > /logs/snakemake_master_samll_scale.log 2>&1   
 """
 
-configfile: "config/config.yaml"
+configfile: "config/config_single_run.yaml"
 
 import os
 import sys
@@ -26,6 +26,28 @@ ROOT_DIR = Path.cwd()
 # Tool image directories
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
 
+# Dynamic sample sheet path via config
+DEFAULT_SAMPLE_SHEET = config["samples"]["sample_sheet"]
+
+# If passed via --config samples_file=path/to/samplesheet.tsv, use it
+SAMPLE_SHEET = config.get("samples_file", DEFAULT_SAMPLE_SHEET)
+
+print(f"[Snakefile] Using sample sheet: {SAMPLE_SHEET}", file=sys.stderr)
+
+# Verify the file exists
+if not Path(SAMPLE_SHEET).exists():
+    raise FileNotFoundError(f"Sample sheet not found: {SAMPLE_SHEET}")
+
+# Load samples from sheet
+SAMPLE_DF = load_sample_sheet(
+    SAMPLE_SHEET,
+    max_samples = config['samples']['max_samples']
+)
+
+SAMPLES = get_sample_names(SAMPLE_DF)
+
+print(f"[Snakefile] Loaded {len(SAMPLES)} sample(s): {SAMPLES}", file=sys.stderr)
+
 # Samples folder for the Malmo samples
 DATA_DIR = config['data']['raw_dir'] 
 RESULTS_DIR = config['data']['results_dir'] 
@@ -41,14 +63,6 @@ COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
 KRAKEN2_DB = config['databases']['kraken2_db'] 
 BRACKEN_DB = config['databases']['kraken2_db'] 
 READ_LEN = config['samples']['read_length'] 
-
-# Sample sheet
-SAMPLE_DF = load_sample_sheet(
-    config['samples']['sample_sheet'],
-    max_samples = config['samples']['max_samples']
-)
-
-SAMPLES = get_sample_names(SAMPLE_DF)
 
 # Enable/disable pipeline steps
 STEPS = config['pipeline']['steps']
@@ -151,13 +165,13 @@ rule all:
         ),
 
         # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
-        expand(
-            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
-            sample = SAMPLES
-        ),
+        #expand(
+        #    os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
+        #    sample = SAMPLES
+        #),
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
-include: "rules/assembly.smk"
+#include: "rules/assembly.smk"

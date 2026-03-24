@@ -5,12 +5,12 @@ version: "1.0"
 
 # Data Directories
 data:
-  raw_dir: "/home/chandru/binp51/src/backend/uploads/"
-  results_dir : "/home/chandru/lu2025-12-38/Students/chandru/backend_testing/" 
+  raw_dir: "/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples"
+  results_dir : "/home/chandru/binp51/results"
 
 # Sample Configuration
 samples:
-  sample_sheet: "config/samples_single_run.tsv" # Sample sheet
+  sample_sheet: "config/samples_single_run.tsv" # Sample sheet. This is not a real file. It is just a default placeholder
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
   max_samples: 15 # Running 4 samples
