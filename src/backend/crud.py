@@ -1,4 +1,5 @@
 # This file contains all the function needed to talk the database
+# This is used to create, read, update and delete things in the database CRUD operations
 
 # Import Libraries
 from sqlalchemy.orm import Session

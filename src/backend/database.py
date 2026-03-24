@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from pathlib import Path
 
-URL_DATABASE = "sqlite:///databases/malmo.db"
+URL_DATABASE = "sqlite:///databases/malmo_backend.db"
 Path("databases").mkdir(exist_ok=True)
 
 # This is the actual connection to the database

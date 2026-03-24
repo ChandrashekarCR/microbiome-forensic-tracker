@@ -1,10 +1,10 @@
 from celery import Celery
-import time
+from .config import settings
 
 # Configure Celery to use Redis as the message broker
 celery_app = Celery("microdentify", # This is the name of your celery application
-                    broker="redis://localhost:6379/0", # This is the Redis connection string
-                    backend="redis://localhost:6379/0") # Optional, for storing task results
+                    broker=settings.CELERY_BROKER_URL, # This is the Redis connection string
+                    backend=settings.CELERY_RESULT_BACKEND) # Optional, for storing task results
 
 
 celery_app.conf.update(
@@ -14,3 +14,7 @@ celery_app.conf.update(
     timezone = "Europe/Stockholm",
     task_track_started = True
 )
+
+@celery.task
+def run_snakemake():
+    pass
