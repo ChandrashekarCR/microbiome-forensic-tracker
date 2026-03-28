@@ -5,10 +5,11 @@
 """   
     screen -S snakemake
     conda activate snakemake
-    snakemake --snakefile workflows/Snakefile --profile profiles/small_scale > /logs/snakemake_master_samll_scale.log 2>&1   
+    snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
+   
 """
 
-configfile: "config/config_single_run.yaml"
+configfile: "config/config.yaml"
 
 import os
 import sys
@@ -165,13 +166,13 @@ rule all:
         ),
 
         # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
-        #expand(
-        #    os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
-        #    sample = SAMPLES
-        #),
+        expand(
+            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
+            sample = SAMPLES
+        ),
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
-#include: "rules/assembly.smk"
+include: "rules/assembly.smk"
