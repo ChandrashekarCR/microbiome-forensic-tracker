@@ -64,7 +64,7 @@ class DNABERTSContigEmbedder:
                 break
         
         return windows
-    
+       
     def embed_sequence(self, sequence, max_length=512, overlap=0.5):
         """
         Generate embedding for a single sequence.
@@ -91,8 +91,8 @@ class DNABERTSContigEmbedder:
 
         for window in windows:
             # Tokenize each window
-            inputs = self.tokenizer(window, return_tensors="pt", truncation=False,
-                                    max_length=max_length, padding='max_length', return_attention_mask=True)
+            inputs = self.tokenizer(window, return_tensors="pt", truncation=True,
+                                    max_length=max_length, padding='longest', return_attention_mask=True)
             
             
             # Move to the inputs to GPU for forward pass
@@ -105,15 +105,79 @@ class DNABERTSContigEmbedder:
                 hidden_states = outputs[0] # [1, seq_len, 768] eg. [1,512,768]
                 
                 # Mean pooling across tokens
-                embedding = hidden_states.mean(dim=1).squeeze().cpu().numpy()
-                window_embeddings.append(embedding)
+                embedding = hidden_states.mean(dim=1).cpu().numpy()
+                window_embeddings.append(embedding[0])
 
         # Get the mean across all the windows such that we have one single embedding for the entire long sequence
         window_embeddings = np.array(window_embeddings)
         final_embeddings = window_embeddings.mean(axis=0)
         
         return final_embeddings
-                
+    
+    def embed_contigs(self, fasta_file, output_file=None, batch_size=64, max_length=512, overlap=0.5):
+        """
+        Generate embeddings for all contigs in a FASTA file.
+        
+        Args:
+            fasta_file: Path to FASTA file
+            output_file: Optional path to save embeddings as JSON
+            batch_size: Batch size for processing
+            max_length: Maximum sequence length (tokens)
+            overlap: Overlap ratio for windowing (0.5 = 50%)
+        """
+        print(f"Processing contigs from: {fasta_file}")
+
+        # Load contigs
+        contigs = []
+        contig_ids = []
+        contig_lengths = []
+
+        for record in SeqIO.parse(fasta_file, "fasta"):
+            seq = str(record.seq).upper()
+            contigs.append(seq)
+            contig_ids.append(record.id)
+            contig_lengths.append(len(seq))
+
+        print(f"Number of contigs are {len(contigs)}")
+        print(f"Length range: {min(contig_lengths)}-{max(contig_lengths)} bp")
+
+        # Generate embeddings
+        # Tokenize -> Window function for longer sequences -> Embed
+
+        all_embeddings = []
+
+        for i in tqdm(range(0,len(contigs), batch_size), desc="Embedding contigs"):
+            batch_seqs = contigs[i:i+batch_size]
+            batch_ids = contig_ids[i:i+batch_size]
+            
+            batch_embeddings = []
+
+            # Process each sequence in batch 
+            for seq, contig_id in zip(batch_seqs, batch_ids):
+                embedding = self.embed_sequence(sequence=seq, max_length=max_length, overlap=overlap)
+                batch_embeddings.append(embedding)
+            
+            all_embeddings.extend(batch_embeddings)
+        
+        # Convert to numpy
+        all_embeddings = np.array(all_embeddings)
+        print(all_embeddings, all_embeddings.shape)
+
+        # Save embeddings if output file is specified
+        if output_file:
+            embedding_dict = {
+                "contigs_ids": contig_ids,
+                "embeddings": all_embeddings.tolist(),
+                "embedding_dim": all_embeddings.shape[1]
+            }
+
+            with open(output_file,"w") as f:
+                json.dump(embedding_dict, f)
+            
+            print(f"Embedding saved to {output_file}")
+        
+        return all_embeddings, contig_ids
+
 
 if __name__ == "__main__":
 
@@ -123,14 +187,20 @@ if __name__ == "__main__":
     #embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
     #print(embedding)
 
-    test_seq = "ATCGATCGATCGATTTTATGGGTCGATCG" * 5  # 1000bp test sequence
-    embedding = embedder.embed_sequence(test_seq)
-    print(f"Sequence length: {len(test_seq)} bp")
+    #test_seq = "ATCGATCGATCGATTTTATGGGTCGATCG" * 50  # 1000bp test sequence
+    #embedding = embedder.embed_sequence(test_seq)
+    #print(f"Sequence length: {len(test_seq)} bp")
     #print(f"Embedding shape: {embedding.shape}")
     #print(f"Embedding (first 10 dims): {embedding[:10]}")
 
-    #embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
-    #print(f"{embedding}")
+    embeddings = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa",
+                                       output_file="embedding.json",
+                                       max_length=512,
+                                       batch_size=128,
+                                       overlap=0.3)
+    print(f"Generated {len(embeddings)} embeddings")
+    print(f"Embedding shape: {embeddings.shape}")
+    #print(f"{embeddings}")
 
 
 """
