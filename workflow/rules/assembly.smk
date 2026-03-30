@@ -25,12 +25,12 @@ rule megahit_assembly:
     params:
         megahit = TOOLS['megahit'],
         contigs = os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
-        output_dir     = os.path.join(RESULTS_DIR, "06_assembly", "{sample}"),
+        output_dir = os.path.join(RESULTS_DIR, "06_assembly", "{sample}"),
         min_contig_len = config['parameters']['megahit']['min_contig_len'],
         # Store k_list as a plain string - commas in the value confuse
         # Snakemake's shell string formatter (it tries tuple indexing).
         # Wrapping in a lambda bypasses the formatter safely.
-        k_list = config['parameters']['megahit']['k_list'],
+        k_list = lambda w: config['parameters']['megahit']['k_list'],
         min_count = config['parameters']['megahit']['min_count'],
         memory_bytes = lambda wildcards, resources: int(resources.mem_mb * 0.9 * 1e6),
         bind_paths = lambda w: _apptainer_binds([RESULTS_DIR])

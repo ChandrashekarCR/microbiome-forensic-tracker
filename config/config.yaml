@@ -171,3 +171,5 @@ pipeline:
     kraken2: true
     bracken: true
     standardize_bracken: true
+    merge_bracken: true
+    megahit_assembly: true
