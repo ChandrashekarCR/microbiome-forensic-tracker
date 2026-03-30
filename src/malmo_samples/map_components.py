@@ -181,15 +181,6 @@ def add_ui_plugins(map_obj):
         title_cancel="Exit Fullscreen"
     ).add_to(map_obj)
 
-    #plugins.MiniMap(
-    #    tile_layer="CartoDB positron",
-    #    position="bottomleft",
-    #    toggle_display=True,
-    #    minimized=False,
-    #    width=160,
-    #    height=120
-    #).add_to(map_obj)
-
     plugins.MousePosition(
         position="bottomright",
         separator=" | ",
