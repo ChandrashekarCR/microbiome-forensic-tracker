@@ -231,6 +231,9 @@ if __name__ == "__main__":
                                        max_length=512,
                                        batch_size=128,
                                        overlap=0.5)
-
+"""
+Run the script as follows -:
+python3 workflow/scripts/dnaberts_embeddings.py 
+"""
 
 
