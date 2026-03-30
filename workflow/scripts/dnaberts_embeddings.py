@@ -1,12 +1,8 @@
-import os
-import sys
+# Importing libraries
 import torch
-import pandas as pd
 import numpy as np
 from Bio import SeqIO
-from transformers import pipeline
 from transformers import AutoTokenizer, AutoModel
-from pathlib import Path
 import json
 from tqdm import tqdm
 
@@ -44,7 +40,7 @@ class DNABERTSContigEmbedder:
         # Set to evaluation mode
         self.model.eval()
 
-        print(f"Model loaded successfully")
+        print("Model loaded successfully")
         print(f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters.")
 
     def create_windows(self, sequence, max_length=512, overlap=0.5):

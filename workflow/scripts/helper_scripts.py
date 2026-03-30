@@ -9,8 +9,6 @@
 # get_sample_names: Get all the sample names in the sample.tsv file
 
 # Import libraries
-import os
-import glob
 import pandas as pd
 from pathlib import Path
 

@@ -1,6 +1,5 @@
-
+# Importing libraries
 import argparse
-import os
 import sys
 from pathlib import Path
 
