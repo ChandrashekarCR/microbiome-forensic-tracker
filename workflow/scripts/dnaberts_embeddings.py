@@ -2,6 +2,7 @@ import os
 import sys
 import torch
 import pandas as pd
+import numpy as np
 from Bio import SeqIO
 from transformers import pipeline
 from transformers import AutoTokenizer, AutoModel
@@ -40,111 +41,101 @@ class DNABERTSContigEmbedder:
         print(f"Model loaded successfully")
         print(f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters.")
 
-
-    def embed_sequence(self, sequence, return_token_embeddings=False):
+    def create_windows(self, sequence, max_length=512, overlap=0.5):
         """
-        Generate embedding for a single DNA sequences
-        """
+        Split a sequence into overlapping windows.
 
-        # Ensure the sequence are in upper case
-        sequence = sequence.upper()
-
-        # Tokenize
-        # DNABERT-S max length is 512 tokens
-        inputs = self.tokenizer(sequence, return_tensors='pt', truncation = True, max_length = 512, padding = False, return_attention_mask = True)
-
-        # Move tensor inputs to the model device (only move tensors)
-        inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
-                  for k, v in inputs.items()}
-               
-
-        # Generate embeddings
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-
-
-            # Output last hidden state shape [1. num_tokens, 768]
-            hidden_states = outputs[0]
-
-            if return_token_embeddings:
-                return hidden_states.cpu().numpy()
-            
-            # Mean pooling across all tokens
-            embedding = hidden_states.mean(dim=1).squeeze().cpu().numpy()
-
-        return embedding
-    
-    def embed_contigs(self, fasta_file, output_file=None, batch_size=64, return_token_embeddings=False):
-        """
-        Generate embeddings for all contigs in a FASTA file
+        Arguments:
+            sequence: DNA contigs after assembly
+            max_length=512 (according to the DNA-BERT-S paper)
+            overlap: 50%
         """
 
-        print(f"Processing contigs from: {fasta_file}")
+        stride = int(max_length * (1 - overlap))
+        windows = []
 
-        # Load contifs
-        contigs = []
-        contig_ids = []
-        contig_lengths = []
+        # Approximate: 1 token 1 bp for DNA sequeces
+        for start in range(0,len(sequence),stride):
+            end = min(start + max_length, len(sequence))
+            windows.append(sequence[start:end])
 
-        for record in SeqIO.parse(fasta_file,"fasta"):
-            seq = str(record.seq).upper()
-            contigs.append(seq)
-            contig_ids.append(record.id)
-            contig_lengths.append(len(seq))
+            # Stop if we have reached the end
+            if end == len(sequence):
+                break
         
-        print(f"Loaded {len(contigs)} contigs")
-        print(f"Length range: {min(contig_lengths)}-{max(contig_lengths)} contigs")
+        return windows
+    
+    def embed_sequence(self, sequence, max_length=512, overlap=0.5):
+        """
+        Generate embedding for a single sequence.
+        For long sequences, uses windowing with overlap.
+        
+        Args:
+            sequence: DNA sequence string
+            max_length: Maximum sequence length
+            overlap: Overlap ratio for windowing
+        
+        Returns:
+            np.ndarray: Embedding vector (768-dim for DNABERT-S)
+        """
 
+        # If sequence fits, process directly
+        if len(sequence) <= max_length:
+            windows = [sequence]
+        
+        else:
+            # Create overlapping windows
+            windows = self.create_windows(sequence, max_length, overlap)
 
-        # Generate all embeddings
-        all_embeddings = []
+        window_embeddings = []
 
-        for i in tqdm(range(0, len(contigs), batch_size),desc="Embeddings contigs"):
-            batch_seqs = contigs[i:i+batch_size]
-
-            # Tokenize batch
-            inputs = self.tokenizer(batch_seqs,return_tensors='pt',
-                truncation=True,
-                max_length=512,
-                padding="longest",  # Pad to longest in the batch
-                return_attention_mask=True
-            )
-
-            # Move tensor inputs to the model device (only move tensors)
-            inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
-                  for k, v in inputs.items()}
-
+        for window in windows:
+            # Tokenize each window
+            inputs = self.tokenizer(window, return_tensors="pt", truncation=False,
+                                    max_length=max_length, padding='max_length', return_attention_mask=True)
+            
+            
+            # Move to the inputs to GPU for forward pass
+            inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v) for k, v in inputs.items()}
+            
             # Generate embeddings
             with torch.no_grad():
-                outputs = self.model(**inputs)
-
-
-                # Output last hidden state shape [1. num_tokens, 768]
-                hidden_states = outputs[0]
-
-                if return_token_embeddings:
-                    return hidden_states.cpu().numpy()
-
-                # Mean pooling across all tokens
+                outputs = self.model(**inputs) 
+                # The output is a tuple. Here we pass the inputs through the model to generate embeddings.
+                hidden_states = outputs[0] # [1, seq_len, 768] eg. [1,512,768]
+                
+                # Mean pooling across tokens
                 embedding = hidden_states.mean(dim=1).squeeze().cpu().numpy()
+                window_embeddings.append(embedding)
 
-                all_embeddings.append(embedding)        
+        # Get the mean across all the windows such that we have one single embedding for the entire long sequence
+        window_embeddings = np.array(window_embeddings)
+        final_embeddings = window_embeddings.mean(axis=0)
         
-        
-        return all_embeddings
-
-
+        return final_embeddings
+                
 
 if __name__ == "__main__":
 
     # Initialize embedder
     embedder = DNABERTSContigEmbedder(device="cuda")
+    
+    #embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
+    #print(embedding)
 
-    #test_seq = "ATCGATCGATCGATCGATCG" * 50  # 1000bp test sequence
-    #embedding = embedder.embed_sequence(test_seq)
-    #print(f"Sequence length: {len(test_seq)} bp")
+    test_seq = "ATCGATCGATCGATTTTATGGGTCGATCG" * 50  # 1000bp test sequence
+    embedding = embedder.embed_sequence(test_seq)
+    print(f"Sequence length: {len(test_seq)} bp")
     #print(f"Embedding shape: {embedding.shape}")
     #print(f"Embedding (first 10 dims): {embedding[:10]}")
 
-    embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
-    print(f"{embedding}")
+    #embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
+    #print(f"{embedding}")
+
+
+"""
+
+awk '/^>/ { if (NR>1) print len; len=0; next } { len +=length($0) } END { if (NR>0) print len }' final.contigs.fa | sort -n | uniq | wc -l
+2790
+
+"""
