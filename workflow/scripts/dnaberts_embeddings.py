@@ -123,7 +123,7 @@ if __name__ == "__main__":
     #embedding = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa")
     #print(embedding)
 
-    test_seq = "ATCGATCGATCGATTTTATGGGTCGATCG" * 50  # 1000bp test sequence
+    test_seq = "ATCGATCGATCGATTTTATGGGTCGATCG" * 5  # 1000bp test sequence
     embedding = embedder.embed_sequence(test_seq)
     print(f"Sequence length: {len(test_seq)} bp")
     #print(f"Embedding shape: {embedding.shape}")
