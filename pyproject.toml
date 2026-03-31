@@ -75,7 +75,7 @@ where = ["src"]
 [tool.ruff]
 line-length = 200
 select = ["E", "F", "C", "B", "I"]
-ignore = ["E203"]
+ignore = ["E203","B008"]
 
 [tool.isort]
 profile = "black"

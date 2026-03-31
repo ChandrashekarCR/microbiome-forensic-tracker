@@ -19,6 +19,5 @@ celery_app.conf.update(
 )
 
 
-@celery.task
 def run_snakemake():
     pass

@@ -172,5 +172,9 @@ if __name__ == "__main__":
 
     print("Done!")
 
-
-"python3 src/mixed_samples/01_get_data.py --base_dir /lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Results/Mixed2025_results --mapper_file data/mixed_samples/00_raw_data/raw_data_table_batch.csv --output_dir data/mixed_samples/01_merged_data/"
+"""
+python3 src/mixed_samples/01_get_data.py 
+    --base_dir /lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Results/Mixed2025_results 
+    --mapper_file data/mixed_samples/00_raw_data/raw_data_table_batch.csv 
+    --output_dir data/mixed_samples/01_merged_data/"
+"""

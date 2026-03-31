@@ -3,9 +3,12 @@ Unit tests for generate_sample_sheet.py
 These tests validate the functions outputs.
 """
 # Import libraries
-import pytest
 from pathlib import Path
+
+import pytest
+
 from smk_helper.generate_sample_sheet import generate_sample_sheet
+
 
 # Test that TSV is created correctly from fake FASTQ files
 def test_generate_sample_sheet_basic(tmp_path):
