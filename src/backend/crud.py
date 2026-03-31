@@ -3,30 +3,39 @@
 
 # Import Libraries
 from sqlalchemy.orm import Session
-from .models import Samples, AbundanceResult, User
-from .schemas import SampleCreate, UserCreate
+
+from .models import AbundanceResult, Samples, User
+from .schemas import UserCreate
+
 
 # Create a new sample when the user uploads the fastq samples
-def create_sample(db: Session, username:str, email:str, sample_name:str, r1_path: str,
-                  r2_path:str,) -> Samples:
+def create_sample(
+    db: Session,
+    username: str,
+    email: str,
+    sample_name: str,
+    r1_path: str,
+    r2_path: str,
+) -> Samples:
     """
     INSERT a new sample into the database
     Returns the created Sample object
     """
 
     new_sample = Samples(
-        username = username,
-        email = email,
-        sample_name = sample_name,
-        r1_path = r1_path,
-        r2_path = r2_path,
-        status = "pending"
+        username=username,
+        email=email,
+        sample_name=sample_name,
+        r1_path=r1_path,
+        r2_path=r2_path,
+        status="pending",
     )
 
-    db.add(new_sample) # Stage the insert
-    db.commit() # Save it in the database
-    db.refresh(new_sample) # Reload from database (gets auto-genrated id)
+    db.add(new_sample)  # Stage the insert
+    db.commit()  # Save it in the database
+    db.refresh(new_sample)  # Reload from database (gets auto-genrated id)
     return new_sample
+
 
 # This is just and end point for the user to see the status of the sample based on the name
 def get_sample_by_name(db: Session, sample_name: str) -> Samples:
@@ -36,6 +45,7 @@ def get_sample_by_name(db: Session, sample_name: str) -> Samples:
     """
     return db.query(Samples).filter(Samples.sample_name == sample_name).first()
 
+
 # This is another end point to get the sample based on the sample id
 def get_sample_by_id(db: Session, sample_id: int) -> Samples:
     """
@@ -43,6 +53,7 @@ def get_sample_by_id(db: Session, sample_id: int) -> Samples:
     Return Sample object or None
     """
     return db.query(Samples).filter(Samples.id == sample_id).first()
+
 
 # Get all the sample in the database
 def get_all_samples(db: Session) -> list[Samples]:
@@ -65,11 +76,12 @@ def update_sample_status(db: Session, sample_id: int, status: str):
 
     if not sample:
         return None
-    
+
     # Update any addittional files passed in
     db.commit()
     db.refresh(sample)
     return sample
+
 
 def create_abundance_results(db: Session, sample_id: int, results: list[dict]):
     """
@@ -86,11 +98,11 @@ def create_abundance_results(db: Session, sample_id: int, results: list[dict]):
     db_results = []
     for row in results:
         result = AbundanceResult(
-            sample_id = sample_id,
-            taxon_name = row.get("taxon_name"),
-            taxon_id = row.get("taxon_id"),
-            taxon_rank = row.get("taxon_rank"),
-            relative_abundance = row.get("relative_abundance")
+            sample_id=sample_id,
+            taxon_name=row.get("taxon_name"),
+            taxon_id=row.get("taxon_id"),
+            taxon_rank=row.get("taxon_rank"),
+            relative_abundance=row.get("relative_abundance"),
         )
         db_results.append(result)
 
@@ -110,8 +122,9 @@ def get_results_for_sample(db: Session, sample_id: int) -> list[AbundanceResult]
         .all()
     )
 
+
 def create_user(db: Session, user: UserCreate):
-    db_user = User(name=user.username, email = user.email)
+    db_user = User(name=user.username, email=user.email)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

@@ -5,22 +5,26 @@
 """   
     screen -S snakemake
     conda activate snakemake
-    snakemake --snakefile workflows/Snakefile --profile profiles/small_scale > /logs/snakemake_master_samll_scale.log 2>&1   
+    snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
+   
 """
 
-configfile: "config/config_single_run.yaml"
+configfile: "config/config.yaml"
 
 import os
 import sys
 import subprocess
 from pathlib import Path
+from smk_helper.helper_scripts import load_sample_sheet, get_sample_names
+from smk_helper.standardize_bracken import standardize_bracken, concat_tables
+from smk_helper.select_partition import select_best_partition
 
 # Add the scripts directory to the Python path (absolute path)
 sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
 
-from helper_scripts import load_sample_sheet, get_sample_names
-from standardize_bracken import standardize_bracken, concat_tables
-from select_partition import select_best_partition
+#from helper_scripts import load_sample_sheet, get_sample_names
+#from standardize_bracken import standardize_bracken, concat_tables
+#from select_partition import select_best_partition
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
@@ -165,13 +169,13 @@ rule all:
         ),
 
         # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
-        #expand(
-        #    os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
-        #    sample = SAMPLES
-        #),
+        expand(
+            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
+            sample = SAMPLES
+        ),
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
-#include: "rules/assembly.smk"
+include: "rules/assembly.smk"

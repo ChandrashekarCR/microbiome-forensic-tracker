@@ -52,7 +52,7 @@ venv: # Create virtual environement
 	@. .venv/bin/activate && pip install -U pip
 	@echo "[venv] ready .."
 
-install: venv
+install: venv # Install packages from requirements.txt file.
 	@echo "Installing packages from requirements.txt file."
 	@if [ ! -f requirements.txt ]; then \
 		echo "File not found. Ensure you have the requirements file."; \
@@ -60,16 +60,32 @@ install: venv
 	else \
 		. .venv/bin/activate && pip install -r requirements.txt; \
 	fi
+	@echo "[install] ok"
+
+install-dev: venv # Install pyproject.toml for dev work (loose version).
+	@echo "Installing only dev tools..."
+	@. .venv/bin/activate && pip install -e ".[dev]"
+	@echo "[install-dev] dev tools installed.."
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name "*.err" -delete
 	@find . -type f -name "*.out" -delete
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@find . -type d -name "*.egg-info" -exec rm -rf {} +
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	@find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	@echo "[clean] ok"
 
 lint: # Linting python scripts
 	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
-	@echo "[lint] ok"	
+	@echo "[lint] ok"
+
+format: # Code formatting using ruff and black
+	@echo "Organizing imports with ruff.."
+	@$(PYTHON) -m ruff check --fix src/ tests/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
+	@echo "Formatting code with black"
+	@$(PYTHON) -m black src/ tests/ || (echo '[format] black formatting failed' >&2; exit 1)
+	@echo "[format] ok."	
 
 test: # Run pytests for script
 	@pytest
@@ -84,8 +100,19 @@ conda_env: environment.yml
 		conda env create -f environment.yml; \
 	fi
 	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
-	@echo "[conda_env] ok.."
+	@echo "[conda_env] ok"
 
+venv-dnaberts: # For DNABERT-S development
+	@echo "Installing DNABERT-S and dev tools for development."
+	@$(PYTHON) -m venv .venv-dnaberts
+	@. .venv-dnaberts/bin/activate && pip install -U pip && pip install -e ".[dnaberts,dev]"
+	@echo "[venv-dnaberts] ok"
+
+venv-rag: # For RAG development
+	@echo "Installating RAG and dev tools environment for development."
+	@$(PYTHON) -m venv .venv-rag
+	@. .venv-rag/bin/activate && pip install -U pip && pip install -e ".[rag,dev]"
+	@echo "[venv-rag] ok"
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
 		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \

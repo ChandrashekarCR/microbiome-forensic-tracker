@@ -4,9 +4,11 @@
 # User sends data -> Pydantic validates it -> SQLAlchemy saves it
 # SQLAlchemy reads it -> Pydantic formats it -> User gets data in a correct formatted way
 
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
+from pydantic import BaseModel
+
 
 # This part is for user registration
 class UserCreate(BaseModel):
@@ -20,6 +22,8 @@ There are two pydantic schemas that will do the following -:
 1) SamplCreate - To represent data expected when creating an item.
 2) SampleResponse - To represent data to the user after a request has been made.
 """
+
+
 # Create a sample when the user uploads
 class SampleCreate(BaseModel):
     username: str
@@ -40,13 +44,15 @@ class SampleResponse(BaseModel):
     error_msg: Optional[str] = None
 
     class Config:
-        from_attributes = True # Allow reading from SQLAlchemy model
+        from_attributes = True  # Allow reading from SQLAlchemy model
 
 
 ####### ABUNDANCE TABLE #######
 """
 
 """
+
+
 class AbundanceItem(BaseModel):
     taxon_name: str
     taxon_id: Optional[str] = None
@@ -56,9 +62,9 @@ class AbundanceItem(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Full results response for a sample
 class SampleResults(BaseModel):
     sample_name: str
     status: str
     abundances: List[AbundanceItem]
-

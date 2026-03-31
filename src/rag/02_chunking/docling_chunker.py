@@ -1,20 +1,20 @@
 # This breaks down the research paper into context aware chunks using docling.
 
 # Import libraries
-import io
 import json
 import logging
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from docling.chunking import HybridChunker
+from docling.datamodel.base_models import InputFormat
+from docling.document_converter import DocumentConverter
+from transformers import AutoTokenizer
 
 # Suppress the benign "sequence length > 512" tokenizer warning.
 # HybridChunker uses the tokenizer only as a token counter, not for inference.
 logging.getLogger("transformers.tokenization_utils_base").setLevel(logging.ERROR)
-from docling.document_converter import DocumentConverter
-from docling.datamodel.base_models import InputFormat
-from docling.chunking import HybridChunker
-from transformers import AutoTokenizer
-import os
 
 # Project directory
 os.chdir("/home/chandru/binp51/src/rag")
@@ -26,7 +26,7 @@ CHUNKS_DIR.mkdir(exist_ok=True, parents=True)
 
 # Use the same tokenizer as your embedding model (TOEKNIZER == EMBEDDING MODEL)
 TOKENIZER_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-MAX_TOKENS = 256  
+MAX_TOKENS = 256
 
 
 def _jats_xml_to_markdown(xml_path: Path) -> str:
@@ -40,53 +40,54 @@ def _jats_xml_to_markdown(xml_path: Path) -> str:
         root = tree.getroot()
 
         # pmc-articleset wraps <article>; fall back to root if not found
-        article_el = root.find('.//article')
+        article_el = root.find(".//article")
         article = article_el if article_el is not None else root
         sections: list[str] = []
 
-        # Title 
-        title_el = article.find('.//article-title')
+        # Title
+        title_el = article.find(".//article-title")
         if title_el is not None:
-            t = ''.join(title_el.itertext()).strip()
+            t = "".join(title_el.itertext()).strip()
             if t:
                 sections.append(f"# {t}")
 
         # Abstract
-        for abstract_el in article.findall('.//abstract'):
+        for abstract_el in article.findall(".//abstract"):
             sections.append("## Abstract")
             for elem in abstract_el.iter():
-                if elem.tag == 'title':
-                    t = ''.join(elem.itertext()).strip()
+                if elem.tag == "title":
+                    t = "".join(elem.itertext()).strip()
                     if t:
                         sections.append(f"### {t}")
-                elif elem.tag == 'p':
-                    text = ''.join(elem.itertext()).strip()
+                elif elem.tag == "p":
+                    text = "".join(elem.itertext()).strip()
                     if text:
                         sections.append(text)
 
-        # Body 
-        body_el = article.find('.//body')
+        # Body
+        body_el = article.find(".//body")
         if body_el is not None:
+
             def _sec_to_md(sec_el: ET.Element, depth: int = 2) -> list[str]:
                 parts: list[str] = []
-                sec_title = sec_el.find('title')
+                sec_title = sec_el.find("title")
                 if sec_title is not None:
-                    t = ''.join(sec_title.itertext()).strip()
+                    t = "".join(sec_title.itertext()).strip()
                     if t:
                         parts.append(f"\n{'#' * depth} {t}")
                 for child in sec_el:
-                    if child.tag == 'p':
-                        text = ''.join(child.itertext()).strip()
+                    if child.tag == "p":
+                        text = "".join(child.itertext()).strip()
                         if text:
                             parts.append(text)
-                    elif child.tag == 'sec':
+                    elif child.tag == "sec":
                         parts.extend(_sec_to_md(child, depth + 1))
                 return parts
 
-            for sec in body_el.findall('sec'):
+            for sec in body_el.findall("sec"):
                 sections.extend(_sec_to_md(sec))
 
-        return '\n\n'.join(filter(None, sections))
+        return "\n\n".join(filter(None, sections))
 
     except Exception as e:
         print(f"  Warning: XML parsing failed for {xml_path.name}: {e}")
@@ -114,7 +115,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
     try:
         suffix = source.suffix.lower()
 
-        if suffix == '.xml':
+        if suffix == ".xml":
             # PMC JATS XML -> extract text -> temp Markdown for Docling
             md_text = _jats_xml_to_markdown(source)
             if not md_text.strip():
@@ -123,7 +124,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
             temp_file.write_text(md_text, encoding="utf-8")
             convert_source = temp_file
 
-        elif suffix == '.txt':
+        elif suffix == ".txt":
             # Plain text -> temp Markdown (.txt is not supported by Docling)
             temp_file = CHUNKS_DIR / f"_{pmid}_txt_temp.md"
             temp_file.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
@@ -147,26 +148,32 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
     enriched_chunks = []
     for i, chunk in enumerate(chunks):
         try:
-            page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items else None
+            page = (
+                chunk.meta.doc_items[0].prov[0].page_no
+                if chunk.meta.doc_items
+                else None
+            )
         except (IndexError, AttributeError):
             page = None
 
-        enriched_chunks.append({
-            "chunk_id": f"{pmid}_chunk_{i:04d}",
-            "pmid": pmid,
-            "text": chunk.text,
-            "token_count": len(tokenizer.encode(chunk.text)),
-            "page": page,
-            "section": _infer_section(chunk),
-            # Paper-level metadata for filtering
-            "metadata": {
-                "title": metadata.get("title", ""),
-                "journal": metadata.get("journal", ""),
-                "year": metadata.get("year", ""),
-                "doi": metadata.get("doi", ""),
-                "query_source": metadata.get("query_source", ""),
+        enriched_chunks.append(
+            {
+                "chunk_id": f"{pmid}_chunk_{i:04d}",
+                "pmid": pmid,
+                "text": chunk.text,
+                "token_count": len(tokenizer.encode(chunk.text)),
+                "page": page,
+                "section": _infer_section(chunk),
+                # Paper-level metadata for filtering
+                "metadata": {
+                    "title": metadata.get("title", ""),
+                    "journal": metadata.get("journal", ""),
+                    "year": metadata.get("year", ""),
+                    "doi": metadata.get("doi", ""),
+                    "query_source": metadata.get("query_source", ""),
+                },
             }
-        })
+        )
 
     return enriched_chunks
 
@@ -184,6 +191,7 @@ def _infer_section(chunk) -> str:
         return "discussion"
     return "general"
 
+
 def process_all_documents():
     """
     Process all papers from metadata
@@ -198,9 +206,9 @@ def process_all_documents():
         print(f"Processing PMID: {pmid}: {paper.get('title','')[:60]}...")
 
         # Use the full text if available, else use the abstract as pseudo document
-        if paper.get('full_text_path') and Path(paper['full_text_path']).exists():
-            source = paper['full_text_path']
-        
+        if paper.get("full_text_path") and Path(paper["full_text_path"]).exists():
+            source = paper["full_text_path"]
+
         else:
             # Create a tempory text file from abstract
             abstract_text = f"""
@@ -211,11 +219,10 @@ def process_all_documents():
                                 Abstract:
                                 {paper.get('abstract', '')}
                             """.strip()
-            
+
             temp_path = CHUNKS_DIR / f"{pmid}_abstract.md"
             temp_path.write_text(abstract_text, encoding="utf-8")
             source = temp_path
-
 
         try:
             chunks = process_document(source, pmid, paper)
@@ -225,18 +232,19 @@ def process_all_documents():
             chunk_path = CHUNKS_DIR / f"{pmid}_chunks.json"
             with open(chunk_path, "w") as f:
                 json.dump(chunks, f, indent=2)
-            
+
             print(f"Produced {len(chunks)} chunks")
-        
+
         except Exception as e:
             print(f" Failed: {e}")
-    
+
     # Save all chunks together
     all_chunks_path = CHUNKS_DIR / "all_chunks.json"
     with open(all_chunks_path, "w") as f:
         json.dump(all_chunks, f, indent=2)
-    
+
     print(f"Total chunks: {len(all_chunks)}")
     return all_chunks
+
 
 process_all_documents()

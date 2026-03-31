@@ -2,17 +2,18 @@
 
 import folium
 import osmnx as ox
-from config import MALMO_CENTER
 from map_components import (
     add_base_layers,
     add_boundary_layer,
-    add_sample_layer,
-    add_heatmap_layer,
     add_cluster_layer,
+    add_heatmap_layer,
     add_legend,
+    add_sample_layer,
     add_title,
-    add_ui_plugins
+    add_ui_plugins,
 )
+
+from config import MALMO_CENTER
 
 
 def load_malmo_boundary():
@@ -27,23 +28,18 @@ def load_malmo_boundary():
 def build_malmo_map(df, admin_gdf, output_file="malmo_interactive_map.html"):
     """
     Build a full interactive Folium map with all layers and controls.
-    
+
     Args:
         df: DataFrame with sample data
         admin_gdf: GeoDataFrame with Malmo boundary
         output_file: Output HTML file path
-        
+
     Returns:
         folium.Map object
     """
     # Initialize base map
-    m = folium.Map(
-        location=MALMO_CENTER,
-        zoom_start=12,
-        tiles=None,
-        control_scale=True
-    )
-    
+    m = folium.Map(location=MALMO_CENTER, zoom_start=12, tiles=None, control_scale=True)
+
     # Add all components
     add_base_layers(m)
     add_boundary_layer(m, admin_gdf)
@@ -53,14 +49,14 @@ def build_malmo_map(df, admin_gdf, output_file="malmo_interactive_map.html"):
     add_legend(m, df)
     add_title(m)
     add_ui_plugins(m)
-    
+
     # Save map
     m.save(output_file)
-    
+
     print(f"\n{'='*50}")
     print(f"Map saved to: {output_file}")
     print(f"Samples plotted: {len(df)}")
     print(f"Zones: {df['zone'].nunique() if 'zone' in df.columns else 'N/A'}")
     print(f"{'='*50}\n")
-    
+
     return m

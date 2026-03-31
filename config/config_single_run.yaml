@@ -13,7 +13,7 @@ samples:
   sample_sheet: "config/samples_single_run.tsv" # Sample sheet. This is not a real file. It is just a default placeholder
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 15 # Running 4 samples
+  max_samples: 5 # Running 4 samples
   read_length: 150
 
 # Tool paths (Container images)

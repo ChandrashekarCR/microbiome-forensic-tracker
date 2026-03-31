@@ -1,12 +1,15 @@
-import pytest
-import sys
+"""
+Unit tests for generate_sample_sheet.py
+These tests validate the functions outputs.
+"""
+
+# Import libraries
 from pathlib import Path
 
-# Add workflow scripts to path
-root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(root))
+import pytest
 
-from workflow.scripts.generate_sample_sheet import generate_sample_sheet
+from smk_helper.generate_sample_sheet import generate_sample_sheet
+
 
 # Test that TSV is created correctly from fake FASTQ files
 def test_generate_sample_sheet_basic(tmp_path):
@@ -24,7 +27,7 @@ def test_generate_sample_sheet_basic(tmp_path):
     output = tmp_path / "samples.tsv"
 
     # Run the function
-    generate_sample_sheet(str(data_dir),str(output))
+    generate_sample_sheet(str(data_dir), str(output))
 
     # Assertions
     # Cheeck if the output exists
@@ -44,6 +47,7 @@ def test_generate_sample_sheet_basic(tmp_path):
         sample, r1, r2 = line.split("\t")
         assert Path(r1).exists()
         assert Path(r2).exists()
+
 
 def test_missing_r2_raises_error(tmp_path):
     data_dir = tmp_path / "fastqs"
