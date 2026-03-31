@@ -5,16 +5,14 @@
 import json
 import os
 import re
-import time
-import random
 from pathlib import Path
+
 from openai import OpenAI
-from openai import RateLimitError, APIStatusError
 from tqdm import tqdm
 
 # OLLAMA configuration
-OLLAMA_HOST  = "http://127.0.0.1:11434"   # ollama serve address
-OLLAMA_MODEL = "mistral"                   # must match: ollama list
+OLLAMA_HOST = "http://127.0.0.1:11434"  # ollama serve address
+OLLAMA_MODEL = "mistral"  # must match: ollama list
 
 
 # Project directory
@@ -26,12 +24,14 @@ FACTS_DIR.mkdir(exist_ok=True, parents=True)
 
 client = OpenAI(
     base_url=f"{OLLAMA_HOST}/v1",
-    api_key="ollama",    # Ollama ignores this but client requires it
+    api_key="ollama",  # Ollama ignores this but client requires it
 )
+
 
 def _check_ollama_running():
     """Fail fast with a clear message if ollama server isn't up."""
     import urllib.request
+
     try:
         urllib.request.urlopen(f"{OLLAMA_HOST}/api/tags", timeout=3)
     except Exception:
@@ -41,6 +41,7 @@ def _check_ollama_running():
             f"  OLLAMA_MODELS=$HOME/ollama_models "
             f"/home/chandru/ollama/bin/ollama serve &"
         )
+
 
 # Prompt Engineering
 # Here we encode the domain expertise role into the system.
@@ -83,6 +84,7 @@ TEXT:
 
 Return only the JSON array. No explanation needed."""
 
+
 def _parse_json_response(raw: str) -> list[dict]:
     """
     Robustly parse LLM JSON output.
@@ -91,21 +93,22 @@ def _parse_json_response(raw: str) -> list[dict]:
     """
     # Strip markdown code fences
     raw = re.sub(r"```json\s*", "", raw)
-    raw = re.sub(r"```\s*",     "", raw)
+    raw = re.sub(r"```\s*", "", raw)
     raw = raw.strip()
 
     # Find the JSON array boundaries (ignore any preamble text)
     start = raw.find("[")
-    end   = raw.rfind("]") + 1
+    end = raw.rfind("]") + 1
 
     if start == -1 or end == 0:
-        return []   # No array found at all
+        return []  # No array found at all
 
     try:
         parsed = json.loads(raw[start:end])
         return parsed if isinstance(parsed, list) else []
     except json.JSONDecodeError:
         return []
+
 
 def extract_facts_from_chunk(chunk: dict) -> list[dict]:
     """Use local Ollama to extract ecological facts from one chunk."""
@@ -121,7 +124,7 @@ def extract_facts_from_chunk(chunk: dict) -> list[dict]:
             model=OLLAMA_MODEL,
             messages=[
                 {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-                {"role": "user",   "content": prompt},
+                {"role": "user", "content": prompt},
             ],
             temperature=0.1,
             max_tokens=800,
@@ -134,11 +137,11 @@ def extract_facts_from_chunk(chunk: dict) -> list[dict]:
 
         # Enrich each fact with source metadata
         for fact in facts:
-            fact["chunk_id"]    = chunk["chunk_id"]
-            fact["pmid"]        = chunk["pmid"]
+            fact["chunk_id"] = chunk["chunk_id"]
+            fact["pmid"] = chunk["pmid"]
             fact["paper_title"] = chunk["metadata"].get("title", "")
-            fact["doi"]         = chunk["metadata"].get("doi", "")
-            fact["year"]        = chunk["metadata"].get("year", "")
+            fact["doi"] = chunk["metadata"].get("doi", "")
+            fact["year"] = chunk["metadata"].get("year", "")
 
         return facts
 
@@ -162,7 +165,7 @@ def run_extraction():
     with open(CHUNKS_DIR / "all_chunks.json") as f:
         all_chunks = json.load(f)
 
-    facts_path      = FACTS_DIR / "all_facts.json"
+    facts_path = FACTS_DIR / "all_facts.json"
     checkpoint_path = FACTS_DIR / "checkpoint_done_ids.json"
 
     # Resume from checkpoint if it exists
@@ -171,18 +174,23 @@ def run_extraction():
             done_ids: set[str] = set(json.load(f))
         with open(facts_path) as f:
             all_facts: list[dict] = json.load(f)
-        print(f"Resuming - {len(done_ids)} chunks already processed, "
-              f"{len(all_facts)} facts loaded.")
+        print(
+            f"Resuming - {len(done_ids)} chunks already processed, "
+            f"{len(all_facts)} facts loaded."
+        )
     else:
-        done_ids:  set[str]   = set()
+        done_ids: set[str] = set()
         all_facts: list[dict] = []
 
     remaining = [
-        c for c in all_chunks
+        c
+        for c in all_chunks
         if c["chunk_id"] not in done_ids and c.get("token_count", 0) >= 30
     ]
-    print(f"Processing {len(remaining)} remaining chunks "
-          f"(total {len(all_chunks)}, skipped short/done)...\n")
+    print(
+        f"Processing {len(remaining)} remaining chunks "
+        f"(total {len(all_chunks)}, skipped short/done)...\n"
+    )
 
     for chunk in tqdm(remaining, desc="Extracting"):
         facts = extract_facts_from_chunk(chunk)
@@ -203,8 +211,7 @@ def run_extraction():
         json.dump(list(done_ids), f)
 
     # Summary statistics
-    total        = len(all_facts)
-
+    total = len(all_facts)
 
     print(f"\n{'='*50}")
     print(f"Extracted     : {total} ecological facts")
@@ -212,5 +219,6 @@ def run_extraction():
     print(f"{'='*50}")
 
     return all_facts
+
 
 run_extraction()

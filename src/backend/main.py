@@ -1,13 +1,21 @@
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException, BackgroundTasks, Depends
-from sqlalchemy.orm import Session
+import shutil
 from pathlib import Path
+
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
+from sqlalchemy.orm import Session
+
+from . import crud
 from .database import engine, get_db
 from .models import Base
-from . import crud
-from .schemas import UserCreate, SampleCreate, SampleResponse
-from fastapi.responses import JSONResponse
-import shutil
-import json
+from .schemas import SampleCreate, SampleResponse
 
 # Create all tables in the database on startup
 Base.metadata.create_all(bind=engine)
@@ -16,7 +24,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Microdentify API",
     description="Metagenomic sample processing, location prediction and profile estimation",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Create a directory to store the uploaded files
@@ -26,9 +34,8 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"status":"running",
-            "message":"Microdentify"            
-            }
+    return {"status": "running", "message": "Microdentify"}
+
 
 # Upload a new sample
 @app.post("/samples", response_model=SampleResponse, status_code=201)
@@ -39,7 +46,7 @@ async def upload_sample(
     sample_name: str = Form(..., description="Enter the sample_name"),
     r1: UploadFile = File(..., description="Forward read R1.fastq.gz"),
     r2: UploadFile = File(..., description="Reverse read R2.fastq.gz"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Upload paired FASTQ files and trigger Snakemake pipeline
@@ -51,16 +58,14 @@ async def upload_sample(
     # Check if sample already exists
     if crud.get_sample_by_name(db, sample_obj.sample_name):
         raise HTTPException(
-            status_code=400,
-            detail=f"Sample '{sample_obj.sample_name}' already exists"
+            status_code=400, detail=f"Sample '{sample_obj.sample_name}' already exists"
         )
 
     # Validate file extensions
     for f, name in [(r1, "R1"), (r2, "R2")]:
-        if not f.filename.endswith(('.fastq.gz', '.fq.gz')):
+        if not f.filename.endswith((".fastq.gz", ".fq.gz")):
             raise HTTPException(
-                status_code=400,
-                detail=f"{name} must be .fastq.gz or .fq.gz"
+                status_code=400, detail=f"{name} must be .fastq.gz or .fq.gz"
             )
 
     # Save uploaded files to disk
@@ -79,14 +84,14 @@ async def upload_sample(
         email=sample_obj.email,
         sample_name=sample_obj.sample_name,
         r1_path=str(r1_path),
-        r2_path=str(r2_path)
+        r2_path=str(r2_path),
     )
 
     # We need to run the background snakemake operation
-    
 
     # Return immediately with "pending" status
     return new_sample
+
 
 @app.get("/samples")
 def list_samples(db: Session = Depends(get_db)):
@@ -100,8 +105,8 @@ def list_samples(db: Session = Depends(get_db)):
                 "sample_name": s.sample_name,
                 "user": s.username,
                 "status": s.status,
-                "submitted_at": s.submitted_at
+                "submitted_at": s.submitted_at,
             }
             for s in samples
-        ]
+        ],
     }

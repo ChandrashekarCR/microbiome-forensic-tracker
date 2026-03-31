@@ -1,5 +1,9 @@
+"""
+Unit tests for generate_sample_sheet.py
+These tests validate the functions outputs.
+"""
+# Import libraries
 import pytest
-import sys
 from pathlib import Path
 from smk_helper.generate_sample_sheet import generate_sample_sheet
 

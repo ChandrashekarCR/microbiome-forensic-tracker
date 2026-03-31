@@ -1,13 +1,9 @@
 """
 Unit tests for standardize_bracken.py
-
 These tests validate the Bracken output processing functions.
 """
 import pytest
 import pandas as pd
-import os
-import sys
-from pathlib import Path
 from smk_helper.standardize_bracken import standardize_bracken, concat_tables
 
 

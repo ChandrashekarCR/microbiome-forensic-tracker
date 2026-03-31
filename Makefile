@@ -78,7 +78,14 @@ clean: # Clean all the cache files and .out and .err files from slurm runs
 
 lint: # Linting python scripts
 	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
-	@echo "[lint] ok"	
+	@echo "[lint] ok"
+
+format: # Code formatting using ruff and black
+	@echo "Organizing imports with ruff.."
+	@$(PYTHON) -m ruff check --select I --fix src/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
+	@echo "Formatting code with black"
+	@$(PYTHON) -m black src/ || (echo '[format] black formatting failed' >&2; exit 1)
+	@echo "[format] ok."	
 
 test: # Run pytests for script
 	@pytest

@@ -1,10 +1,11 @@
 # Importing libraries
-import torch
-import numpy as np
-from Bio import SeqIO
-from transformers import AutoTokenizer, AutoModel
 import json
+
+import numpy as np
+import torch
+from Bio import SeqIO
 from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 """
 To check the seqeunce length distribution
@@ -16,32 +17,39 @@ awk '/^>/ { if (NR>1) print len; len=0; next } { len +=length($0) } END { if (NR
 # DNABERT-S model name
 MODEL_NAME = "zhihan1996/DNABERT-S"
 
+
 class DNABERTSContigEmbedder:
     """
     Generate DNABERT=S embedding for metagenomic assembled contigs.
     """
 
-    def __init__(self,model_name=MODEL_NAME, device="cuda"):
+    def __init__(self, model_name=MODEL_NAME, device="cuda"):
         # Resolve device: use cuda only if available
         if device == "cuda":
             dev_str = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             dev_str = device
-            
+
         self.device = torch.device(dev_str)
         print(f"Loading DNABERT-S on {self.device}...")
 
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_NAME, trust_remote_code=True
+        )
 
         # Load the model and move to device
-        self.model = AutoModel.from_pretrained(MODEL_NAME, trust_remote_code=True, low_cpu_mem_usage=False).to(self.device)
+        self.model = AutoModel.from_pretrained(
+            MODEL_NAME, trust_remote_code=True, low_cpu_mem_usage=False
+        ).to(self.device)
 
         # Set to evaluation mode
         self.model.eval()
 
         print("Model loaded successfully")
-        print(f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters.")
+        print(
+            f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters."
+        )
 
     def create_windows(self, sequence, max_length=512, overlap=0.5):
         """
@@ -57,49 +65,51 @@ class DNABERTSContigEmbedder:
         windows = []
 
         # Approximate: 1 token 1 bp for DNA sequeces
-        for start in range(0,len(sequence),stride):
+        for start in range(0, len(sequence), stride):
             end = min(start + max_length, len(sequence))
             windows.append(sequence[start:end])
 
             # Stop if we have reached the end
             if end == len(sequence):
                 break
-        
+
         return windows
-    
+
     def _masked_mean_pool(self, hidden_states, attention_mask):
         """
         Correct masked mean pooling excluding [CLS] and [SEP] tokens.
-        
+
         Args:
             hidden_states: [batch_size, seq_len, 768]
             attention_mask: [batch_size, seq_len] (1=real token, 0=pad)
-        
+
         Returns:
             [batch_size, 768] pooled embeddings
         """
         # Clone attention mask to build content mask
         content_mask = attention_mask.clone().float()
-        
+
         # Zero out [CLS] at position 0
         content_mask[:, 0] = 0
-        
+
         # Zero out [SEP] at last real position
         seq_lengths = attention_mask.sum(dim=1).long()
         for b in range(hidden_states.shape[0]):
             sep_pos = seq_lengths[b] - 1
             content_mask[b, sep_pos] = 0
-        
+
         # Expand mask: [batch_size, seq_len] → [batch_size, seq_len, 768]
         mask_expanded = content_mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
-        
+
         # Sum embeddings of real tokens only
         sum_embeddings = (hidden_states * mask_expanded).sum(dim=1)  # [batch_size, 768]
         sum_mask = mask_expanded.sum(dim=1).clamp(min=1e-9)  # [batch_size, 768]
-        
+
         return sum_embeddings / sum_mask  # [batch_size, 768]
-    
-    def embed_sequence_batch(self, sequences: list, max_length: int=512, overlap: float=0.5):
+
+    def embed_sequence_batch(
+        self, sequences: list, max_length: int = 512, overlap: float = 0.5
+    ):
         """
         TRUE GPU-level batching: ALL sequences and their windows in ONE forward pass.
 
@@ -122,10 +132,20 @@ class DNABERTSContigEmbedder:
             sequence_window_counts.append(len(windows))
 
         # Step 2: Tokenize ALL windows together (one giant batch)
-        inputs = self.tokenizer(all_windows, return_tensors="pt", truncation=True, max_length=max_length, padding='longest', return_attention_mask=True)
+        inputs = self.tokenizer(
+            all_windows,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_length,
+            padding="longest",
+            return_attention_mask=True,
+        )
 
         # Move to GPU
-        inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v) for k, v in inputs.items()}
+        inputs = {
+            k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
+            for k, v in inputs.items()
+        }
 
         # Step 3: One forward pass for all windows at once
         with torch.no_grad():
@@ -133,10 +153,11 @@ class DNABERTSContigEmbedder:
             hidden_states = outputs[0]  # [total_windows, seq_len, 768]
 
             # Use correct masked pooling
-            all_window_embeddings = self._masked_mean_pool(
-                hidden_states, 
-                inputs['attention_mask']
-            ).cpu().numpy()  # [total_windows, 768]
+            all_window_embeddings = (
+                self._masked_mean_pool(hidden_states, inputs["attention_mask"])
+                .cpu()
+                .numpy()
+            )  # [total_windows, 768]
 
         # Step 4: Group window embeddings back by original sequence and average
         sequence_embeddings = []
@@ -144,17 +165,21 @@ class DNABERTSContigEmbedder:
 
         for num_windows in sequence_window_counts:
             end_idx = start_idx + num_windows
-            windows_for_seq = all_window_embeddings[start_idx:end_idx]  # [num_windows, 768]
+            windows_for_seq = all_window_embeddings[
+                start_idx:end_idx
+            ]  # [num_windows, 768]
             sequence_embedding = windows_for_seq.mean(axis=0)  # [768]
             sequence_embeddings.append(sequence_embedding)
             start_idx = end_idx
 
         return sequence_embeddings
 
-    def embed_contigs(self, fasta_file, output_file=None, batch_size=32, max_length=512, overlap=0.3):
+    def embed_contigs(
+        self, fasta_file, output_file=None, batch_size=32, max_length=512, overlap=0.3
+    ):
         """
         Generate embeddings for all contigs in a FASTA file with GPU-level batching.
-        
+
         Args:
             fasta_file: Path to FASTA file
             output_file: Optional path to save embeddings as JSON
@@ -178,22 +203,20 @@ class DNABERTSContigEmbedder:
         print(f"Number of contigs: {len(contigs)}")
         print(f"Length range: {min(contig_lengths):,}-{max(contig_lengths):,} bp")
 
-        # GPU-level batching: Process multiple contigs per forward pass 
+        # GPU-level batching: Process multiple contigs per forward pass
         all_embeddings = []
 
         for i in tqdm(range(0, len(contigs), batch_size), desc="Embedding contigs"):
-            batch_seqs = contigs[i:i+batch_size]
-            
-           # This function will tokenize all sequences at once
+            batch_seqs = contigs[i : i + batch_size]
+
+            # This function will tokenize all sequences at once
             # and run one forward pass that processes all of them
             batch_embeddings = self.embed_sequence_batch(
-                batch_seqs, 
-                max_length=max_length, 
-                overlap=overlap
+                batch_seqs, max_length=max_length, overlap=overlap
             )
-            
+
             all_embeddings.extend(batch_embeddings)
-        
+
         # Convert to numpy
         all_embeddings = np.array(all_embeddings)
         print(f"Embeddings shape: {all_embeddings.shape}")
@@ -203,33 +226,34 @@ class DNABERTSContigEmbedder:
             embedding_dict = {
                 "contig_ids": contig_ids,
                 "embeddings": all_embeddings.tolist(),
-                "embedding_dim": all_embeddings.shape[1]
+                "embedding_dim": all_embeddings.shape[1],
             }
 
             with open(output_file, "w") as f:
                 json.dump(embedding_dict, f)
-            
+
             print(f"Embedding saved to {output_file}")
-        
+
         return all_embeddings, contig_ids
-       
+
+
 if __name__ == "__main__":
 
     # Initialize embedder
     embedder = DNABERTSContigEmbedder(device="cuda")
-    
-    # Test for embed sequence in batch
-    #test_seq = ["ATCGATCGATCGATTTTATGGGTCGATCG" * 5, "ATGCTTTGAGCTTGATTTCTGCTTTAGCTG"*20]  # 1000bp test sequence
-    #embedding = embedder.embed_sequence_batch(test_seq)
 
-    embeddings = embedder.embed_contigs(fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa",
-                                       output_file="embedding.json",
-                                       max_length=512,
-                                       batch_size=128,
-                                       overlap=0.5)
+    # Test for embed sequence in batch
+    # test_seq = ["ATCGATCGATCGATTTTATGGGTCGATCG" * 5, "ATGCTTTGAGCTTGATTTCTGCTTTAGCTG"*20]  # 1000bp test sequence
+    # embedding = embedder.embed_sequence_batch(test_seq)
+
+    embeddings = embedder.embed_contigs(
+        fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa",
+        output_file="embedding.json",
+        max_length=512,
+        batch_size=128,
+        overlap=0.5,
+    )
 """
 Run the script as follows -:
 python3 workflow/scripts/dnaberts_embeddings.py 
 """
-
-

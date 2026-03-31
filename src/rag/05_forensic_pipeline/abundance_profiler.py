@@ -26,14 +26,13 @@ from datetime import date
 from pathlib import Path
 
 import pandas as pd
-import yaml
 from openai import OpenAI
 
 # Configuration
 ROOT = Path("/home/chandru/binp51/src/rag")
 # OLLAMA configuration
-OLLAMA_HOST  = "http://127.0.0.1:11434"   # ollama serve address
-OLLAMA_MODEL = "mistral"                   # must match: ollama list
+OLLAMA_HOST = "http://127.0.0.1:11434"  # ollama serve address
+OLLAMA_MODEL = "mistral"  # must match: ollama list
 
 # Taxonomic rank priority — most specific first for ChromaDB queries
 RANK_PRIORITY = ["species", "genus", "family", "order", "class", "phylum"]
@@ -58,7 +57,7 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 client = OpenAI(
     base_url=f"{OLLAMA_HOST}/v1",
-    api_key="ollama",    # Ollama ignores this but client requires it
+    api_key="ollama",  # Ollama ignores this but client requires it
 )
 
 # ── Shim so embedder.py can be imported without circular deps ─────────────────
@@ -78,8 +77,8 @@ if not _shim_path.exists():
 sys.path.insert(0, str(ROOT))
 from embedder_import_shim import query_knowledge_base  # see bottom of file
 
-
 # ── Step 1: Parse abundance tables ───────────────────────────────────────────
+
 
 def _parse_rank_from_filename(filename: str) -> str:
     """
@@ -107,7 +106,7 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
     All ranks are kept — the caller decides which ranks to use per query.
     """
     tables_input = Path(tables_input)
-    fixed_cols   = ["classifier", "clade", "tax_id"]
+    fixed_cols = ["classifier", "clade", "tax_id"]
 
     if tables_input.is_dir():
         csv_files = sorted(tables_input.glob("kraken_bracken_*.csv"))
@@ -123,7 +122,7 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
 
     for csv_path in csv_files:
         rank = _parse_rank_from_filename(csv_path.name)
-        df   = pd.read_csv(csv_path, header=0)
+        df = pd.read_csv(csv_path, header=0)
 
         sample_cols = [c for c in df.columns if c not in fixed_cols]
         if not sample_cols:
@@ -138,7 +137,9 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
             value_name="abundance",
         )
         long = long.rename(columns={"clade": "taxon"})
-        long["abundance"] = pd.to_numeric(long["abundance"], errors="coerce").fillna(0.0)
+        long["abundance"] = pd.to_numeric(long["abundance"], errors="coerce").fillna(
+            0.0
+        )
         long["rank"] = rank
         frames.append(long)
         print(f"Loaded {csv_path.name:45s}  rank={rank:8s}  rows={len(df)}")
@@ -171,9 +172,9 @@ def get_top_taxa(
     ranks = ranks or RANK_PRIORITY
 
     sample_df = long_df[
-        (long_df["sample_id"] == sample_id) &
-        (long_df["abundance"]  >= MIN_ABD)  &
-        (long_df["rank"].isin(ranks))
+        (long_df["sample_id"] == sample_id)
+        & (long_df["abundance"] >= MIN_ABD)
+        & (long_df["rank"].isin(ranks))
     ].copy()
 
     if sample_df.empty:
@@ -191,23 +192,23 @@ def get_top_taxa(
     )
 
     # Take top TOP_TAXA per rank, then cap total at TOP_TAXA * len(ranks)
-    per_rank = (
-        sample_df
-        .groupby("rank", group_keys=False)
-        .apply(lambda g: g.nlargest(TOP_TAXA, "abundance"))
+    per_rank = sample_df.groupby("rank", group_keys=False).apply(
+        lambda g: g.nlargest(TOP_TAXA, "abundance")
     )
 
     return [
         {
-            "taxon":     row["taxon"],
-            "tax_id":    str(row["tax_id"]),
+            "taxon": row["taxon"],
+            "tax_id": str(row["tax_id"]),
             "abundance": float(row["abundance"]),
-            "rank":      row["rank"],
+            "rank": row["rank"],
         }
         for _, row in per_rank.iterrows()
     ]
 
-# Step 2: Retrieve ecological context 
+
+# Step 2: Retrieve ecological context
+
 
 def retrieve_ecological_context(taxa: list[dict]) -> list[dict]:
     """
@@ -228,7 +229,7 @@ def retrieve_ecological_context(taxa: list[dict]) -> list[dict]:
         by_rank.get(t["rank"], by_rank["phylum"]).append(t["taxon"])
 
     all_results: list[dict] = []
-    seen_texts:  set[str]   = set()
+    seen_texts: set[str] = set()
 
     # Query tier 1: species + genus (high specificity)
     tier1 = by_rank["species"] + by_rank["genus"]
@@ -259,7 +260,7 @@ def retrieve_ecological_context(taxa: list[dict]) -> list[dict]:
 
     # Attach sample abundance to each result (for environment scoring)
     for r in all_results:
-        meta_org         = r["metadata"].get("organism", "").lower()
+        meta_org = r["metadata"].get("organism", "").lower()
         matched_abundance = 0.0
         for taxon, abd in abundance_map.items():
             if taxon.lower() in meta_org or meta_org in taxon.lower():
@@ -271,55 +272,58 @@ def retrieve_ecological_context(taxa: list[dict]) -> list[dict]:
     all_results.sort(key=lambda x: x["similarity"], reverse=True)
     return all_results
 
+
 # ── Step 3: Score environments ────────────────────────────────────────────────
+
 
 def _map_to_canonical(raw_env: str) -> str | None:
     """Map a free-text environment description to one of the canonical ENVS."""
     mapping = {
-        "sewage":       "sewage / wastewater",
-        "wastewater":   "sewage / wastewater",
-        "effluent":     "sewage / wastewater",
-        "garden":       "urban garden soil",
-        "park":         "urban garden soil",
-        "urban soil":   "urban garden soil",
+        "sewage": "sewage / wastewater",
+        "wastewater": "sewage / wastewater",
+        "effluent": "sewage / wastewater",
+        "garden": "urban garden soil",
+        "park": "urban garden soil",
+        "urban soil": "urban garden soil",
         "urban garden": "urban garden soil",
         "agricultural": "agricultural soil",
-        "farmland":     "agricultural soil",
-        "crop":         "agricultural soil",
-        "forest":       "forest soil",
-        "woodland":     "forest soil",
-        "beech":        "forest soil",
-        "oak":          "forest soil",
-        "rhizosphere":  "forest soil",
-        "litter":       "forest soil",
-        "coastal":      "coastal / marine sediment",
-        "marine":       "coastal / marine sediment",
-        "sediment":     "coastal / marine sediment",
-        "baltic":       "coastal / marine sediment",
-        "freshwater":   "freshwater sediment / riverbed",
-        "river":        "freshwater sediment / riverbed",
-        "lake":         "freshwater sediment / riverbed",
-        "stream":       "freshwater sediment / riverbed",
-        "indoor":       "indoor dust / built environment",
-        "dust":         "indoor dust / built environment",
-        "house":        "indoor dust / built environment",
-        "building":     "indoor dust / built environment",
-        "roadside":     "roadside / urban soil",
-        "road":         "roadside / urban soil",
-        "traffic":      "roadside / urban soil",
-        "wetland":      "wetland / peat",
-        "peat":         "wetland / peat",
-        "bog":          "wetland / peat",
-        "marsh":        "wetland / peat",
-        "decomposit":   "decomposition / post-mortem soil",
-        "post-mortem":  "decomposition / post-mortem soil",
-        "thanato":      "decomposition / post-mortem soil",
-        "corpse":       "decomposition / post-mortem soil",
+        "farmland": "agricultural soil",
+        "crop": "agricultural soil",
+        "forest": "forest soil",
+        "woodland": "forest soil",
+        "beech": "forest soil",
+        "oak": "forest soil",
+        "rhizosphere": "forest soil",
+        "litter": "forest soil",
+        "coastal": "coastal / marine sediment",
+        "marine": "coastal / marine sediment",
+        "sediment": "coastal / marine sediment",
+        "baltic": "coastal / marine sediment",
+        "freshwater": "freshwater sediment / riverbed",
+        "river": "freshwater sediment / riverbed",
+        "lake": "freshwater sediment / riverbed",
+        "stream": "freshwater sediment / riverbed",
+        "indoor": "indoor dust / built environment",
+        "dust": "indoor dust / built environment",
+        "house": "indoor dust / built environment",
+        "building": "indoor dust / built environment",
+        "roadside": "roadside / urban soil",
+        "road": "roadside / urban soil",
+        "traffic": "roadside / urban soil",
+        "wetland": "wetland / peat",
+        "peat": "wetland / peat",
+        "bog": "wetland / peat",
+        "marsh": "wetland / peat",
+        "decomposit": "decomposition / post-mortem soil",
+        "post-mortem": "decomposition / post-mortem soil",
+        "thanato": "decomposition / post-mortem soil",
+        "corpse": "decomposition / post-mortem soil",
     }
     for keyword, canonical in mapping.items():
         if keyword in raw_env:
             return canonical
     return None
+
 
 def score_environments(retrieved: list[dict]) -> dict[str, float]:
     """
@@ -336,10 +340,10 @@ def score_environments(retrieved: list[dict]) -> dict[str, float]:
     env_scores: dict[str, float] = defaultdict(float)
 
     for fact in retrieved:
-        env_raw    = fact["metadata"].get("environment", "").lower()
+        env_raw = fact["metadata"].get("environment", "").lower()
         similarity = float(fact.get("similarity", 0.0))
         confidence = float(fact["metadata"].get("confidence", "0.5"))
-        abundance  = float(fact.get("query_abundance", 0.0))
+        abundance = float(fact.get("query_abundance", 0.0))
 
         # Map the raw environment string to the nearest canonical category
         canonical = _map_to_canonical(env_raw)
@@ -358,8 +362,11 @@ def score_environments(retrieved: list[dict]) -> dict[str, float]:
         n = len(ENVS)
         return {env: round(1.0 / n, 4) for env in ENVS}
 
-    return {env: round(score / total, 4) for env, score in
-            sorted(env_scores.items(), key=lambda x: x[1], reverse=True)}
+    return {
+        env: round(score / total, 4)
+        for env, score in sorted(env_scores.items(), key=lambda x: x[1], reverse=True)
+    }
+
 
 # ── Step 4: LLM forensic narrative ────────────────────────────────────────────
 
@@ -424,10 +431,7 @@ def generate_forensic_narrative(
 
     # Build env scores table (top 5 only to keep prompt short)
     top_envs = list(env_probs.items())[:5]
-    env_scores = "\n".join(
-        f"  {env:<40}  {prob*100:.1f}%"
-        for env, prob in top_envs
-    )
+    env_scores = "\n".join(f"  {env:<40}  {prob*100:.1f}%" for env, prob in top_envs)
 
     # Build evidence block (top 8 most similar facts)
     top_evidence = sorted(retrieved, key=lambda x: x["similarity"], reverse=True)[:8]
@@ -440,25 +444,27 @@ def generate_forensic_narrative(
     )
 
     prompt = FORENSIC_USER.format(
-        sample_id     = sample_id,
-        today         = str(date.today()),
-        taxa_table    = taxa_table,
-        env_scores    = env_scores,
-        evidence_block= evidence_block,
+        sample_id=sample_id,
+        today=str(date.today()),
+        taxa_table=taxa_table,
+        env_scores=env_scores,
+        evidence_block=evidence_block,
     )
 
     response = client.chat.completions.create(
         model=OLLAMA_MODEL,
         messages=[
             {"role": "system", "content": FORENSIC_SYSTEM},
-            {"role": "user",   "content": prompt},
+            {"role": "user", "content": prompt},
         ],
         temperature=0.3,
         max_tokens=1500,
     )
     return response.choices[0].message.content.strip()
 
-# Step 5: Assemble and save report 
+
+# Step 5: Assemble and save report
+
 
 def build_report(
     sample_id: str,
@@ -471,25 +477,26 @@ def build_report(
     top_env = max(env_probs, key=env_probs.get)
 
     return {
-        "sample_id":           sample_id,
-        "analysis_date":       str(date.today()),
+        "sample_id": sample_id,
+        "analysis_date": str(date.today()),
         "primary_environment": top_env,
         "primary_probability": env_probs[top_env],
-        "environment_scores":  env_probs,
-        "top_taxa":            taxa,
-        "n_literature_facts":  len(retrieved),
-        "narrative":           narrative,
+        "environment_scores": env_probs,
+        "top_taxa": taxa,
+        "n_literature_facts": len(retrieved),
+        "narrative": narrative,
         "evidence_summary": [
             {
-                "organism":     r["metadata"].get("organism", ""),
-                "environment":  r["metadata"].get("environment", ""),
-                "location":     r["metadata"].get("location", ""),
-                "pmid":         r["metadata"].get("pmid", ""),
-                "similarity":   r["similarity"],
+                "organism": r["metadata"].get("organism", ""),
+                "environment": r["metadata"].get("environment", ""),
+                "location": r["metadata"].get("location", ""),
+                "pmid": r["metadata"].get("pmid", ""),
+                "similarity": r["similarity"],
             }
             for r in sorted(retrieved, key=lambda x: x["similarity"], reverse=True)[:10]
         ],
     }
+
 
 def _write_text_report(report: dict, path: Path) -> None:
     """Write a plain-text version of the report for direct police use."""
@@ -500,11 +507,13 @@ def _write_text_report(report: dict, path: Path) -> None:
         f"Sample ID      : {report['sample_id']}",
         f"Analysis Date  : {report['analysis_date']}",
         f"Primary Match  : {report['primary_environment']} "
-          f"({report['primary_probability']*100:.1f}% probability)",
+        f"({report['primary_probability']*100:.1f}% probability)",
         "",
         "ENVIRONMENT PROBABILITY SCORES:",
-        *[f"  {env:<42} {prob*100:.1f}%"
-          for env, prob in report["environment_scores"].items()],
+        *[
+            f"  {env:<42} {prob*100:.1f}%"
+            for env, prob in report["environment_scores"].items()
+        ],
         "",
         "TOP TAXA (by rank):",
         *[
@@ -520,13 +529,17 @@ def _write_text_report(report: dict, path: Path) -> None:
         "─" * 65,
         "LITERATURE EVIDENCE (top 10 by relevance):",
         "─" * 65,
-        *[f"  PMID {e['pmid']:>10} | {e['organism']:<35} → {e['environment']}"
-          for e in report["evidence_summary"]],
+        *[
+            f"  PMID {e['pmid']:>10} | {e['organism']:<35} → {e['environment']}"
+            for e in report["evidence_summary"]
+        ],
         "=" * 65,
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
 
-# Main entry point 
+
+# Main entry point
+
 
 def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict:
     """
@@ -543,7 +556,7 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
     """
     table_path = Path(table_path)
     print(f"Loading tables from: {table_path}")
-    long_df    = load_abundance_tables(table_path)
+    long_df = load_abundance_tables(table_path)
 
     if sample_id is None:
         # Profile all samples in the table
@@ -567,13 +580,15 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
 
         # Step 3
         env_probs = score_environments(retrieved)
-        top_env   = max(env_probs, key=env_probs.get)
-        print(f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env]*100:.1f}%)")
+        top_env = max(env_probs, key=env_probs.get)
+        print(
+            f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env]*100:.1f}%)"
+        )
 
-         # Step 4
+        # Step 4
         print("Step 4: Generating forensic narrative with Ollama...")
         narrative = generate_forensic_narrative(sid, taxa, env_probs, retrieved)
-        
+
         # Step 5
         report = build_report(sid, taxa, env_probs, retrieved, narrative)
         reports.append(report)
@@ -591,4 +606,7 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
 
     return reports if len(reports) > 1 else reports[0]
 
-profile_sample("/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/11_final_reports")
+
+profile_sample(
+    "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/11_final_reports"
+)

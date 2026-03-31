@@ -1,7 +1,6 @@
+# IMport libraries
 import pytest
-import sys
 import pandas as pd
-from pathlib import Path
 from smk_helper.helper_scripts import read_sample_sheet, validate_sample_sheet, check_fastq_paths_exist, \
     load_sample_sheet, get_sample_r1, get_sample_r2, get_sample_names
 

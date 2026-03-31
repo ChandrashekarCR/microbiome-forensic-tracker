@@ -9,10 +9,12 @@
 # get_sample_names: Get all the sample names in the sample.tsv file
 
 # Import libraries
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
+
 REQUIRED_COLUMNS = {"sample", "r1", "r2"}
+
 
 # Read the sample sheets
 def read_sample_sheet(tsv_path: str) -> pd.DataFrame:
@@ -23,6 +25,7 @@ def read_sample_sheet(tsv_path: str) -> pd.DataFrame:
             f"Generate it with the generate_sample_sheet.py script."
         )
     return pd.read_csv(path, sep="\t", dtype=str)
+
 
 # Validate the sample sheets
 def validate_sample_sheet(df: pd.DataFrame) -> pd.DataFrame:
@@ -36,6 +39,7 @@ def validate_sample_sheet(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["sample", "r1", "r2"])
     return df
 
+
 # Check if paths mentioned in the fastq files are correct
 def check_fastq_paths_exist(df: pd.DataFrame) -> None:
     for idx, row in df.iterrows():
@@ -48,6 +52,7 @@ def check_fastq_paths_exist(df: pd.DataFrame) -> None:
         if not Path(r1).exists() or not Path(r2).exists():
             raise FileNotFoundError(f"Missing a correct file path for {sample}")
 
+
 # Load the sample sheet
 def load_sample_sheet(tsv_path: str, max_samples: int | None = None) -> pd.DataFrame:
     df = read_sample_sheet(tsv_path)
@@ -59,16 +64,19 @@ def load_sample_sheet(tsv_path: str, max_samples: int | None = None) -> pd.DataF
 
 
 # Get only the read 1 for a sample
-def get_sample_r1(sample_df:pd.DataFrame, sample:str) -> str:
-    return sample_df.loc[sample,"r1"]
+def get_sample_r1(sample_df: pd.DataFrame, sample: str) -> str:
+    return sample_df.loc[sample, "r1"]
+
 
 # Get only the read 2 for a sample
-def get_sample_r2(sample_df:pd.DataFrame, sample:str) -> str:
-    return sample_df.loc[sample,"r2"]
+def get_sample_r2(sample_df: pd.DataFrame, sample: str) -> str:
+    return sample_df.loc[sample, "r2"]
+
 
 # Get all the names of the sample
 def get_sample_names(sample_df: pd.DataFrame) -> str:
     return list(sample_df.index)
+
 
 """
 Example - 

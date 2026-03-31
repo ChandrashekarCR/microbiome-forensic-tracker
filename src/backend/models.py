@@ -2,34 +2,36 @@
 # Each class is a table in the database
 
 # Importing libraries
-from sqlalchemy import Column, Integer, Float, String, DateTime, Text, ForeignKey
-from sqlalchemy.sql import func
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from .database import Base
+
 
 # Table 1: samples
 # Tracks every sample uploaded by the users
 class Samples(Base):
-    __tablename__ = 'samples'
+    __tablename__ = "samples"
 
-    id = Column(Integer,primary_key=True,index=True)
-    sample_name = Column(String(200), index=True) # zr23059_100
-    username = Column(String(100), index= True)
+    id = Column(Integer, primary_key=True, index=True)
+    sample_name = Column(String(200), index=True)  # zr23059_100
+    username = Column(String(100), index=True)
     email = Column(String(100))
 
     # File metadata
-    r1_path = Column(String(500)) # the file path for forward read
-    r2_path = Column(String(500)) # the file path for reverse read
+    r1_path = Column(String(500))  # the file path for forward read
+    r2_path = Column(String(500))  # the file path for reverse read
 
     # Pipeiline status
     # pending -> processing -> completed/failed
-    status = Column(String,default="pending")
+    status = Column(String, default="pending")
 
     # Timestamps
     submitted_at = Column(DateTime(timezone=True), default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     # Log and error info
     log_path = Column(String, nullable=True)
     error_msg = Column(Text, nullable=True)
@@ -52,6 +54,7 @@ class Samples(Base):
 # Stores the output of the sankemake pipeline
 # one row one one taxons abundane in on sample
 
+
 class AbundanceResult(Base):
     __tablename__ = "abundance_results"
 
@@ -68,7 +71,7 @@ class AbundanceResult(Base):
 
     # Abundance values
     relative_abundance = Column(Float, nullable=False)
-    
+
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationship

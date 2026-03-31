@@ -1,4 +1,3 @@
-
 """
 GPU partition selector for Kraken2 jobs in Lunarc
 Filles partitions in priority order based on the node capacity:
@@ -12,14 +11,15 @@ After all the 16 slots are assigned, round-robin from the least used partition.
 
 # Dynamic partitioning of resources
 _GPU_PARTITION_NODES = {
-    'aurora':  4, # ca19-ca22 nodes have 768 G
-    'gpua40':  6, # cg01-cg06 nodes have 512 G
-    'gpua40i': 6 # cg13-cg17, cg23 nodes have 512 G
-    }
+    "aurora": 4,  # ca19-ca22 nodes have 768 G
+    "gpua40": 6,  # cg01-cg06 nodes have 512 G
+    "gpua40i": 6,  # cg13-cg17, cg23 nodes have 512 G
+}
 GPU_PARTITION_PRIORITY = list(_GPU_PARTITION_NODES.keys())  # priority order
 
 # Mutable counter - persists for the lifetime of the Snakemake process
-_partition_dispatched = {p: 0 for p in GPU_PARTITION_PRIORITY}
+_partition_dispatched = dict.fromkeys(GPU_PARTITION_PRIORITY, 0)
+
 
 def select_best_partition(wildcards=None):
     """
@@ -47,9 +47,8 @@ def select_best_partition(wildcards=None):
     print(f"[partition selector] All slots full - round-robin to {least}")
     return least
 
+
 def reset_partition_counters():
     """Reset counters — useful for unit testing."""
     for p in GPU_PARTITION_PRIORITY:
         _partition_dispatched[p] = 0
-
-
