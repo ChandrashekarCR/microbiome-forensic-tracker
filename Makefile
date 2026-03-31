@@ -67,9 +67,6 @@ install-dev: venv # Install pyproject.toml for dev work (loose version).
 	@. .venv/bin/activate && pip install -e ".[dev]"
 	@echo "[install-dev] dev tools installed.."
 
-install-full: install install-dev  # Install both (requirements.txt + dev tools)
-	@echo "[install-full] Production deps + dev tools"
-
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name "*.err" -delete
 	@find . -type f -name "*.out" -delete
@@ -96,8 +93,19 @@ conda_env: environment.yml
 		conda env create -f environment.yml; \
 	fi
 	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
-	@echo "[conda_env] ok.."
+	@echo "[conda_env] ok"
 
+venv-dnaberts: # For DNABERT-S development
+	@echo "Installing DNABERT-S and dev tools for development."
+	@$(PYTHON) -m venv .venv-dnaberts
+	@. .venv-dnaberts/bin/activate && pip install -U pip && pip install -e ".[dnaberts,dev]"
+	@echo "[venv-dnaberts] ok"
+
+venv-rag: # For RAG development
+	@echo "Installating RAG and dev tools environment for development."
+	@$(PYTHON) -m venv .venv-rag
+	@. .venv-rag/bin/activate && pip install -U pip && pip install -e ".[rag,dev]"
+	@echo "[venv-rag] ok"
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
 		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \

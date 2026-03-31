@@ -1,1 +1,2 @@
-# Write test bracken script here
+import pytest
+from smk_helper.standardize_bracken import standardize_bracken, concat_tables
