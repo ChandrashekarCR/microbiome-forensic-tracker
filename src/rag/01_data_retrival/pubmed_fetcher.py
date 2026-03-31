@@ -168,4 +168,3 @@ def run_retrival(
 
 
 papers = run_retrival()
-print(papers)

@@ -75,7 +75,7 @@ if not _shim_path.exists():
 
 # Import query function from the vectorstore module
 sys.path.insert(0, str(ROOT))
-from embedder_import_shim import query_knowledge_base  # see bottom of file
+from embedder_import_shim import query_knowledge_base  # type: ignore # noqa: E402
 
 # ── Step 1: Parse abundance tables ───────────────────────────────────────────
 

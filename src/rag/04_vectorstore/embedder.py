@@ -72,7 +72,7 @@ def build_vectorstore():
     # Create or reset collection
     try:
         chroma_client.delete_collection(COLLECTION_NAME)
-    except:
+    except Exception:
         pass
 
     collection = chroma_client.create_collection(
@@ -84,7 +84,7 @@ def build_vectorstore():
     # Prepare data for batch insert
     ids, documents, metadatas = [], [], []
 
-    for i, fact in enumerate(tqdm(all_facts[:100], desc="Preparing")):
+    for i, fact in enumerate(tqdm(all_facts, desc="Preparing")):
         fact_text = build_fact_text(fact)
         fact_id = f"fact_{i:06d}"
 

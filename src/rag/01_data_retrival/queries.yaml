@@ -31,73 +31,73 @@ queries:
   - "eDNA metabarcoding Sweden species distribution freshwater"
   - "microbiome urban rural Sweden gradient land use"
 
-  # ── 2. Forensic microbiology ─────────────────────────────────────────────
-  - "forensic soil microbiome DNA geolocation provenance"
-  - "forensic eDNA bacteria crime scene soil transfer"
-  - "soil bacteria forensic investigation geographic origin"
-  - "microbiome geolocation forensic Scandinavia Norway Sweden"
-  - "forensic microbiology trace evidence soil bacteria"
-  - "microbial community crime scene forensic profiling"
-  - "microbiome provenance soil forensic 16S"
-  - "bacterial fingerprint soil geographic location"
-
-  # ── 3. Sewage / wastewater (highly relevant: crime scenes near water) ────
-  - "sewage wastewater microbiome Sweden bacterial community"
-  - "wastewater treatment plant microbial community Scandinavia"
-  - "activated sludge microbiome bacteria Europe"
-  - "sewage bacteria Bacteroides Escherichia urban environment"
-  - "antibiotic resistance genes wastewater Sweden"
-
-  # ── 4. Soil environments ─────────────────────────────────────────────────
-  - "urban garden soil bacteria Sweden park microbiome"
-  - "agricultural soil microbiome Skane Sweden farming"
-  - "forest soil microbiome Sweden beech oak Fagus Quercus"
-  - "wetland soil microbiome Scandinavia Sweden peat bog"
-  - "roadside soil microbiome urban contamination bacteria"
-  - "playground soil bacteria children urban Sweden"
-  - "compost microbiome bacteria fungi decomposition"
-
-  # ── 5. Aquatic / coastal environments ────────────────────────────────────
-  - "coastal marine sediment bacteria Sweden Baltic Sea microbiome"
-  - "freshwater lake river microbiome Sweden Scandinavia bacteria"
-  - "Baltic Sea microbiome bacteria sediment water column"
-  - "benthic microbiome coastal sediment Sweden"
-  - "drinking water microbiome Sweden bacteria"
-
-  # ── 6. Trees and plant-associated (Skåne has beech, oak, elm) ───────────
-  - "rhizosphere bacteria beech Fagus sylvatica Scandinavia soil"
-  - "tree associated microbiome oak Quercus Sweden forest"
-  - "phyllosphere bacteria Sweden plant leaf microbiome"
-  - "mycorrhizal fungi Sweden forest soil ecology"
-  - "litter decomposition bacteria fungi Sweden forest floor"
-
-  # ── 7. Indoor / built environment (crime scenes often indoors) ───────────
-  - "indoor dust microbiome Sweden built environment bacteria"
-  - "house dust microbiome Scandinavia bacteria fungi"
-  - "hospital microbiome bacteria Sweden indoor"
-  - "office building microbiome Scandinavia airborne bacteria"
-
-  # ── 8. Organism-environment references (universal) ───────────────────────
-  - "Bacteroidetes soil environment habitat dominant association"
-  - "Proteobacteria urban soil garden bacteria ecology abundance"
-  - "Actinobacteria forest soil Scandinavia distribution"
-  - "Firmicutes anaerobic environment sewage soil"
-  - "Planctomycetes wetland aquatic bacteria ecology"
-  - "Chloroflexi soil environment distribution microbiome"
-  - "Verrucomicrobia soil water environment bacteria"
-  - "Archaea soil sediment methane anaerobic environment"
-
-  # ── 9. Specific forensically relevant organisms ──────────────────────────
-  - "Clostridium soil environment detection habitat"
-  - "Pseudomonas fluorescens soil plant rhizosphere"
-  - "Bacillus spore soil environment persistence"
-  - "Staphylococcus skin human microbiome transfer"
-  - "Candida fungi indoor soil environment"
-  - "Acinetobacter soil urban environment hospital"
-  - "Klebsiella environment water soil clinical"
-
-  # ── 10. Post-mortem / decomposition (relevant for crime scene biology) ───
-  - "post-mortem microbiome decomposition bacteria succession"
-  - "necrophagous bacteria succession soil forensic"
-  - "thanatomicrobiome death microbiome forensic"
-  - "decomposition microbial community soil surface"
+#  # ── 2. Forensic microbiology ─────────────────────────────────────────────
+#  - "forensic soil microbiome DNA geolocation provenance"
+#  - "forensic eDNA bacteria crime scene soil transfer"
+#  - "soil bacteria forensic investigation geographic origin"
+#  - "microbiome geolocation forensic Scandinavia Norway Sweden"
+#  - "forensic microbiology trace evidence soil bacteria"
+#  - "microbial community crime scene forensic profiling"
+#  - "microbiome provenance soil forensic 16S"
+#  - "bacterial fingerprint soil geographic location"
+#
+#  # ── 3. Sewage / wastewater (highly relevant: crime scenes near water) ────
+#  - "sewage wastewater microbiome Sweden bacterial community"
+#  - "wastewater treatment plant microbial community Scandinavia"
+#  - "activated sludge microbiome bacteria Europe"
+#  - "sewage bacteria Bacteroides Escherichia urban environment"
+#  - "antibiotic resistance genes wastewater Sweden"
+#
+#  # ── 4. Soil environments ─────────────────────────────────────────────────
+#  - "urban garden soil bacteria Sweden park microbiome"
+#  - "agricultural soil microbiome Skane Sweden farming"
+#  - "forest soil microbiome Sweden beech oak Fagus Quercus"
+#  - "wetland soil microbiome Scandinavia Sweden peat bog"
+#  - "roadside soil microbiome urban contamination bacteria"
+#  - "playground soil bacteria children urban Sweden"
+#  - "compost microbiome bacteria fungi decomposition"
+#
+#  # ── 5. Aquatic / coastal environments ────────────────────────────────────
+#  - "coastal marine sediment bacteria Sweden Baltic Sea microbiome"
+#  - "freshwater lake river microbiome Sweden Scandinavia bacteria"
+#  - "Baltic Sea microbiome bacteria sediment water column"
+#  - "benthic microbiome coastal sediment Sweden"
+#  - "drinking water microbiome Sweden bacteria"
+#
+#  # ── 6. Trees and plant-associated (Skåne has beech, oak, elm) ───────────
+#  - "rhizosphere bacteria beech Fagus sylvatica Scandinavia soil"
+#  - "tree associated microbiome oak Quercus Sweden forest"
+#  - "phyllosphere bacteria Sweden plant leaf microbiome"
+#  - "mycorrhizal fungi Sweden forest soil ecology"
+#  - "litter decomposition bacteria fungi Sweden forest floor"
+#
+#  # ── 7. Indoor / built environment (crime scenes often indoors) ───────────
+#  - "indoor dust microbiome Sweden built environment bacteria"
+#  - "house dust microbiome Scandinavia bacteria fungi"
+#  - "hospital microbiome bacteria Sweden indoor"
+#  - "office building microbiome Scandinavia airborne bacteria"
+#
+#  # ── 8. Organism-environment references (universal) ───────────────────────
+#  - "Bacteroidetes soil environment habitat dominant association"
+#  - "Proteobacteria urban soil garden bacteria ecology abundance"
+#  - "Actinobacteria forest soil Scandinavia distribution"
+#  - "Firmicutes anaerobic environment sewage soil"
+#  - "Planctomycetes wetland aquatic bacteria ecology"
+#  - "Chloroflexi soil environment distribution microbiome"
+#  - "Verrucomicrobia soil water environment bacteria"
+#  - "Archaea soil sediment methane anaerobic environment"
+#
+#  # ── 9. Specific forensically relevant organisms ──────────────────────────
+#  - "Clostridium soil environment detection habitat"
+#  - "Pseudomonas fluorescens soil plant rhizosphere"
+#  - "Bacillus spore soil environment persistence"
+#  - "Staphylococcus skin human microbiome transfer"
+#  - "Candida fungi indoor soil environment"
+#  - "Acinetobacter soil urban environment hospital"
+#  - "Klebsiella environment water soil clinical"
+#
+#  # ── 10. Post-mortem / decomposition (relevant for crime scene biology) ───
+#  - "post-mortem microbiome decomposition bacteria succession"
+#  - "necrophagous bacteria succession soil forensic"
+#  - "thanatomicrobiome death microbiome forensic"
+#  - "decomposition microbial community soil surface"

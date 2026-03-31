@@ -34,13 +34,13 @@ def _check_ollama_running():
 
     try:
         urllib.request.urlopen(f"{OLLAMA_HOST}/api/tags", timeout=3)
-    except Exception:
+    except Exception as e:
         raise RuntimeError(
             f"Ollama server is not running at {OLLAMA_HOST}\n"
             f"Start it with:\n"
             f"  OLLAMA_MODELS=$HOME/ollama_models "
             f"/home/chandru/ollama/bin/ollama serve &"
-        )
+        ) from e
 
 
 # Prompt Engineering
