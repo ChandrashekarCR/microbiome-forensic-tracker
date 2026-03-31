@@ -1,3 +1,8 @@
+"""
+This script is just used to check for the resource usage by the rules in snakemake, so that
+they can be updated to ensure maximum efficiency.
+"""
+# Import libraries
 import pandas as pd
 import re
 
