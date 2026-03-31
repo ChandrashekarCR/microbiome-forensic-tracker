@@ -10,23 +10,19 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from . import crud
-from .database import engine, get_db
-from .models import Base
-from . import crud
-from .schemas import UserCreate, SampleCreate, SampleResponse
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
-import shutil
-import json
+from .database import get_db
+from .schemas import SampleCreate, SampleResponse
 
 # Get the directory where main.py is located
 BACKEND_DIR = Path(__file__).parent
 TEMPLATES_DIR = BACKEND_DIR / "templates"
 
 # Create all tables in the database on startup
-#Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 # FastAPI app
 app = FastAPI(
@@ -119,18 +115,20 @@ def list_samples(db: Session = Depends(get_db)):
         ],
     }
 
+
 # Interactive map for the user
 
-@app.get("/map",response_class=HTMLResponse)
+
+@app.get("/map", response_class=HTMLResponse)
 def interactive_map():
     """Serve the interactive Malmo map"""
     map_file = TEMPLATES_DIR / "malmo_interactive_map.html"
-    
+
     if not map_file.exists():
         raise HTTPException(status_code=404, detail=f"Map file not found at {map_file}")
-    
+
     # Read the HTML file and return as an HTMLResponse
-    with open(map_file,"r",encoding="utf-8") as f:
+    with open(map_file, "r", encoding="utf-8") as f:
         html_content = f.read()
 
     return html_content
