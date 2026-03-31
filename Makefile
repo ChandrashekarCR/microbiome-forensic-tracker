@@ -52,7 +52,7 @@ venv: # Create virtual environement
 	@. .venv/bin/activate && pip install -U pip
 	@echo "[venv] ready .."
 
-install: venv
+install: venv # Install packages from requirements.txt file.
 	@echo "Installing packages from requirements.txt file."
 	@if [ ! -f requirements.txt ]; then \
 		echo "File not found. Ensure you have the requirements file."; \
@@ -60,11 +60,23 @@ install: venv
 	else \
 		. .venv/bin/activate && pip install -r requirements.txt; \
 	fi
+	@echo "[install] ok"
+
+install-dev: venv # Install pyproject.toml for dev work (loose version).
+	@echo "Installing only dev tools..."
+	@. .venv/bin/activate && pip install -e ".[dev]"
+	@echo "[install-dev] dev tools installed.."
+
+install-full: install install-dev  # Install both (requirements.txt + dev tools)
+	@echo "[install-full] Production deps + dev tools"
 
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name "*.err" -delete
 	@find . -type f -name "*.out" -delete
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@find . -type d -name "*.egg-info" -exec rm -rf {} +
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	@find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	@echo "[clean] ok"
 
 lint: # Linting python scripts
