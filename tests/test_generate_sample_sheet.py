@@ -3,12 +3,6 @@ import sys
 from pathlib import Path
 from smk_helper.generate_sample_sheet import generate_sample_sheet
 
-# Add workflow scripts to path
-#root = Path(__file__).resolve().parents[1]
-#sys.path.insert(0, str(root))
-#
-#from workflow.scripts.generate_sample_sheet import generate_sample_sheet
-
 # Test that TSV is created correctly from fake FASTQ files
 def test_generate_sample_sheet_basic(tmp_path):
 
