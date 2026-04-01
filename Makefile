@@ -1,6 +1,5 @@
 BASE_PYTHON ?= python
 PYTHON := .venv/bin/python
-CONDA_ENV_NAME := binp51_env
 
 DEFAULT_GOAL := all
 SHELL := bash
@@ -62,11 +61,6 @@ install: venv # Install packages from requirements.txt file.
 	fi
 	@echo "[install] ok"
 
-install-dev: venv # Install pyproject.toml for dev work (loose version).
-	@echo "Installing only dev tools..."
-	@. .venv/bin/activate && pip install -e ".[dev]"
-	@echo "[install-dev] dev tools installed.."
-
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name "*.err" -delete
 	@find . -type f -name "*.out" -delete
@@ -88,19 +82,14 @@ format: # Code formatting using ruff and black
 	@echo "[format] ok."	
 
 test: # Run pytests for script
-	@pytest
+	@echo "Running core tests.."
 	@echo "[test] ok"
 
-conda_env: environment.yml
-	@if conda env list | grep "$(CONDA_ENV_NAME)"; then \
-		echo "Environment already exisits. Syncing packages.."; \
-		conda env update -n $(CONDA_ENV_NAME) -f environment.yml --prune;\
-	else \
-		echo "Environment does not exist. Creating the environment from yml file."; \
-		conda env create -f environment.yml; \
-	fi
-	@echo "Environment is ready. Run conda activate $(CONDA_ENV_NAME) to activate it."
-	@echo "[conda_env] ok"
+venv-snakemake: # For snakemake excecution
+	@echo "Installing Snakemake and dev tools for development"
+	@$(PYTHON) -m venv .venv-snakemake
+	@. .venv-snakemake/bin/activate && pip install -U pip && pip install -e ".[snakemake,dev]"
+	@echo "[venv-snakemake] ok"
 
 venv-dnaberts: # For DNABERT-S development
 	@echo "Installing DNABERT-S and dev tools for development."
@@ -113,6 +102,12 @@ venv-rag: # For RAG development
 	@$(PYTHON) -m venv .venv-rag
 	@. .venv-rag/bin/activate && pip install -U pip && pip install -e ".[rag,dev]"
 	@echo "[venv-rag] ok"
+
+venv-backend: # For backend development
+	@echo "Installing backend and dev tools environment for development."
+	@$(PYTHON) -m venv .venv-backend
+	@. .venv-backend/bin/activate && pip install -U pip && pip install -e ".[backend,dev]"
+	@echo "[venv-backend] ok"
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
 		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \
