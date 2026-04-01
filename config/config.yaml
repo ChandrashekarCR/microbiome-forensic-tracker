@@ -13,7 +13,7 @@ samples:
   sample_sheet: "config/samples.tsv" # Sample sheet
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 15 # Running 4 samples
+  max_samples: 20 # Running 4 samples
   read_length: 150
 
 # Tool paths (Container images)
@@ -95,7 +95,13 @@ parameters:
     # This reduces memory, speeds assembly, and filters chimeric contigs
     # without losing organisms that would assemble to 1000+ bp anyway.
     min_count: 2
-
+  
+  dnaberts_embeddings:
+    batch_size: 128
+    max_length: 512
+    overlap: 0.5
+    device: "cuda"
+    venv_path: /home/chandru/binp51/.venv-dnaberts
 
 # Taxonomic Ranks
 taxonomy:
@@ -156,7 +162,12 @@ resources:
     # meta-sensitive (13 k-mer iterations) can take 6-18 h per sample.
     # The profile can override this with a shorter wall time once you have benchmarks.
     runtime_min: 1440
-
+  
+  dnaberts_embeddings:
+    threads: 12
+    mem_mb: 16000
+    runtime_min: 60
+    
 
 # Pipeline Control
 pipeline:
@@ -173,3 +184,4 @@ pipeline:
     standardize_bracken: true
     merge_bracken: true
     megahit_assembly: true
+    dnaberts_embeddings: true

@@ -1,52 +1,51 @@
 """
 BERT-S rules:
-    - merge_reads: Merge the forward and reverse reads
-    - dereplication: We do not need BERT-S embeddings for repeated or duplicated sequences. There can be a problem when we have the
-        same read (for example kinases coding part) present in all the samples in all species and they will have the same embedding.
-        This should not be the case, becuase we need to have an embedding which is different? Need to think about this part in detail.
+    - We use the assembled reads from MEGAHIT to obtain DNABERT-S embeddings. 
 
 """
-rule merge_reads:
+
+rule dnaberts_embeddings:
     input:
-        r1 = lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"),
-        r2 = lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz")
-    
+        assembled_contigs = os.path.join(RESULTS_DIR, "06_assembly", "{sample}","{sample}.fa")
+
     output:
-        merged_reads = os.path.join(RESULTS_DIR, "12_merged_reads","{sample}_aligned.fastq.gz"),
-        unmerged_reads = os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}_unaligned.fastq.gz")
-    
+        embeddings_json = os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json")
+        
     log:
-        merge_log = os.path.join(RESULTS_DIR, "12_merged_reads", "{sample}.log")
+        os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "dnaberts_{sample}.log")
     
     threads:
-        config['resources']['pandaseq']['threads']
+        config["resources"]["dnaberts_embeddings"]["threads"]
     
     resources:
-        mem_mb = config['resources']['pandaseq']['mem_mb'],
-        runtime = config['resources']['pandaseq']['runtime_min']
+        mem_mb = config["resources"]["dnaberts_embeddings"]["mem_mb"],
+        runtime = config["resources"]["dnaberts_embeddings"]["runtime_min"]
     
     params:
-        output_dir = os.path.join(RESULTS_DIR, "12_merged_reads"),
-        pandaseq = TOOLS["pandaseq"],
-        bind_paths = lambda w: _apptainer_binds([RESULTS_DIR]),
-        temp_merged_reads = os.path.join(RESULTS_DIR, "12_merged_reads","{sample}_aligned.fastq"),
-        temp_unmerged_reads = os.path.join(RESULTS_DIR, "12_merged_reads","{sample}_unaligned.fastq")
-    
+        out_dir = os.path.join(RESULTS_DIR,"12_dnaberts","{sample}"),
+        script = "src/smk_helper/dnaberts_embeddings.py",
+        batch_size = config["parameters"]["dnaberts_embeddings"].get("batch_size",128),
+        max_length = config["parameters"]["dnaberts_embeddings"].get("max_length",512),
+        overlap = config["parameters"]["dnaberts_embeddings"].get("overlap",0.5),
+        cuda = config["parameters"]["dnaberts_embeddings"].get("device","cuda"),
+        venv_path = config["parameters"]["dnaberts_embeddings"].get("venv_path", os.path.expanduser("~/.venv-dnaberts"))
+
     shell:
         """
-        mkdir -p {params.output_dir}
+        # Activate environment
+        source {params.venv_path}/bin/activate
 
-        apptainer exec {params.bind_paths} {params.pandaseq} pandaseq \
-            -f {input.r1} \
-            -r {input.r2} \
-            -g {log.merge_log} \
-            -w {params.temp_merged_reads} \
-            -u {params.temp_unmerged_reads} \
-            -T {threads} \
-            -F
+        # Create output directory
+        mkdir -p {params.out_dir}
+
+        # Run DNABERT-S embeddings
+        python3 {params.script} \
+            -i {input.assembled_contigs} \
+            -o {output.embeddings_json} \
+            -b {params.batch_size} \
+            -m {params.max_length} \
+            -l {params.overlap} \
+            -d {params.cuda} > {log} 2>&1
         
-        echo "Zipping the files."
-        gzip -c {params.temp_merged_reads} > {output.merged_reads} && rm -f {params.temp_merged_reads}
-        gzip -c {params.temp_unmerged_reads} > {output.unmerged_reads} && rm -f {params.temp_unmerged_reads}
-        echo "Merged reads for {wildcards.sample}"
         """
+

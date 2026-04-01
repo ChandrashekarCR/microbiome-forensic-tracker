@@ -174,8 +174,15 @@ rule all:
             sample = SAMPLES
         ),
 
+        # DNABERT-S embeddigns
+        expand(
+            os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"),
+            sample = SAMPLES
+        )
+
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"
 include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
 include: "rules/assembly.smk"
+include: "rules/bert.smk"

@@ -4,6 +4,7 @@ import json
 import numpy as np
 import torch
 from Bio import SeqIO
+import argparse
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
@@ -234,26 +235,48 @@ class DNABERTSContigEmbedder:
 
             print(f"Embedding saved to {output_file}")
 
-        return all_embeddings, contig_ids
-
+        return all_embeddings
+    
+    def json_parse_embeddings(self,json_embed):
+        with open(json_embed) as f:
+            data = json.load(f)
 
 if __name__ == "__main__":
 
-    # Initialize embedder
-    embedder = DNABERTSContigEmbedder(device="cuda")
+    parser = argparse.ArgumentParser(description="A script to generate DNABERT-S embeddings",
+                                     usage="python3 dnaberts_embeddings.py -i <fasta_file> -o <json_file> \
+                                        -b <batch_size> -m <max-length> -l <overlap> -d<device>")
+    parser.add_argument("-i",dest="fasta",required=True,help="Enter the fasta file.")
+    parser.add_argument("-o",dest="output",required=True, help="Enter the output JSON file.")
+    parser.add_argument("-b",dest="batch_size",type=int,default=128)
+    parser.add_argument("-m",dest="max_length",type=int,default=512)
+    parser.add_argument("-l",dest="overlap",type=float,default=0.5)
+    parser.add_argument("-d",dest="device",default="cuda")
 
-    # Test for embed sequence in batch
-    # test_seq = ["ATCGATCGATCGATTTTATGGGTCGATCG" * 5, "ATGCTTTGAGCTTGATTTCTGCTTTAGCTG"*20]  # 1000bp test sequence
-    # embedding = embedder.embed_sequence_batch(test_seq)
+    args = parser.parse_args()
+
+    # Initialize embedder
+    embedder = DNABERTSContigEmbedder(device=args.device)
 
     embeddings = embedder.embed_contigs(
-        fasta_file="/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/06_assembly/zr23059_100/final.contigs.fa",
-        output_file="embedding.json",
-        max_length=512,
-        batch_size=128,
-        overlap=0.5,
+        fasta_file=args.fasta,
+        output_file=args.output,
+        max_length=args.max_length,
+        batch_size=args.batch_size,
+        overlap=args.overlap,
     )
+
+    print(f"Successfully embedded {embeddings.shape[0]} to {args.output}")
+
+    embedder.json_parse_embeddings("embedding.json")
+
 """
 Run the script as follows -:
-python3 workflow/scripts/dnaberts_embeddings.py 
+python3 src/smk_helper/dnaberts_embeddings.py \
+    -i /home/chandru/binp51/results/06_assembly/zr23059_170/zr23059_170.fa \
+    -o zr23059_170_embeddings.json \
+    -b 128 \
+    -m 512 \
+    -l 0.5 \
+    -d cuda \
 """

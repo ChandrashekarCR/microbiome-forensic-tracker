@@ -126,3 +126,10 @@ set-resources:
     mem_mb: 200000            # 200 GB allocated; rule passes 90% (180 GB) to MEGAHIT
                               # via --memory in bytes, leaving headroom for OS overhead.
     slurm_job_name: "megahit"
+  
+  dnaberts_embeddings:
+    slurm_partition: "gpua40"
+    runtime: "60m"
+    cpus: 12
+    mem_mb: 16000
+    slurm_job_name: "dnaberts_embeddings"
