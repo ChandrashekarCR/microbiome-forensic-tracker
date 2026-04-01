@@ -1,10 +1,10 @@
 # Importing libraries
+import argparse
 import json
 
 import numpy as np
 import torch
 from Bio import SeqIO
-import argparse
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
@@ -236,22 +236,28 @@ class DNABERTSContigEmbedder:
             print(f"Embedding saved to {output_file}")
 
         return all_embeddings
-    
-    def json_parse_embeddings(self,json_embed):
-        with open(json_embed) as f:
-            data = json.load(f)
+
+    # def json_parse_embeddings(self,json_embed):
+    #    with open(json_embed) as f:
+    #        data = json.load(f)
+    #    return
+
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="A script to generate DNABERT-S embeddings",
-                                     usage="python3 dnaberts_embeddings.py -i <fasta_file> -o <json_file> \
-                                        -b <batch_size> -m <max-length> -l <overlap> -d<device>")
-    parser.add_argument("-i",dest="fasta",required=True,help="Enter the fasta file.")
-    parser.add_argument("-o",dest="output",required=True, help="Enter the output JSON file.")
-    parser.add_argument("-b",dest="batch_size",type=int,default=128)
-    parser.add_argument("-m",dest="max_length",type=int,default=512)
-    parser.add_argument("-l",dest="overlap",type=float,default=0.5)
-    parser.add_argument("-d",dest="device",default="cuda")
+    parser = argparse.ArgumentParser(
+        description="A script to generate DNABERT-S embeddings",
+        usage="python3 dnaberts_embeddings.py -i <fasta_file> -o <json_file> \
+                                        -b <batch_size> -m <max-length> -l <overlap> -d<device>",
+    )
+    parser.add_argument("-i", dest="fasta", required=True, help="Enter the fasta file.")
+    parser.add_argument(
+        "-o", dest="output", required=True, help="Enter the output JSON file."
+    )
+    parser.add_argument("-b", dest="batch_size", type=int, default=128)
+    parser.add_argument("-m", dest="max_length", type=int, default=512)
+    parser.add_argument("-l", dest="overlap", type=float, default=0.5)
+    parser.add_argument("-d", dest="device", default="cuda")
 
     args = parser.parse_args()
 
@@ -268,7 +274,7 @@ if __name__ == "__main__":
 
     print(f"Successfully embedded {embeddings.shape[0]} to {args.output}")
 
-    embedder.json_parse_embeddings("embedding.json")
+    # embedder.json_parse_embeddings("embedding.json")
 
 """
 Run the script as follows -:
