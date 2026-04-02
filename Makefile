@@ -83,6 +83,7 @@ format: # Code formatting using ruff and black
 
 test: # Run pytests for script
 	@echo "Running core tests.."
+	@. .venv-all/bin/activate && pytest tests/
 	@echo "[test] ok"
 
 venv-snakemake: # For snakemake excecution
