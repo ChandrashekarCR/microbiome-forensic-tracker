@@ -39,9 +39,7 @@ Staphylococcus aureus\t1280\tS\t50\t5\t55\t0.0006
         output_dir = tmp_path / "standardized"
         output_dir.mkdir()
 
-        standardize_bracken(
-            sample_bracken_output, output_dir=str(output_dir), min_abd=0.001
-        )
+        standardize_bracken(sample_bracken_output, output_dir=str(output_dir), min_abd=0.001)
 
         # Check output file was created
         expected_file = output_dir / "sample1_species.csv"

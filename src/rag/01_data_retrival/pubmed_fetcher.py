@@ -31,9 +31,7 @@ def search_pubmed(query: str, max_results: int = 30) -> list[str]:
     """
     Search Pubmed return list of PMIDs
     """
-    handle = Entrez.esearch(
-        db="pubmed", term=query, retmax=max_results, sort="relavance"
-    )
+    handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results, sort="relavance")
 
     record = Entrez.read(handle)
     handle.close()
@@ -111,23 +109,17 @@ def download_full_text_pmc(pmid: str) -> str | None:
                     f.write(full_text)
                 return str(xml_path)
             except (http.client.IncompleteRead, ConnectionResetError, OSError) as e:
-                print(
-                    f"  [WARN] PMC{pmcid} read error (attempt {attempt}/{max_attempts}): {e}"
-                )
+                print(f"  [WARN] PMC{pmcid} read error (attempt {attempt}/{max_attempts}): {e}")
                 if attempt < max_attempts:
                     time.sleep(2**attempt)  # 2s, 4s backoff
                 else:
-                    print(
-                        f"  [SKIP] PMC{pmcid} could not be downloaded after {max_attempts} attempts"
-                    )
+                    print(f"  [SKIP] PMC{pmcid} could not be downloaded after {max_attempts} attempts")
                     return None
     except (IndexError, KeyError):
         return None  # Not in PMC (not open access)
 
 
-def run_retrival(
-    queries_file: str = "./01_data_retrival/queries.yaml", max_per_query: int = 10
-):
+def run_retrival(queries_file: str = "./01_data_retrival/queries.yaml", max_per_query: int = 10):
     """
     Main retrival section
     """

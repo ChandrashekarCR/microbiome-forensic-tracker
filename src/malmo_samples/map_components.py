@@ -28,13 +28,9 @@ def add_base_layers(map_obj):
     """Add base tile layers to the map."""
     folium.TileLayer("OpenStreetMap", name="OpenStreetMap", show=True).add_to(map_obj)
 
-    folium.TileLayer("CartoDB positron", name="Light (CartoDB)", show=False).add_to(
-        map_obj
-    )
+    folium.TileLayer("CartoDB positron", name="Light (CartoDB)", show=False).add_to(map_obj)
 
-    folium.TileLayer("CartoDB dark_matter", name="Dark (CartoDB)", show=False).add_to(
-        map_obj
-    )
+    folium.TileLayer("CartoDB dark_matter", name="Dark (CartoDB)", show=False).add_to(map_obj)
 
 
 def add_boundary_layer(map_obj, admin_gdf):
@@ -70,11 +66,7 @@ def create_sample_marker(row, template):
         color=color,
     )
 
-    tooltip_html = (
-        f"<b>{row['sample_id']}</b> | "
-        f"{row.get('zone','')}<br>"
-        f"Lat: {row['latitude']:.4f}, Lon: {row['longitude']:.4f}"
-    )
+    tooltip_html = f"<b>{row['sample_id']}</b> | " f"{row.get('zone','')}<br>" f"Lat: {row['latitude']:.4f}, Lon: {row['longitude']:.4f}"
 
     return folium.CircleMarker(
         location=[row["latitude"], row["longitude"]],
@@ -164,13 +156,9 @@ def add_title(map_obj):
 
 def add_ui_plugins(map_obj):
     """Add UI plugins to the map."""
-    plugins.Fullscreen(
-        position="topright", title="Fullscreen", title_cancel="Exit Fullscreen"
-    ).add_to(map_obj)
+    plugins.Fullscreen(position="topright", title="Fullscreen", title_cancel="Exit Fullscreen").add_to(map_obj)
 
-    plugins.MousePosition(
-        position="bottomright", separator=" | ", prefix="*", num_digits=5
-    ).add_to(map_obj)
+    plugins.MousePosition(position="bottomright", separator=" | ", prefix="*", num_digits=5).add_to(map_obj)
 
     plugins.MeasureControl(
         position="topleft",

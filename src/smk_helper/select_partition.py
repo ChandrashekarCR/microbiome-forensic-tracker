@@ -34,10 +34,7 @@ def select_best_partition(wildcards=None):
         capacity = _GPU_PARTITION_NODES[partition]
         if _partition_dispatched[partition] < capacity:
             _partition_dispatched[partition] += 1
-            print(
-                f"[partition selector] {partition} "
-                f"({_partition_dispatched[partition]}/{capacity} slots used)"
-            )
+            print(f"[partition selector] {partition} " f"({_partition_dispatched[partition]}/{capacity} slots used)")
             return partition
 
     # All 16 slots filled (happens when >16 kraken jobs are ready at once).

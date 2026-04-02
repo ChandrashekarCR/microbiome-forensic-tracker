@@ -102,9 +102,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
     source = Path(source)
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
     # Only allow formats we will actually feed to Docling
-    converter = DocumentConverter(
-        allowed_formats=[InputFormat.MD, InputFormat.PDF, InputFormat.HTML]
-    )
+    converter = DocumentConverter(allowed_formats=[InputFormat.MD, InputFormat.PDF, InputFormat.HTML])
     chunker = HybridChunker(
         tokenizer=tokenizer,
         max_tokens=MAX_TOKENS,
@@ -148,11 +146,7 @@ def process_document(source: str | Path, pmid: str, metadata: dict) -> list[dict
     enriched_chunks = []
     for i, chunk in enumerate(chunks):
         try:
-            page = (
-                chunk.meta.doc_items[0].prov[0].page_no
-                if chunk.meta.doc_items
-                else None
-            )
+            page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items else None
         except (IndexError, AttributeError):
             page = None
 

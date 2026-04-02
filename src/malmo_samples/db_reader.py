@@ -15,9 +15,11 @@ class DatabaseCreate:
         conn = sqlite3.connect(self.db)
 
         query = """
-                SELECT malmo_metadata.barcode, barcode_sample_map.sample_id, malmo_metadata.your_name, malmo_metadata.record_location_latitude, malmo_metadata.record_location_longitude, 
-                malmo_metadata.record_location_precision, malmo_metadata.start_geopoint_latitude, malmo_metadata.start_geopoint_longitude, 
-                malmo_metadata.start_geopoint_altitude,malmo_metadata.start_geopoint_precision, malmo_metadata.datetime_entry
+                SELECT malmo_metadata.barcode, barcode_sample_map.sample_id, malmo_metadata.your_name, 
+                malmo_metadata.record_location_latitude, malmo_metadata.record_location_longitude, 
+                malmo_metadata.record_location_precision, malmo_metadata.start_geopoint_latitude, 
+                malmo_metadata.start_geopoint_longitude, malmo_metadata.start_geopoint_altitude,malmo_metadata.start_geopoint_precision, 
+                malmo_metadata.datetime_entry
 
                 FROM barcode_sample_map 
                 LEFT JOIN malmo_metadata 
@@ -96,14 +98,10 @@ class DatabaseCreate:
 
         def assign_zone(lat, lon):
             # simple Euclidean distance in lat-lon space
-            dists = np.sqrt(
-                (zone_coords[:, 0] - lat) ** 2 + (zone_coords[:, 1] - lon) ** 2
-            )
+            dists = np.sqrt((zone_coords[:, 0] - lat) ** 2 + (zone_coords[:, 1] - lon) ** 2)
             return zone_names[dists.argmin()]
 
-        df["zone"] = df.apply(
-            lambda r: assign_zone(r["latitude"], r["longitude"]), axis=1
-        )
+        df["zone"] = df.apply(lambda r: assign_zone(r["latitude"], r["longitude"]), axis=1)
 
         return df
 

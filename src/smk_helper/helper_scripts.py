@@ -20,10 +20,7 @@ REQUIRED_COLUMNS = {"sample", "r1", "r2"}
 def read_sample_sheet(tsv_path: str) -> pd.DataFrame:
     path = Path(tsv_path)
     if not path.exists():
-        raise FileNotFoundError(
-            f"Sample sheet not found: {tsv_path}\n"
-            f"Generate it with the generate_sample_sheet.py script."
-        )
+        raise FileNotFoundError(f"Sample sheet not found: {tsv_path}\n" f"Generate it with the generate_sample_sheet.py script.")
     return pd.read_csv(path, sep="\t", dtype=str)
 
 
@@ -31,10 +28,7 @@ def read_sample_sheet(tsv_path: str) -> pd.DataFrame:
 def validate_sample_sheet(df: pd.DataFrame) -> pd.DataFrame:
     missing_columns = REQUIRED_COLUMNS - set(df.columns)
     if missing_columns:
-        raise ValueError(
-            f"sample.tsv is missing columns: {missing_columns}\n"
-            f"Required: sample, r1, r2"
-        )
+        raise ValueError(f"sample.tsv is missing columns: {missing_columns}\n" f"Required: sample, r1, r2")
 
     df = df.dropna(subset=["sample", "r1", "r2"])
     return df

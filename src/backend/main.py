@@ -61,16 +61,12 @@ async def upload_sample(
 
     # Check if sample already exists
     if crud.get_sample_by_name(db, sample_obj.sample_name):
-        raise HTTPException(
-            status_code=400, detail=f"Sample '{sample_obj.sample_name}' already exists"
-        )
+        raise HTTPException(status_code=400, detail=f"Sample '{sample_obj.sample_name}' already exists")
 
     # Validate file extensions
     for f, name in [(r1, "R1"), (r2, "R2")]:
         if not f.filename.endswith((".fastq.gz", ".fq.gz")):
-            raise HTTPException(
-                status_code=400, detail=f"{name} must be .fastq.gz or .fq.gz"
-            )
+            raise HTTPException(status_code=400, detail=f"{name} must be .fastq.gz or .fq.gz")
 
     # Save uploaded files to disk
     r1_path = UPLOAD_DIR / f"{sample_name}_R1.fastq.gz"

@@ -59,17 +59,11 @@ def load_batch_data(batch_dir, level, mapper, base_dir):
         if sample in mapper.keys():
             for entry in mapper[sample]:
                 # if entry['db'] == 'core_nt': # If the entry is only from the core_nt database
-                if (
-                    entry["batch"] == current_batch
-                ):  # If the batch is the same as current batch
-                    new_name = (
-                        f"{sample}_{entry['db']}_{current_batch}"  # Change the name
-                    )
+                if entry["batch"] == current_batch:  # If the batch is the same as current batch
+                    new_name = f"{sample}_{entry['db']}_{current_batch}"  # Change the name
                     rename_dict[sample] = new_name
                     break
-    df["kobo_id"] = df["kobo_id"].map(
-        rename_dict
-    )  # Rename the kobo_id to have the database name and the batch number as well
+    df["kobo_id"] = df["kobo_id"].map(rename_dict)  # Rename the kobo_id to have the database name and the batch number as well
     df.index.name = None
     return df
 
@@ -103,9 +97,7 @@ def merge_batches(level, batch_dirs, mapper, base_dir):
             merged_df.index.name = "kobo_id"
             merged_df = merged_df.loc[:, (merged_df != 0).any(axis=0)]
             merged_data[level] = merged_df
-            print(
-                f"\nMerged {level}: {merged_df.shape[0]} samples, {merged_df.shape[1]} taxa"
-            )
+            print(f"\nMerged {level}: {merged_df.shape[0]} samples, {merged_df.shape[1]} taxa")
         else:
             print(f"No data for {level}")
     return merged_data

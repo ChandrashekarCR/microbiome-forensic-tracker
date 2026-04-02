@@ -137,9 +137,7 @@ def load_abundance_tables(tables_input: str | Path) -> pd.DataFrame:
             value_name="abundance",
         )
         long = long.rename(columns={"clade": "taxon"})
-        long["abundance"] = pd.to_numeric(long["abundance"], errors="coerce").fillna(
-            0.0
-        )
+        long["abundance"] = pd.to_numeric(long["abundance"], errors="coerce").fillna(0.0)
         long["rank"] = rank
         frames.append(long)
         print(f"Loaded {csv_path.name:45s}  rank={rank:8s}  rows={len(df)}")
@@ -171,11 +169,7 @@ def get_top_taxa(
     """
     ranks = ranks or RANK_PRIORITY
 
-    sample_df = long_df[
-        (long_df["sample_id"] == sample_id)
-        & (long_df["abundance"] >= MIN_ABD)
-        & (long_df["rank"].isin(ranks))
-    ].copy()
+    sample_df = long_df[(long_df["sample_id"] == sample_id) & (long_df["abundance"] >= MIN_ABD) & (long_df["rank"].isin(ranks))].copy()
 
     if sample_df.empty:
         print(f"  [WARN] No taxa above MIN_ABD={MIN_ABD} for sample {sample_id}")
@@ -192,9 +186,7 @@ def get_top_taxa(
     )
 
     # Take top TOP_TAXA per rank, then cap total at TOP_TAXA * len(ranks)
-    per_rank = sample_df.groupby("rank", group_keys=False).apply(
-        lambda g: g.nlargest(TOP_TAXA, "abundance")
-    )
+    per_rank = sample_df.groupby("rank", group_keys=False).apply(lambda g: g.nlargest(TOP_TAXA, "abundance"))
 
     return [
         {
@@ -362,10 +354,7 @@ def score_environments(retrieved: list[dict]) -> dict[str, float]:
         n = len(ENVS)
         return {env: round(1.0 / n, 4) for env in ENVS}
 
-    return {
-        env: round(score / total, 4)
-        for env, score in sorted(env_scores.items(), key=lambda x: x[1], reverse=True)
-    }
+    return {env: round(score / total, 4) for env, score in sorted(env_scores.items(), key=lambda x: x[1], reverse=True)}
 
 
 # ── Step 4: LLM forensic narrative ────────────────────────────────────────────
@@ -424,9 +413,7 @@ def generate_forensic_narrative(
             continue
         taxa_lines.append(f"  [{rank.upper()}]")
         for t in entries:
-            taxa_lines.append(
-                f"    {t['taxon']:<50}  {t['abundance']:.4f}  ({t['abundance']*100:.2f}%)"
-            )
+            taxa_lines.append(f"    {t['taxon']:<50}  {t['abundance']:.4f}  ({t['abundance']*100:.2f}%)")
     taxa_table = "\n".join(taxa_lines)
 
     # Build env scores table (top 5 only to keep prompt short)
@@ -506,20 +493,13 @@ def _write_text_report(report: dict, path: Path) -> None:
         "=" * 65,
         f"Sample ID      : {report['sample_id']}",
         f"Analysis Date  : {report['analysis_date']}",
-        f"Primary Match  : {report['primary_environment']} "
-        f"({report['primary_probability']*100:.1f}% probability)",
+        f"Primary Match  : {report['primary_environment']} " f"({report['primary_probability']*100:.1f}% probability)",
         "",
         "ENVIRONMENT PROBABILITY SCORES:",
-        *[
-            f"  {env:<42} {prob*100:.1f}%"
-            for env, prob in report["environment_scores"].items()
-        ],
+        *[f"  {env:<42} {prob*100:.1f}%" for env, prob in report["environment_scores"].items()],
         "",
         "TOP TAXA (by rank):",
-        *[
-            f"  [{t.get('rank','?'):8s}]  {t['taxon']:<50} {t['abundance']*100:.3f}%"
-            for t in report["top_taxa"]
-        ],
+        *[f"  [{t.get('rank','?'):8s}]  {t['taxon']:<50} {t['abundance']*100:.3f}%" for t in report["top_taxa"]],
         "",
         "─" * 65,
         "FORENSIC NARRATIVE:",
@@ -529,10 +509,7 @@ def _write_text_report(report: dict, path: Path) -> None:
         "─" * 65,
         "LITERATURE EVIDENCE (top 10 by relevance):",
         "─" * 65,
-        *[
-            f"  PMID {e['pmid']:>10} | {e['organism']:<35} → {e['environment']}"
-            for e in report["evidence_summary"]
-        ],
+        *[f"  PMID {e['pmid']:>10} | {e['organism']:<35} → {e['environment']}" for e in report["evidence_summary"]],
         "=" * 65,
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -581,9 +558,7 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
         # Step 3
         env_probs = score_environments(retrieved)
         top_env = max(env_probs, key=env_probs.get)
-        print(
-            f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env]*100:.1f}%)"
-        )
+        print(f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env]*100:.1f}%)")
 
         # Step 4
         print("Step 4: Generating forensic narrative with Ollama...")
@@ -607,6 +582,4 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
     return reports if len(reports) > 1 else reports[0]
 
 
-profile_sample(
-    "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/11_final_reports"
-)
+profile_sample("/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/11_final_reports")

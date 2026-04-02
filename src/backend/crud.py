@@ -115,12 +115,7 @@ def get_results_for_sample(db: Session, sample_id: int) -> list[AbundanceResult]
     SELECT all abundance results for a sample
     Ordered by relative_abundance descending
     """
-    return (
-        db.query(AbundanceResult)
-        .filter(AbundanceResult.sample_id == sample_id)
-        .order_by(AbundanceResult.relative_abundance.desc())
-        .all()
-    )
+    return db.query(AbundanceResult).filter(AbundanceResult.sample_id == sample_id).order_by(AbundanceResult.relative_abundance.desc()).all()
 
 
 def create_user(db: Session, user: UserCreate):

@@ -141,9 +141,7 @@ class TestInternalHelpers:
         validated_df = validate_sample_sheet(df)
         assert len(validated_df) == 2  # Drops header row
 
-    @pytest.mark.parametrize(
-        "missing_col", ["r1", "r2"], ids=["missing_r1", "missing_r2"]
-    )
+    @pytest.mark.parametrize("missing_col", ["r1", "r2"], ids=["missing_r1", "missing_r2"])
     def test_validate_sample_sheet_missing_columns(self, tmp_path, missing_col):
         """validate_sample_sheet raises ValueError for missing columns."""
         content = f"sample\t{missing_col}\nS1\tsomepath.fastq.gz\n"
@@ -203,9 +201,7 @@ class TestSampleAccessors:
         [(get_sample_r1, "S1"), (get_sample_r2, "S1")],
         ids=["get_r1", "get_r2"],
     )
-    def test_accessor_error_on_missing_sample(
-        self, valid_sample_df, accessor_func, sample_id
-    ):
+    def test_accessor_error_on_missing_sample(self, valid_sample_df, accessor_func, sample_id):
         """Accessors handle missing samples gracefully (KeyError)."""
 
         with pytest.raises(KeyError):

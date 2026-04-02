@@ -109,6 +109,12 @@ venv-backend: # For backend development
 	@. .venv-backend/bin/activate && pip install -U pip && pip install -e ".[backend,dev]"
 	@echo "[venv-backend] ok"
 
+venv-all: # Complete environment
+	@echo "Installing full env and dev tools environment for development."
+	@$(PYTHON) -m venv .venv-all
+	@. .venv-all/bin/activate && pip install -U pip && pip install -e ".[all]"
+	@echo "[venv-all] ok"
+
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
 		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \
 		 $(PANDASEQ_TOOL) $(MEGAHIT_TOOL)

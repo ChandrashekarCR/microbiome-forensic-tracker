@@ -8,9 +8,7 @@ URL_DATABASE = "sqlite:///databases/malmo_backend.db"
 Path("databases").mkdir(exist_ok=True)
 
 # This is the actual connection to the database
-engine = create_engine(
-    URL_DATABASE, connect_args={"check_same_thread": False}
-)  # connect args is only needed for SQLite database
+engine = create_engine(URL_DATABASE, connect_args={"check_same_thread": False})  # connect args is only needed for SQLite database
 
 # Each request opens a session, uses the database and then closes it.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

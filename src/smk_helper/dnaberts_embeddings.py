@@ -35,22 +35,16 @@ class DNABERTSContigEmbedder:
         print(f"Loading DNABERT-S on {self.device}...")
 
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            MODEL_NAME, trust_remote_code=True
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
         # Load the model and move to device
-        self.model = AutoModel.from_pretrained(
-            MODEL_NAME, trust_remote_code=True, low_cpu_mem_usage=False
-        ).to(self.device)
+        self.model = AutoModel.from_pretrained(MODEL_NAME, trust_remote_code=True, low_cpu_mem_usage=False).to(self.device)
 
         # Set to evaluation mode
         self.model.eval()
 
         print("Model loaded successfully")
-        print(
-            f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters."
-        )
+        print(f"Model has {sum(p.numel() for p in self.model.parameters()):,} parameters.")
 
     def create_windows(self, sequence, max_length=512, overlap=0.5):
         """
@@ -108,9 +102,7 @@ class DNABERTSContigEmbedder:
 
         return sum_embeddings / sum_mask  # [batch_size, 768]
 
-    def embed_sequence_batch(
-        self, sequences: list, max_length: int = 512, overlap: float = 0.5
-    ):
+    def embed_sequence_batch(self, sequences: list, max_length: int = 512, overlap: float = 0.5):
         """
         TRUE GPU-level batching: ALL sequences and their windows in ONE forward pass.
 
@@ -143,10 +135,7 @@ class DNABERTSContigEmbedder:
         )
 
         # Move to GPU
-        inputs = {
-            k: (v.to(self.device) if isinstance(v, torch.Tensor) else v)
-            for k, v in inputs.items()
-        }
+        inputs = {k: (v.to(self.device) if isinstance(v, torch.Tensor) else v) for k, v in inputs.items()}
 
         # Step 3: One forward pass for all windows at once
         with torch.no_grad():
@@ -154,11 +143,7 @@ class DNABERTSContigEmbedder:
             hidden_states = outputs[0]  # [total_windows, seq_len, 768]
 
             # Use correct masked pooling
-            all_window_embeddings = (
-                self._masked_mean_pool(hidden_states, inputs["attention_mask"])
-                .cpu()
-                .numpy()
-            )  # [total_windows, 768]
+            all_window_embeddings = self._masked_mean_pool(hidden_states, inputs["attention_mask"]).cpu().numpy()  # [total_windows, 768]
 
         # Step 4: Group window embeddings back by original sequence and average
         sequence_embeddings = []
@@ -166,18 +151,14 @@ class DNABERTSContigEmbedder:
 
         for num_windows in sequence_window_counts:
             end_idx = start_idx + num_windows
-            windows_for_seq = all_window_embeddings[
-                start_idx:end_idx
-            ]  # [num_windows, 768]
+            windows_for_seq = all_window_embeddings[start_idx:end_idx]  # [num_windows, 768]
             sequence_embedding = windows_for_seq.mean(axis=0)  # [768]
             sequence_embeddings.append(sequence_embedding)
             start_idx = end_idx
 
         return sequence_embeddings
 
-    def embed_contigs(
-        self, fasta_file, output_file=None, batch_size=32, max_length=512, overlap=0.3
-    ):
+    def embed_contigs(self, fasta_file, output_file=None, batch_size=32, max_length=512, overlap=0.3):
         """
         Generate embeddings for all contigs in a FASTA file with GPU-level batching.
 
@@ -212,9 +193,7 @@ class DNABERTSContigEmbedder:
 
             # This function will tokenize all sequences at once
             # and run one forward pass that processes all of them
-            batch_embeddings = self.embed_sequence_batch(
-                batch_seqs, max_length=max_length, overlap=overlap
-            )
+            batch_embeddings = self.embed_sequence_batch(batch_seqs, max_length=max_length, overlap=overlap)
 
             all_embeddings.extend(batch_embeddings)
 
@@ -251,9 +230,7 @@ if __name__ == "__main__":
                                         -b <batch_size> -m <max-length> -l <overlap> -d<device>",
     )
     parser.add_argument("-i", dest="fasta", required=True, help="Enter the fasta file.")
-    parser.add_argument(
-        "-o", dest="output", required=True, help="Enter the output JSON file."
-    )
+    parser.add_argument("-o", dest="output", required=True, help="Enter the output JSON file.")
     parser.add_argument("-b", dest="batch_size", type=int, default=128)
     parser.add_argument("-m", dest="max_length", type=int, default=512)
     parser.add_argument("-l", dest="overlap", type=float, default=0.5)

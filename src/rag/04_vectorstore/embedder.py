@@ -65,9 +65,7 @@ def build_vectorstore():
     chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
     # Set up embedding function
-    ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=EMBEDDING_MODEL
-    )
+    ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
 
     # Create or reset collection
     try:
@@ -124,20 +122,14 @@ def build_vectorstore():
     return collection
 
 
-def query_knowledge_base(
-    organism_list: list[str], top_k: int = 10, location_filter: str = None
-) -> list[dict]:
+def query_knowledge_base(organism_list: list[str], top_k: int = 10, location_filter: str = None) -> list[dict]:
     """
     Query ChromaDB for environmental context about a list of organisms.
     Used by the forensic pipeline in Step 5.
     """
     chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=EMBEDDING_MODEL
-    )
-    collection = chroma_client.get_collection(
-        name=COLLECTION_NAME, embedding_function=ef
-    )
+    ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    collection = chroma_client.get_collection(name=COLLECTION_NAME, embedding_function=ef)
 
     # Build rich query text
     query_text = f"Environmental habitat of: {', '.join(organism_list)}"
@@ -155,9 +147,7 @@ def query_knowledge_base(
     )
 
     retrieved = []
-    for doc, meta, dist in zip(
-        results["documents"][0], results["metadatas"][0], results["distances"][0]
-    ):
+    for doc, meta, dist in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
         retrieved.append(
             {
                 "text": doc,
