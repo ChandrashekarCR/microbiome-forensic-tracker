@@ -29,9 +29,11 @@ dev = [
 # Backend (FastAPI + core ML)
 backend = [
     "fastapi>=0.131.0",
+    "fastapi[all]",
     "uvicorn>=0.41.0",
     "pydantic>=2.0",
-    "celery>=5.6.0"
+    "celery>=5.6.0",
+    "sqlalchemy"
 ]
 
 # RAG system (docling + chromadb)
