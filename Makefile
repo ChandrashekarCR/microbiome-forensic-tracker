@@ -4,7 +4,7 @@ PYTHON := .venv/bin/python
 DEFAULT_GOAL := all
 SHELL := bash
 .SHELL_FLAGS := -euo pipefail -c
-.PHONY := hello help clean lint venv install conda_env
+.PHONY := hello help clean lint venv install conda_env format test download venv-rag venv-backend venv-snakemake
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
