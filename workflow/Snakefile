@@ -21,7 +21,6 @@ from smk_helper.helper_scripts import load_sample_sheet, get_sample_names
 from smk_helper.standardize_bracken import standardize_bracken, concat_tables
 from smk_helper.select_partition import select_best_partition
 
-
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
