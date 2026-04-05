@@ -13,7 +13,7 @@ samples:
   sample_sheet: "config/samples.tsv" # Sample sheet
   pattern_r1: "_R1.fastq.gz"
   pattern_r2: "_R2.fastq.gz"
-  max_samples: 100 # Running 4 samples
+  max_samples: 330 # Running 4 samples
   read_length: 150
 
 # Tool paths (Container images)
