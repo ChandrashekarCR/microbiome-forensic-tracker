@@ -72,87 +72,59 @@ READ_LEN = config["samples"]["read_length"]
 # Enable/disable pipeline steps
 STEPS = config["pipeline"]["steps"]
 
+# Dynamic target list
+TARGETS = []
+
 
 # Include common functions
 include: "rules/common.smk"
 
 
-rule all:
-    input:
-        # FastQC Raw reports
+if STEPS.get("fastqc_raw"):
+    TARGETS.extend(
         expand(
             os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
             sample=SAMPLES,
             read=READS,
-        ),
-        # fastp outputs
-        #expand(
-        #    os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-        ## Adaptor removal outputs
-        #expand(
-        #    os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-        # Removal of Host Genome
-        #expand(
-        #    os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-        # Error correction
-        #expand(
-        #    os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-        # FastQC Processed reports
+        )
+    )
+
+if STEPS.get("fastqc_post"):
+    TARGETS.extend(
         expand(
             os.path.join(
                 RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"
             ),
             sample=SAMPLES,
             read=READS,
-        ),
-        # MultiQC
-        os.path.join(RESULTS_DIR, "07_multiqc"),
-        # Kraken2 - Taxonomic classificaiton
-        #expand(
-        #    os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
-        #    sample = SAMPLES
-        #),
-        # Bracken - Classificaiton report
-        #expand(
-        #    os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv"),
-        #    sample = SAMPLES,
-        #    rank = RANKS
-        #),
-        # Standardize Bracken Report
-        #expand(
-        #    os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"),
-        #    sample = SAMPLES,
-        #    rank = RANKS
-        #),
-        # Merge kraken-bracken reports
+        )
+    )
+
+if STEPS.get("multiqc"):
+    TARGETS.append(os.path.join(RESULTS_DIR, "07_multiqc"))
+
+if STEPS.get("merge_bracken"):
+    TARGETS.extend(
         expand(
             os.path.join(RESULTS_DIR, "11_final_reports", "kraken_bracken_{rank}.csv"),
             rank=RANKS,
-        ),
-        # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
-        expand(
-            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
-            sample=SAMPLES,
-        ),
-        # DNABERT-S embeddigns
+        )
+    )
+
+if STEPS.get("dnaberts_embeddings"):
+    TARGETS.extend(
         expand(
             os.path.join(
                 RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"
             ),
             sample=SAMPLES,
-        ),
+        )
+    )
+
+
+rule all:
+    input:
+        TARGETS,
 
 
 include: "rules/qc.smk"
