@@ -131,6 +131,7 @@ set-resources:
   
   dnaberts_embeddings:
     slurm_partition: "gpua40"
+    slurm_extra: "--gpus-per-task=1"
     runtime: "60m"
     cpus: 12
     mem_mb: 32000

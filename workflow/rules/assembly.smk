@@ -8,32 +8,38 @@ Assembly rules optimized for gut/oral metagenomics (Malmo cohort):
     - quast_assembly_qc: assembly quality assessment
 """
 
+
 rule megahit_assembly:
     input:
-        r1 = os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"),
-        r2 = os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz")
+        r1=os.path.join(
+            RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"
+        ),
+        r2=os.path.join(
+            RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz"
+        ),
     output:
-        contigs  = os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
-        log_file = os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "log")
+        contigs=os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
+        log_file=os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "log"),
     log:
-        megahit_log = os.path.join(RESULTS_DIR, "06_assembly", "{sample}.log")
-    threads:
-        config['resources']['megahit']['threads']
+        megahit_log=os.path.join(RESULTS_DIR, "06_assembly", "{sample}.log"),
+    threads: config["resources"]["megahit"]["threads"]
     resources:
-        mem_mb  = config['resources']['megahit']['mem_mb'],
-        runtime = config['resources']['megahit']['runtime_min']
+        mem_mb=config["resources"]["megahit"]["mem_mb"],
+        runtime=config["resources"]["megahit"]["runtime_min"],
     params:
-        megahit = TOOLS['megahit'],
-        contigs = os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "final.contigs.fa"),
-        output_dir = os.path.join(RESULTS_DIR, "06_assembly", "{sample}"),
-        min_contig_len = config['parameters']['megahit']['min_contig_len'],
+        megahit=TOOLS["megahit"],
+        contigs=lambda w, output: os.path.join(
+            os.path.dirname(output.contigs), "final.contigs.fa"
+        ),
+        output_dir=lambda w, output: os.path.dirname(output.contigs),
+        min_contig_len=config["parameters"]["megahit"]["min_contig_len"],
         # Store k_list as a plain string - commas in the value confuse
         # Snakemake's shell string formatter (it tries tuple indexing).
         # Wrapping in a lambda bypasses the formatter safely.
-        k_list = lambda w: config['parameters']['megahit']['k_list'],
-        min_count = config['parameters']['megahit']['min_count'],
-        memory_bytes = lambda wildcards, resources: int(resources.mem_mb * 0.9 * 1e6),
-        bind_paths = lambda w: _apptainer_binds([RESULTS_DIR])
+        k_list=lambda w: config["parameters"]["megahit"]["k_list"],
+        min_count=config["parameters"]["megahit"]["min_count"],
+        memory_bytes=lambda wildcards, resources: int(resources.mem_mb * 0.9 * 1e6),
+        bind_paths=lambda w: _apptainer_binds([RESULTS_DIR]),
     shell:
         """
         # Megahit refuses to run if the output directory already exists

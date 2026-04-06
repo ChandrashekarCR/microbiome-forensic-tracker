@@ -1,15 +1,17 @@
 # Test scripts with few resources
-#srun --partition=lu48 --cpus-per-task=6 --mem=16G --time=1:00:00 --pty bash
+# srun --partition=lu48 --cpus-per-task=6 --mem=16G --time=1:00:00 --pty bash
 # To run snakemake on a single node for 1-2 samples use the the slurms script /scripts/snakemake_slurm/slurm_snakemake_core-nt_process.sh
 # To run snakemake on a small scale 5-20 samples use the following command
-"""   
-    screen -S snakemake
-    conda activate snakemake
-    snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
-   
+"""
+screen -S snakemake
+conda activate snakemake
+snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
+
 """
 
+
 configfile: "config/config.yaml"
+
 
 import os
 import sys
@@ -19,16 +21,10 @@ from smk_helper.helper_scripts import load_sample_sheet, get_sample_names
 from smk_helper.standardize_bracken import standardize_bracken, concat_tables
 from smk_helper.select_partition import select_best_partition
 
-# Add the scripts directory to the Python path (absolute path)
-sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
-
-#from helper_scripts import load_sample_sheet, get_sample_names
-#from standardize_bracken import standardize_bracken, concat_tables
-#from select_partition import select_best_partition
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
-TOOLS = {k: f"{ROOT_DIR}/{v}" for k,v in config['tools'].items()}
+TOOLS = {k: f"{ROOT_DIR}/{v}" for k, v in config["tools"].items()}
 
 # Dynamic sample sheet path via config
 DEFAULT_SAMPLE_SHEET = config["samples"]["sample_sheet"]
@@ -44,8 +40,7 @@ if not Path(SAMPLE_SHEET).exists():
 
 # Load samples from sheet
 SAMPLE_DF = load_sample_sheet(
-    SAMPLE_SHEET,
-    max_samples = config['samples']['max_samples']
+    SAMPLE_SHEET, max_samples=config["samples"]["max_samples"]
 )
 
 SAMPLES = get_sample_names(SAMPLE_DF)
@@ -53,132 +48,78 @@ SAMPLES = get_sample_names(SAMPLE_DF)
 print(f"[Snakefile] Loaded {len(SAMPLES)} sample(s): {SAMPLES}", file=sys.stderr)
 
 # Samples folder for the Malmo samples
-DATA_DIR = config['data']['raw_dir'] 
-RESULTS_DIR = config['data']['results_dir'] 
-READS = ["R1","R2"] 
-RANKS = config['taxonomy']['ranks'] 
+DATA_DIR = config["data"]["raw_dir"]
+RESULTS_DIR = config["data"]["results_dir"]
+READS = ["R1", "R2"]
+RANKS = config["taxonomy"]["ranks"]
 
 # Database paths
 # Host Genome (Human - hG38)
-HOST_GENOME = config['databases']['human_genome'] 
+HOST_GENOME = config["databases"]["human_genome"]
 # Common Adapters
 COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
 # Kraken2 and Bracken Database (core-nt - 307G)
-KRAKEN2_DB = config['databases']['kraken2_db'] 
-BRACKEN_DB = config['databases']['kraken2_db'] 
-READ_LEN = config['samples']['read_length'] 
+KRAKEN2_DB = config["databases"]["kraken2_db"]
+BRACKEN_DB = config["databases"]["kraken2_db"]
+READ_LEN = config["samples"]["read_length"]
 
 # Enable/disable pipeline steps
-STEPS = config['pipeline']['steps']
+STEPS = config["pipeline"]["steps"]
 
-# Apptainer bind helper
-def _apptainer_binds(paths: list) -> str:
-    """
-    Apptainer generally needs the path to be expliciting stated if they are not part of the 
-    build image. In most cases we need to bind the path when we run each tool.
-    For each path we bind its top-level mount point so the same string works
-    on LUNARC (/lunarc/nobackup/...) and on cloud (s3-fuse mounts, /data, etc.)
-    The actual paths are passed directly no hardcoding of /lunarc anywhere.
+# Dynamic target list
+TARGETS = []
 
-    Example:
-        _apptainer_binds(["/lunarc/nobackup/projects/snic/chandru", "/home/chandru/binp51/results"])
-        -> "--bind /lunarc/nobackup/projects/snic/chandru:/lunarc/nobackup/projects/snic/chandru
-            --bind /home/chandru/binp51/results:/home/chandru/binp51/results"
-    """
-    seen = set()
-    flags = []
-    for p in paths:
-        # Use the path itself (file or directory), it will accept both
-        mount = str(Path(p).resolve())
-        if mount not in seen:
-            seen.add(mount)
-            flags.append(f"--bind {mount}:{mount}")
-    return " ".join(flags)
+
+# Include common functions
+include: "rules/common.smk"
+
+
+if STEPS.get("fastqc_raw"):
+    TARGETS.extend(
+        expand(
+            os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
+            sample=SAMPLES,
+            read=READS,
+        )
+    )
+
+if STEPS.get("fastqc_post"):
+    TARGETS.extend(
+        expand(
+            os.path.join(
+                RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"
+            ),
+            sample=SAMPLES,
+            read=READS,
+        )
+    )
+
+if STEPS.get("multiqc"):
+    TARGETS.append(os.path.join(RESULTS_DIR, "07_multiqc"))
+
+if STEPS.get("merge_bracken"):
+    TARGETS.extend(
+        expand(
+            os.path.join(RESULTS_DIR, "11_final_reports", "kraken_bracken_{rank}.csv"),
+            rank=RANKS,
+        )
+    )
+
+if STEPS.get("dnaberts_embeddings"):
+    TARGETS.extend(
+        expand(
+            os.path.join(
+                RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"
+            ),
+            sample=SAMPLES,
+        )
+    )
 
 
 rule all:
     input:
-        # FastQC Raw reports
-        expand(
-            os.path.join(RESULTS_DIR, "01_fastqc_raw", "{sample}_{read}_fastqc.html"),
-            sample = SAMPLES,
-            read = READS
-        ),
-        # fastp outputs
-        #expand(
-        #    os.path.join(RESULTS_DIR, "02_fastp", "{sample}_out_{read}.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
+        TARGETS,
 
-        ## Adaptor removal outputs
-        #expand(
-        #    os.path.join(RESULTS_DIR, "03_trimmed","{sample}_trimmed_{read}.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-
-        # Removal of Host Genome
-        #expand(
-        #    os.path.join(RESULTS_DIR,"04_host_removed","{sample}_{read}_clean.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-
-        # Error correction
-        #expand(
-        #    os.path.join(RESULTS_DIR,"05_error_correction","{sample}_{read}_corrected.fastq.gz"),
-        #    sample = SAMPLES,
-        #    read = READS
-        #),
-
-        # FastQC Processed reports
-        expand(
-            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
-            sample = SAMPLES,
-            read = READS
-        ),
-
-        # MultiQC
-        os.path.join(RESULTS_DIR,"07_multiqc"),
-
-        # Kraken2 - Taxonomic classificaiton
-        #expand(
-        #    os.path.join(RESULTS_DIR,"08_kraken2","{sample}","kraken.tsv"),
-        #    sample = SAMPLES
-        #),
-
-        # Bracken - Classificaiton report
-        #expand(
-        #    os.path.join(RESULTS_DIR,"09_bracken","{sample}","{rank}.tsv"),
-        #    sample = SAMPLES,
-        #    rank = RANKS
-        #),
-
-        # Standardize Bracken Report
-        #expand(
-        #    os.path.join(RESULTS_DIR,"10_standardized_bracken","{sample}_{rank}.csv"),
-        #    sample = SAMPLES,
-        #    rank = RANKS
-        #),
-
-        # Merge kraken-bracken reports
-        expand(
-            os.path.join(RESULTS_DIR,"11_final_reports","kraken_bracken_{rank}.csv"),
-            rank = RANKS
-        ),
-
-        # MEGAHIT assembly contigs (input for DNA-BERT-S embeddings)
-        expand(
-            os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
-            sample = SAMPLES
-        ),
-
-        # DNABERT-S embeddigns
-        expand(
-            os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"),
-            sample = SAMPLES
-        )
 
 include: "rules/qc.smk"
 include: "rules/preprocessing.smk"

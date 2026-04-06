@@ -4,7 +4,7 @@ PYTHON := .venv/bin/python
 DEFAULT_GOAL := all
 SHELL := bash
 .SHELL_FLAGS := -euo pipefail -c
-.PHONY := hello help clean lint venv install conda_env
+.PHONY := hello help clean lint venv install conda_env format test download venv-rag venv-backend venv-snakemake
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
@@ -79,6 +79,8 @@ format: # Code formatting using ruff and black
 	@$(PYTHON) -m ruff check --fix src/ tests/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
 	@echo "Formatting code with black"
 	@$(PYTHON) -m black src/ tests/ || (echo '[format] black formatting failed' >&2; exit 1)
+	@echo "Formatting snakemake rules and files with snakefmt.."
+	@. .venv-snakemake/bin/activate && snakefmt workflow/rules/*.smk workflow/Snakefile || (echo '[format] snakefmt formatting failed' >&2; exit 1)
 	@echo "[format] ok."	
 
 test: # Run pytests for script
