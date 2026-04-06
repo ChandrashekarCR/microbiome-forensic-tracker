@@ -7,13 +7,9 @@ BERT-S rules:
 
 rule dnaberts_embeddings:
     input:
-        assembled_contigs=os.path.join(
-            RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"
-        ),
+        assembled_contigs=os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
     output:
-        embeddings_json=os.path.join(
-            RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"
-        ),
+        embeddings_json=os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"),
     log:
         os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "dnaberts_{sample}.log"),
     threads: config["resources"]["dnaberts_embeddings"]["threads"]
@@ -27,9 +23,7 @@ rule dnaberts_embeddings:
         max_length=config["parameters"]["dnaberts_embeddings"].get("max_length", 512),
         overlap=config["parameters"]["dnaberts_embeddings"].get("overlap", 0.5),
         cuda=config["parameters"]["dnaberts_embeddings"].get("device", "cuda"),
-        venv_path=config["parameters"]["dnaberts_embeddings"].get(
-            "venv_path", os.path.expanduser("~/.venv-dnaberts")
-        ),
+        venv_path=config["parameters"]["dnaberts_embeddings"].get("venv_path", os.path.expanduser("~/.venv-dnaberts")),
     shell:
         """
         # Activate environment

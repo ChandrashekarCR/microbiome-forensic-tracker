@@ -10,9 +10,7 @@ rule standardize_bracken:
     input:
         bracken_report=os.path.join(RESULTS_DIR, "09_bracken", "{sample}", "{rank}.tsv"),
     output:
-        std_bracken_report=os.path.join(
-            RESULTS_DIR, "10_standardized_bracken", "{sample}_{rank}.csv"
-        ),
+        std_bracken_report=os.path.join(RESULTS_DIR, "10_standardized_bracken", "{sample}_{rank}.csv"),
     log:
         os.path.join(RESULTS_DIR, "10_standardized_bracken", "{sample}_{rank}.log"),
     params:
@@ -20,25 +18,19 @@ rule standardize_bracken:
         min_abd=0.001,
     run:
         os.makedirs(str(params.out_dir), exist_ok=True)
-        standardize_bracken(
-            str(input.bracken_report), str(params.out_dir), float(params.min_abd)
-        )
+        standardize_bracken(str(input.bracken_report), str(params.out_dir), float(params.min_abd))
 
 
 # Step 12: Merge standardized Bracken reports by rank
 rule merge_bracken:
     input:
         lambda wildcards: expand(
-            os.path.join(
-                RESULTS_DIR, "10_standardized_bracken", "{sample}_{rank}.csv"
-            ),
+            os.path.join(RESULTS_DIR, "10_standardized_bracken", "{sample}_{rank}.csv"),
             sample=SAMPLES,
             rank=wildcards.rank,
         ),
     output:
-        merged_report=os.path.join(
-            RESULTS_DIR, "11_final_reports", "kraken_bracken_{rank}.csv"
-        ),
+        merged_report=os.path.join(RESULTS_DIR, "11_final_reports", "kraken_bracken_{rank}.csv"),
     log:
         os.path.join(RESULTS_DIR, "11_final_reports", "kraken_bracken_{rank}.log"),
     params:

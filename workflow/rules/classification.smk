@@ -9,17 +9,11 @@ Classificaiton rules:
 # Step 9 - Kraken2
 rule kraken:
     input:
-        r1=lambda w: os.path.join(
-            RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"
-        ),
-        r2=lambda w: os.path.join(
-            RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz"
-        ),
+        r1=lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"),
+        r2=lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz"),
     output:
         kraken=os.path.join(RESULTS_DIR, "08_kraken2", "{sample}", "kraken.tsv"),
-        kraken_report=os.path.join(
-            RESULTS_DIR, "08_kraken2", "{sample}", "kraken_report.tsv"
-        ),
+        kraken_report=os.path.join(RESULTS_DIR, "08_kraken2", "{sample}", "kraken_report.tsv"),
     log:
         os.path.join(RESULTS_DIR, "08_kraken2", "{sample}.log"),
     container:
@@ -48,9 +42,7 @@ rule kraken:
 # Step 10: Bracken
 rule bracken:
     input:
-        kraken_report=os.path.join(
-            RESULTS_DIR, "08_kraken2", "{sample}", "kraken_report.tsv"
-        ),
+        kraken_report=os.path.join(RESULTS_DIR, "08_kraken2", "{sample}", "kraken_report.tsv"),
     output:
         bracken_report=os.path.join(RESULTS_DIR, "09_bracken", "{sample}", "{rank}.tsv"),
     log:

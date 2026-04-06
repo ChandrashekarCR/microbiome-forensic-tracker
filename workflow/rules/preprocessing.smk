@@ -31,14 +31,8 @@ rule fastp:
         fastp=TOOLS["fastp"],
         output_dir=lambda w, output: os.path.dirname(output.r1_out),
         quality=config["parameters"]["fastp"]["qualified_quality_phred"],
-        trim_poly_g=(
-            "--trim_poly_g" if config["parameters"]["fastp"]["trim_poly_g"] else ""
-        ),
-        dont_eval_dup=(
-            "--dont_eval_duplication"
-            if config["parameters"]["fastp"]["dont_eval_duplication"]
-            else ""
-        ),
+        trim_poly_g=("--trim_poly_g" if config["parameters"]["fastp"]["trim_poly_g"] else ""),
+        dont_eval_dup=("--dont_eval_duplication" if config["parameters"]["fastp"]["dont_eval_duplication"] else ""),
         bind_paths=lambda w: _apptainer_binds(
             [
                 SAMPLE_DF.loc[w.sample, "r1"],
@@ -74,19 +68,11 @@ rule fastp:
 # Step3
 rule adapter_removal:
     input:
-        r1=lambda w: os.path.join(
-            RESULTS_DIR, "02_fastp", f"{w.sample}_out_R1.fastq.gz"
-        ),
-        r2=lambda w: os.path.join(
-            RESULTS_DIR, "02_fastp", f"{w.sample}_out_R2.fastq.gz"
-        ),
+        r1=lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R1.fastq.gz"),
+        r2=lambda w: os.path.join(RESULTS_DIR, "02_fastp", f"{w.sample}_out_R2.fastq.gz"),
     output:
-        trimmed_r1=os.path.join(
-            RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R1.fastq.gz"
-        ),
-        trimmed_r2=os.path.join(
-            RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz"
-        ),
+        trimmed_r1=os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R1.fastq.gz"),
+        trimmed_r2=os.path.join(RESULTS_DIR, "03_trimmed", "{sample}_trimmed_R2.fastq.gz"),
         settings=os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.settings"),
         discarded=os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.discarded.fastq.gz"),
         singleton=os.path.join(RESULTS_DIR, "03_trimmed", "{sample}.singleton.fastq.gz"),
@@ -101,14 +87,8 @@ rule adapter_removal:
         output_dir=lambda w, output: os.path.dirname(output.trimmed_r1),
         prefix=lambda w, output: output.settings.replace(".settings", ""),
         common_adapters=COMMON_ADAPTERS,  #os.path.join(ROOT_DIR,"bin","common_adapters.txt") 
-        trimns_flag=(
-            "--trimns" if config["parameters"]["adapter_removal"]["trimns"] else ""
-        ),
-        trimqualities_flag=(
-            "--trimqualities"
-            if config["parameters"]["adapter_removal"]["trimqualities"]
-            else ""
-        ),
+        trimns_flag=("--trimns" if config["parameters"]["adapter_removal"]["trimns"] else ""),
+        trimqualities_flag=("--trimqualities" if config["parameters"]["adapter_removal"]["trimqualities"] else ""),
         bind_paths=lambda w: _apptainer_binds([RESULTS_DIR]),
     shell:
         """
@@ -139,12 +119,8 @@ rule adapter_removal:
 rule remove_human_reads:
     input:
         # Filter reads
-        r1=lambda w: os.path.join(
-            RESULTS_DIR, "03_trimmed", f"{w.sample}_trimmed_R1.fastq.gz"
-        ),
-        r2=lambda w: os.path.join(
-            RESULTS_DIR, "03_trimmed", f"{w.sample}_trimmed_R2.fastq.gz"
-        ),
+        r1=lambda w: os.path.join(RESULTS_DIR, "03_trimmed", f"{w.sample}_trimmed_R1.fastq.gz"),
+        r2=lambda w: os.path.join(RESULTS_DIR, "03_trimmed", f"{w.sample}_trimmed_R2.fastq.gz"),
     output:
         r1=os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R1_clean.fastq.gz"),
         r2=os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R2_clean.fastq.gz"),
@@ -159,9 +135,7 @@ rule remove_human_reads:
         output_dir=f"{RESULTS_DIR}/04_host_removed",
         host_genome=HOST_GENOME,
         sensitivity=f"--{config['parameters']['bowtie2']['sensitivity']}",
-        bind_paths=lambda w: _apptainer_binds(
-            [RESULTS_DIR, os.path.dirname(HOST_GENOME)]
-        ),
+        bind_paths=lambda w: _apptainer_binds([RESULTS_DIR, os.path.dirname(HOST_GENOME)]),
     shell:
         """
         mkdir -p {params.output_dir}
@@ -191,28 +165,18 @@ rule error_correction:
         r1=os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R1_clean.fastq.gz"),
         r2=os.path.join(RESULTS_DIR, "04_host_removed", "{sample}_R2_clean.fastq.gz"),
     output:
-        r1=os.path.join(
-            RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"
-        ),
-        r2=os.path.join(
-            RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz"
-        ),
+        r1=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"),
+        r2=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz"),
     log:
         repair=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_tmp.log"),
-        tadpole=os.path.join(
-            RESULTS_DIR, "05_error_correction", "{sample}_corrected.log"
-        ),
+        tadpole=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_corrected.log"),
     threads: config["resources"]["error_correction"]["threads"]
     resources:
         mem_mb=config["resources"]["error_correction"]["mem_mb"],
         runtime=config["resources"]["error_correction"]["runtime_min"],
     params:
-        tmp_r1=os.path.join(
-            RESULTS_DIR, "05_error_correction", "{sample}_tmp_R1.fastq.gz"
-        ),
-        tmp_r2=os.path.join(
-            RESULTS_DIR, "05_error_correction", "{sample}_tmp_R2.fastq.gz"
-        ),
+        tmp_r1=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_tmp_R1.fastq.gz"),
+        tmp_r2=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_tmp_R2.fastq.gz"),
         tadpole=TOOLS["tadpole"],
         repair=TOOLS["repair"],
         bbduk=TOOLS["bbduk"],
@@ -220,16 +184,8 @@ rule error_correction:
         memory_gb=config["parameters"]["error_correction"]["memory_gb"],
         k_size=config["parameters"]["error_correction"]["k_size"],
         ecc="ecc=t" if config["parameters"]["error_correction"]["ecc"] else "ecc=f",
-        reassemble=(
-            "reassemble=t"
-            if config["parameters"]["error_correction"]["reassemble"]
-            else "reassemble=f"
-        ),
-        conservative=(
-            "conservative=t"
-            if config["parameters"]["error_correction"]["conservative"]
-            else "conservative=f"
-        ),
+        reassemble=("reassemble=t" if config["parameters"]["error_correction"]["reassemble"] else "reassemble=f"),
+        conservative=("conservative=t" if config["parameters"]["error_correction"]["conservative"] else "conservative=f"),
     shell:
         """
         mkdir -p {params.output_dir}

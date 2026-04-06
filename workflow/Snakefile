@@ -39,9 +39,7 @@ if not Path(SAMPLE_SHEET).exists():
     raise FileNotFoundError(f"Sample sheet not found: {SAMPLE_SHEET}")
 
 # Load samples from sheet
-SAMPLE_DF = load_sample_sheet(
-    SAMPLE_SHEET, max_samples=config["samples"]["max_samples"]
-)
+SAMPLE_DF = load_sample_sheet(SAMPLE_SHEET, max_samples=config["samples"]["max_samples"])
 
 SAMPLES = get_sample_names(SAMPLE_DF)
 
@@ -86,9 +84,7 @@ if STEPS.get("fastqc_raw"):
 if STEPS.get("fastqc_post"):
     TARGETS.extend(
         expand(
-            os.path.join(
-                RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"
-            ),
+            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
             sample=SAMPLES,
             read=READS,
         )
@@ -108,9 +104,7 @@ if STEPS.get("merge_bracken"):
 if STEPS.get("dnaberts_embeddings"):
     TARGETS.extend(
         expand(
-            os.path.join(
-                RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"
-            ),
+            os.path.join(RESULTS_DIR, "12_dnaberts", "{sample}", "{sample}_embeddings.json"),
             sample=SAMPLES,
         )
     )
