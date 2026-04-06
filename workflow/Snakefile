@@ -112,7 +112,7 @@ if STEPS.get("dnaberts_embeddings"):
 
 rule all:
     input:
-        TARGETS,
+        TARGETS
 
 
 include: "rules/qc.smk"
