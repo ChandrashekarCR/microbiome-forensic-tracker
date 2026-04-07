@@ -87,7 +87,7 @@ jobs:
 
       - name: Build CI Container
         if: steps.cache-ci.outputs.cache-hit != 'true'
-        run: apptainer build binp51-ci.sif containers/ci.def
+        run: sudo apptainer build binp51-ci.sif containers/ci.def
 
       - name: Upload Container as Artifact
         uses: actions/upload-artifact@v4
