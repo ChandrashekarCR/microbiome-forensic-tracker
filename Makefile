@@ -78,6 +78,7 @@ lint: # Linting python scripts
 format: # Code formatting using ruff and black
 	@echo "Organizing imports with ruff.."
 	@$(PYTHON) -m ruff check --fix src/ tests/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
+	@$(PYTHON) -m ruff format src/ tests/ || (echo '[format] ruff format failed' >&2; exit 1)
 	@echo "Formatting code with black"
 	@$(PYTHON) -m black src/ tests/ || (echo '[format] black formatting failed' >&2; exit 1)
 	@echo "Formatting snakemake rules and files with snakefmt.."

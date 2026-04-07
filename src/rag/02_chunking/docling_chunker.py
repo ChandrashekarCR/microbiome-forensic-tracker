@@ -197,7 +197,7 @@ def process_all_documents():
     all_chunks = []
 
     for pmid, paper in all_papers.items():
-        print(f"Processing PMID: {pmid}: {paper.get('title','')[:60]}...")
+        print(f"Processing PMID: {pmid}: {paper.get('title', '')[:60]}...")
 
         # Use the full text if available, else use the abstract as pseudo document
         if paper.get("full_text_path") and Path(paper["full_text_path"]).exists():
@@ -206,12 +206,12 @@ def process_all_documents():
         else:
             # Create a tempory text file from abstract
             abstract_text = f"""
-                                Title: {paper.get('title', '')}
-                                Journal: {paper.get('journal', '')}
-                                Year: {paper.get('year', '')}
+                                Title: {paper.get("title", "")}
+                                Journal: {paper.get("journal", "")}
+                                Year: {paper.get("year", "")}
 
                                 Abstract:
-                                {paper.get('abstract', '')}
+                                {paper.get("abstract", "")}
                             """.strip()
 
             temp_path = CHUNKS_DIR / f"{pmid}_abstract.md"

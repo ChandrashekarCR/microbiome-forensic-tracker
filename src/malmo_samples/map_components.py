@@ -66,7 +66,7 @@ def create_sample_marker(row, template):
         color=color,
     )
 
-    tooltip_html = f"<b>{row['sample_id']}</b> | " f"{row.get('zone','')}<br>" f"Lat: {row['latitude']:.4f}, Lon: {row['longitude']:.4f}"
+    tooltip_html = f"<b>{row['sample_id']}</b> | {row.get('zone', '')}<br>Lat: {row['latitude']:.4f}, Lon: {row['longitude']:.4f}"
 
     return folium.CircleMarker(
         location=[row["latitude"], row["longitude"]],
@@ -125,7 +125,7 @@ def add_cluster_layer(map_obj, df):
         folium.Marker(
             location=[row["latitude"], row["longitude"]],
             icon=folium.Icon(color="blue", icon="flask", prefix="fa"),
-            tooltip=f"{row['sample_id']} | {row.get('zone','')}",
+            tooltip=f"{row['sample_id']} | {row.get('zone', '')}",
             popup=folium.Popup(f"<b>{row['sample_id']}</b>", max_width=150),
         ).add_to(marker_cluster)
 

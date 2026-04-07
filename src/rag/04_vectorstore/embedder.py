@@ -30,9 +30,9 @@ def build_fact_text(fact: dict) -> str:
     """
 
     parts = [
-        f"Organism: {fact.get('organism','Unknown')}",
-        f"Taxon rank: {fact.get('taxon_rank','')}",
-        f"Found in: {fact.get('environment','')}",
+        f"Organism: {fact.get('organism', 'Unknown')}",
+        f"Taxon rank: {fact.get('taxon_rank', '')}",
+        f"Found in: {fact.get('environment', '')}",
     ]
 
     if fact.get("location") and fact["location"] != "not specified":
@@ -115,7 +115,7 @@ def build_vectorstore():
             documents=documents[start:end],
             metadatas=metadatas[start:end],
         )
-        print(f"Added batch {start//BATCH_SIZE + 1}: {end-start} facts")
+        print(f"Added batch {start // BATCH_SIZE + 1}: {end - start} facts")
 
     print(f"ChromaDB built: {collection.count()} vectors stored")
     print(f"Path: {CHROMA_PATH}")

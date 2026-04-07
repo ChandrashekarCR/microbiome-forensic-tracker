@@ -174,13 +174,13 @@ def run_extraction():
             done_ids: set[str] = set(json.load(f))
         with open(facts_path) as f:
             all_facts: list[dict] = json.load(f)
-        print(f"Resuming - {len(done_ids)} chunks already processed, " f"{len(all_facts)} facts loaded.")
+        print(f"Resuming - {len(done_ids)} chunks already processed, {len(all_facts)} facts loaded.")
     else:
         done_ids: set[str] = set()
         all_facts: list[dict] = []
 
     remaining = [c for c in all_chunks if c["chunk_id"] not in done_ids and c.get("token_count", 0) >= 30]
-    print(f"Processing {len(remaining)} remaining chunks " f"(total {len(all_chunks)}, skipped short/done)...\n")
+    print(f"Processing {len(remaining)} remaining chunks (total {len(all_chunks)}, skipped short/done)...\n")
 
     for chunk in tqdm(remaining, desc="Extracting"):
         facts = extract_facts_from_chunk(chunk)
@@ -203,10 +203,10 @@ def run_extraction():
     # Summary statistics
     total = len(all_facts)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Extracted     : {total} ecological facts")
     print(f"Saved to      : {facts_path}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     return all_facts
 

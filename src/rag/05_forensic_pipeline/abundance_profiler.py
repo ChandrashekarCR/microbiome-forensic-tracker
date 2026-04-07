@@ -413,12 +413,12 @@ def generate_forensic_narrative(
             continue
         taxa_lines.append(f"  [{rank.upper()}]")
         for t in entries:
-            taxa_lines.append(f"    {t['taxon']:<50}  {t['abundance']:.4f}  ({t['abundance']*100:.2f}%)")
+            taxa_lines.append(f"    {t['taxon']:<50}  {t['abundance']:.4f}  ({t['abundance'] * 100:.2f}%)")
     taxa_table = "\n".join(taxa_lines)
 
     # Build env scores table (top 5 only to keep prompt short)
     top_envs = list(env_probs.items())[:5]
-    env_scores = "\n".join(f"  {env:<40}  {prob*100:.1f}%" for env, prob in top_envs)
+    env_scores = "\n".join(f"  {env:<40}  {prob * 100:.1f}%" for env, prob in top_envs)
 
     # Build evidence block (top 8 most similar facts)
     top_evidence = sorted(retrieved, key=lambda x: x["similarity"], reverse=True)[:8]
@@ -493,13 +493,13 @@ def _write_text_report(report: dict, path: Path) -> None:
         "=" * 65,
         f"Sample ID      : {report['sample_id']}",
         f"Analysis Date  : {report['analysis_date']}",
-        f"Primary Match  : {report['primary_environment']} " f"({report['primary_probability']*100:.1f}% probability)",
+        f"Primary Match  : {report['primary_environment']} ({report['primary_probability'] * 100:.1f}% probability)",
         "",
         "ENVIRONMENT PROBABILITY SCORES:",
-        *[f"  {env:<42} {prob*100:.1f}%" for env, prob in report["environment_scores"].items()],
+        *[f"  {env:<42} {prob * 100:.1f}%" for env, prob in report["environment_scores"].items()],
         "",
         "TOP TAXA (by rank):",
-        *[f"  [{t.get('rank','?'):8s}]  {t['taxon']:<50} {t['abundance']*100:.3f}%" for t in report["top_taxa"]],
+        *[f"  [{t.get('rank', '?'):8s}]  {t['taxon']:<50} {t['abundance'] * 100:.3f}%" for t in report["top_taxa"]],
         "",
         "─" * 65,
         "FORENSIC NARRATIVE:",
@@ -543,9 +543,9 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
 
     reports = []
     for sid in sample_ids:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Profiling sample: {sid}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Step 1
         taxa = get_top_taxa(long_df, sid)
@@ -558,7 +558,7 @@ def profile_sample(table_path: str | Path, sample_id: str | None = None) -> dict
         # Step 3
         env_probs = score_environments(retrieved)
         top_env = max(env_probs, key=env_probs.get)
-        print(f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env]*100:.1f}%)")
+        print(f"Step 3: Top environment -> '{top_env}'  ({env_probs[top_env] * 100:.1f}%)")
 
         # Step 4
         print("Step 4: Generating forensic narrative with Ollama...")

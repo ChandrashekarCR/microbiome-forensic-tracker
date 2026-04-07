@@ -14,7 +14,7 @@ def standardize_bracken(input_file: str, output_dir=None, min_abd: float = 0.001
 
     # Set abundance to zero if below the threshold
     df[sample] = df.apply(
-        lambda row: (row["fraction_total_reads"] if row["fraction_total_reads"] >= min_abd else 0),
+        lambda row: row["fraction_total_reads"] if row["fraction_total_reads"] >= min_abd else 0,
         axis=1,
     )
 

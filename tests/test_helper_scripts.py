@@ -34,9 +34,7 @@ def valid_sample_df(tmp_path, valid_tsv_content):
     # Write absolute paths so check_fastq_paths_exist can find them
     tsv = tmp_path / "samples.tsv"
     tsv.write_text(
-        f"sample\tr1\tr2\n"
-        f"S1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\n"
-        f"S2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
+        f"sample\tr1\tr2\nS1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\nS2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
     )
 
     return load_sample_sheet(str(tsv))
@@ -76,9 +74,7 @@ class TestLoadSampleSheet:
 
         tsv = tmp_path / "samples.tsv"
         tsv.write_text(
-            f"sample\tr1\tr2\n"
-            f"S1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\n"
-            f"S2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
+            f"sample\tr1\tr2\nS1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\nS2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
         )
 
         df = load_sample_sheet(str(tsv), max_samples=1)
@@ -165,9 +161,7 @@ class TestInternalHelpers:
 
         tsv = tmp_path / "samples.tsv"
         tsv.write_text(
-            f"sample\tr1\tr2\n"
-            f"S1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\n"
-            f"S2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
+            f"sample\tr1\tr2\nS1\t{tmp_path / 'a.fastq.gz'}\t{tmp_path / 'b.fastq.gz'}\nS2\t{tmp_path / 'c.fastq.gz'}\t{tmp_path / 'd.fastq.gz'}\n"
         )
         df = read_sample_sheet(str(tsv))
         df = validate_sample_sheet(df)

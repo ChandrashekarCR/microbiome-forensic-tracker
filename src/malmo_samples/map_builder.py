@@ -53,10 +53,10 @@ def build_malmo_map(df, admin_gdf, output_file="malmo_interactive_map.html"):
     # Save map
     m.save(output_file)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Map saved to: {output_file}")
     print(f"Samples plotted: {len(df)}")
     print(f"Zones: {df['zone'].nunique() if 'zone' in df.columns else 'N/A'}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
     return m

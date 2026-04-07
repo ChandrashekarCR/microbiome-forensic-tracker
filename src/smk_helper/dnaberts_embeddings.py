@@ -223,7 +223,6 @@ class DNABERTSContigEmbedder:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="A script to generate DNABERT-S embeddings",
         usage="python3 dnaberts_embeddings.py -i <fasta_file> -o <json_file> \
