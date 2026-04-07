@@ -5,7 +5,7 @@
 """
 screen -S snakemake
 conda activate snakemake
-snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml 
+snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml
     --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
 
 """
@@ -113,7 +113,7 @@ if STEPS.get("dnaberts_embeddings"):
 
 rule all:
     input:
-        TARGETS
+        TARGETS,
 
 
 include: "rules/qc.smk"

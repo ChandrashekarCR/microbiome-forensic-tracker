@@ -64,6 +64,7 @@ install: venv # Install packages from requirements.txt file.
 clean: # Clean all the cache files and .out and .err files from slurm runs
 	@find . -type f -name "*.err" -delete
 	@find . -type f -name "*.out" -delete
+	@find . -type f -name "*.sif" -delete
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
 	@find . -type d -name "*.egg-info" -exec rm -rf {} +
 	@find . -type d -name ".pytest_cache" -exec rm -rf {} +
