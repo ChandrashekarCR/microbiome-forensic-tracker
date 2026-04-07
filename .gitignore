@@ -5,6 +5,7 @@
 /.venv*
 __pycache__*
 *.egg-info
+.github_access_token
 
 # Ignore snakefile
 .snakemake
