@@ -14,6 +14,19 @@ From: ubuntu:22.04
     export DEBIAN_FRONTEND=noninteractive
     export PATH="/usr/local/bin:$PATH"
 
+%files
+    # Copy files from host to container
+    Makefile /opt/binp51/
+    pyproject.toml /opt/binp51/
+    requirements.txt /opt/binp51/
+    src/ /opt/binp51/
+    workflow/ /opt/binp51/
+    config/ /opt/binp51/
+    profiles/ /opt/binp51/
+    tests/ /opt/binp51/
+    README.md /opt/binp51/
+    environment.yml /opt/binp51/
+
 %post
     # Prevent interactive prompts during apt installation
     export DEBIAN_FRONTEND=noninteractive
@@ -29,7 +42,8 @@ From: ubuntu:22.04
         python3.11-venv \
         python3-pip \
         tar \
-        gzip
+        gzip \
+        make
 
     # Apptainer is not in the default Ubuntu 22.04 repositories, so we add its PPA
     add-apt-repository -y ppa:apptainer/ppa
@@ -43,12 +57,42 @@ From: ubuntu:22.04
     # Upgrade pip globally
     python -m pip install --upgrade pip
 
-    # Optional: If you want to install requirements at build time directly into the container
-    # you can do so here by copying the requirements.txt, or you can rely on the Makefile 
-    # to create a virtual environment when the container is run.
-    # pip install pytest snakemake ruff black
+    # Create project directory
+    mkdir -p /opt/binp51
+
+    cd /opt/binp51
+
+    # Create the bin directory 
+    mkdir -p bin
+
+    # Creating base python environemnt
+    echo "Creating a base python environment"
+    make venv
+
+    # Run the make commands to set up the environemnts
+    echo "Creating environemnts and installing dependencies"
+    make venv-all
+
+    echo "Downloading bioinformatics tools..."
+    make download
+
+    echo "Container build complete!"
 
 %runscript
-    # Default action when the container is run
-    echo "Runnint the ..."
+    cd /opt/binp51
+    # Activate the full environment by default
+    . .venv-all/bin/activate
     exec "$@"
+
+%test
+    cd /opt/binp51
+    . .venv-all/bin/activate
+    echo "Testing Python installation..."
+    python --version
+    echo "Testing pytest..."
+    pytest --version
+    echo "Testing snakemake..."
+    snakemake --version
+    echo "Checking tools in bin directory..."
+    ls -lh bin/
+    echo "All tests passed!"
