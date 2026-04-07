@@ -64,5 +64,5 @@ From: ubuntu:22.04
 %test
     cd /opt/binp51
     . .venv-all/bin/activate
-    make tests
+    make test
     echo "All tests passed!"

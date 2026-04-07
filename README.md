@@ -1,4 +1,13 @@
-# BINP51 — Metagenomics Pipeline (Snakemake + Apptainer)
+# BINP51 — Metagenomics Pipeline
+
+[![CI/CD pipeline](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/workflows/CI%2FCD%20pipeline/badge.svg)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/actions/workflows/ci.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) 
+[![Snakemake](https://img.shields.io/badge/snakemake-≥7-brightgreen.svg)](https://snakemake.readthedocs.io)
+[![GitHub issues](https://img.shields.io/github/issues/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/commits)
 
 BINP51 is an end-to-end metagenomics workflow for paired-end FASTQ data. It performs:
 
