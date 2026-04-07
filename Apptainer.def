@@ -1,0 +1,54 @@
+# Header
+# The header defines the base operating system
+Bootstrap: docker
+From: ubuntu:22.04
+
+# Add some information to the container
+%labels
+    Author Chandrashekar CR
+    Version v1.0.0
+    Description "eDNA metageomics application"
+
+%environment
+    export LC_ALL=C
+    export DEBIAN_FRONTEND=noninteractive
+    export PATH="/usr/local/bin:$PATH"
+
+%post
+    # Prevent interactive prompts during apt installation
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Update system and install basic build tools, python, and apptainer dependencies
+    apt-get update && apt-get install -y \
+        software-properties-common \
+        wget \
+        curl \
+        git \
+        build-essential \
+        python3.11 \
+        python3.11-venv \
+        python3-pip \
+        tar \
+        gzip
+
+    # Apptainer is not in the default Ubuntu 22.04 repositories, so we add its PPA
+    add-apt-repository -y ppa:apptainer/ppa
+    apt-get update
+    apt-get install -y apptainer
+
+    # Set python3 to point to python3.11
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+
+    # Upgrade pip globally
+    python -m pip install --upgrade pip
+
+    # Optional: If you want to install requirements at build time directly into the container
+    # you can do so here by copying the requirements.txt, or you can rely on the Makefile 
+    # to create a virtual environment when the container is run.
+    # pip install pytest snakemake ruff black
+
+%runscript
+    # Default action when the container is run
+    echo "Runnint the ..."
+    exec "$@"

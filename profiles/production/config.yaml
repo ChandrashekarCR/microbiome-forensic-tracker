@@ -23,6 +23,14 @@ printshellcmds: false   # Reduce log verbosity
 use-conda: true
 conda-frontend: "mamba"
 
+# Enable container execution natively
+software-deployment-method: 
+  - apptainer
+  - conda
+
+# Pass LUNARC binds to all container jobs globally
+apptainer-args: "--bind /lunarc/nobackup/projects/snic2019-34-3:/lunarc/nobackup/projects/snic2019-34-3 --bind /home/chandru:/home/chandru"
+
 # Efiicieny Reporting
 slurm-efficiency-report: true
 slurm-efficiency-report-path: "./logs/"

@@ -5,7 +5,8 @@
 """
 screen -S snakemake
 conda activate snakemake
-snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
+snakemake --snakefile workflow/Snakefile --profile profiles/small_scale --configfile config/config_single_run.yaml 
+    --config samples_file=/home/chandru/binp51/config/samples_test.tsv > logs/snakemake_update.log 2>&1
 
 """
 
