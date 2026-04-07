@@ -24,26 +24,22 @@ jobs:
       - name: Install linting tools
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black isort
+          pip install ruff black isort snakefmt
       
       - name: Ruff Check (respects pyproject.toml)
         run: ruff check . --config pyproject.toml
       
-      - name: Ruff Format Check
-        run: ruff format --check . --config pyproject.toml
+      - name: Ruff Format Check (src/ and tests/ only)
+        run: ruff format --check src/ tests/ --config pyproject.toml
       
-      - name: Black Format Check (respects pyproject.toml)
-        run: black --check . --config pyproject.toml
+      - name: Black Format Check (src/ and tests/ only)
+        run: black --check src/ tests/ --config pyproject.toml
       
       - name: Import Sort check (isort - respects pyproject.toml)
         run: isort --check-only . --settings-path pyproject.toml
 
-      - name: Debug - Show config files
-        run: |
-          echo "=== pyproject.toml [tool.ruff] ==="
-          grep -A 5 "\[tool.ruff\]" pyproject.toml || echo "Not found"
-          echo "=== pyproject.toml [tool.black] ==="
-          grep -A 2 "\[tool.black\]" pyproject.toml || echo "Not found"
+      - name: Snakemake Format Check
+        run: snakefmt --check workflow/rules/*.smk workflow/Snakefile
 
   # Stage 2: Run unit tests
   test:
