@@ -1,0 +1,68 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%labels
+    Author Chandrashekar CR
+    Version v1.0.0
+    Description "eDNA pipeline - CI/CD testing only"
+    Type "lightweight"
+
+%environment
+    export LC_ALL=C
+    export DEBIAN_FRONTEND=noninteractive
+    export PATH="/opt/binp51/bin:$PATH"
+
+%files
+    Makefile /opt/binp51/
+    pyproject.toml /opt/binp51/
+    requirements.txt /opt/binp51/
+    src/ /opt/binp51/
+    tests/ /opt/binp51/
+    README.md /opt/binp51/
+    environment.yml /opt/binp51/
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Only install essentials for testing
+    apt-get update && apt-get install -y \
+        software-properties-common \
+        wget \
+        curl \
+        git \
+        build-essential \
+        python3.11 \
+        python3.11-venv \
+        python3-pip \
+        make
+
+    # Set python3 to point to python3.11
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+
+    # Upgrade pip
+    python -m pip install --upgrade pip
+
+    mkdir -p /opt/binp51/bin
+    cd /opt/binp51
+
+    # Creating base python environemnt
+    echo "Creating a base python environment"
+    make venv
+
+    # Only create the venv for testing (not all the specialized ones)
+    echo "Creating Python environment for testing..."
+    make venv-all
+
+    echo "CI container build complete!"
+
+%runscript
+    cd /opt/binp51
+    . .venv-all/bin/activate
+    exec "$@"
+
+%test
+    cd /opt/binp51
+    . .venv-all/bin/activate
+    make tests
+    echo "All tests passed!"

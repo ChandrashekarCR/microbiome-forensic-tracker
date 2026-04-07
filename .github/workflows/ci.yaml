@@ -1,0 +1,98 @@
+name: CI/CD pipeline
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  # Stage 1: Linting
+  lint-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install linting tools
+        run: |
+          pip install ruff black isort
+      
+      - name: Ruff Check 
+        run: ruff check .
+      
+      - name: Ruff Format Check
+        run: ruff format --check .
+      
+      - name: Black Format Check
+        run: black --check .
+      
+      - name: Import Sort check (isort)
+        run: isort --check-only .
+
+  # Stage 2: Run unit tests
+  test:
+    name: Run Unit Tests
+    needs: lint-format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Run Pytest
+        run: pytest tests/ -v
+
+  # Stage 3: Build lightweight CI container (for verification)
+  build-ci-container:
+    name: Build Lightweight CI Container
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Apptainer
+        uses: eWaterCycle/setup-apptainer@v2
+        with:
+          apptainer-version: 1.2.2
+
+      - name: Cache CI Container
+        uses: actions/cache@v3
+        id: cache-ci
+        with:
+          path: binp51-ci.sif
+          key: apptainer-ci-${{ hashFiles('containers/ci.def', 'pyproject.toml', 'requirements.txt', 'Makefile') }}
+          restore-keys: |
+            apptainer-ci-
+
+      - name: Build CI Container
+        if: steps.cache-ci.outputs.cache-hit != 'true'
+        run: apptainer build binp51-ci.sif containers/ci.def
+
+      - name: Upload Container as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-container
+          path: binp51-ci.sif
+          retention-days: 3
+
+      - name: Container Info
+        run: |
+          ls -lh binp51-ci.sif
+          apptainer inspect binp51-ci.sif
+
