@@ -62,6 +62,8 @@ snakemake = [
     "snakemake-interface-storage-plugins>=4.4.1"
 ]
 
+# ML pipline
+
 # For local development: everything loose (pip resolves conflicts)
 all = [
     "pandas>=1.3",

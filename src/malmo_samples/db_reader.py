@@ -127,5 +127,5 @@ class DatabaseCreate:
         return df
 
 
-samples = DatabaseCreate(db="./databases/malmo.db")
-print(samples.get_samples())
+# samples = DatabaseCreate(db="./databases/malmo.db")
+# print(samples.get_samples())
