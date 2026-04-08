@@ -113,6 +113,12 @@ venv-backend: # For backend development
 	@. .venv-backend/bin/activate && pip install -U pip && pip install -e ".[backend,dev]"
 	@echo "[venv-backend] ok"
 
+venv-ml: # For machine leanring development
+	@echo "Installing machine leanring and dev tools environment for development."
+	@$(PYTHON) -m venv .venv-ml
+	@. .venv-ml/bin/activate && pip install -U pip && pip install -e ".[ml,dev]"
+	@echo "[venv-ml] ok"
+
 venv-all: # Complete environment
 	@echo "Installing full env and dev tools environment for development."
 	@$(PYTHON) -m venv .venv-all

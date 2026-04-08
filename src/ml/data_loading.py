@@ -30,7 +30,7 @@ class DatabaseRSA:
     def format_data(self, df: pd.DataFrame) -> pd.DataFrame:
 
         # Drop the classifier column
-        df = df.drop(columns=["classifier", "tax_id"], axis=1)
+        df = df.drop(columns=["classifier", "tax_id"])
         df = df.rename(columns={"clade": "sample_id"})
         df = df.set_index("sample_id")
 
@@ -47,7 +47,7 @@ class DatabaseRSA:
         df = pd.merge(metadata_df, rsa_df, on="sample_id", how="inner")
 
         # Drop columns
-        df = df.drop(columns=["barcode", "name", "date", "time", "altitude", "precision"], axis=1)
+        df = df.drop(columns=["barcode", "name", "date", "time", "altitude", "precision"])
 
         return df
 
