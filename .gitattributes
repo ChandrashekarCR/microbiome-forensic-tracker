@@ -2,7 +2,7 @@
 src/backend/templates/malmo_interactive_map.html linguist-documentation
 src/malmo_samples/templates/*.html linguist-documentation
 
-# Explicitly mark Snakemake, Makefile, and TOML files as relevant
+# Explicitly mark Snakemake, Makefile relavant
 *.smk linguist-language=Snakemake
 Snakefile linguist-language=Snakemake
 Makefile linguist-language=Makefile
