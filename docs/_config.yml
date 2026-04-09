@@ -1,0 +1,13 @@
+title: Microbiome Forensic Tracker
+description: Predict geographical origin of environmental samples.
+remote_theme: just-the-docs/just-the-docs
+
+# Theme settings
+color_scheme: dark
+search_enabled: true
+
+# Link to your repository
+repository_url: https://github.com/ChandrashekarCR/microbiome-forensic-tracker
+
+plugins:
+  - jekyll-remote-theme
