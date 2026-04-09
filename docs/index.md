@@ -259,7 +259,7 @@ Licensed under the MIT License. See [LICENSE](../LICENSE).
 
 - **Issues** — [GitHub Issues](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/issues)
 - **Discussions** — [GitHub Discussions](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/discussions)
-- **Email** — chandrashekar@example.com
+- **Email** — shekarlp18@gmail.com
 
 ---
 
