@@ -4,12 +4,11 @@
 # User sends data -> Pydantic validates it -> SQLAlchemy saves it
 # SQLAlchemy reads it -> Pydantic formats it -> User gets data in a correct formatted way
 
+import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
-import uuid
-
 
 ####### SAMPLE TABLE ########
 """
