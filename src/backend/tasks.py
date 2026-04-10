@@ -1,3 +1,11 @@
+"""
+Celery tasks for running the Snakemake metagenomics pipeline.
+
+This file defines the actual work that happens in the background.
+When FastAPI calls run_pipeline.delay(...), the arguments are serialized
+to JSON, pushed to Redis, and this function executes in the Celery worker.
+"""
+
 import csv
 from pathlib import Path
 

@@ -1,8 +1,8 @@
 # This file contains all the functions needed to talk to the database
 # CRUD operations with async/await support
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Samples
 
@@ -88,7 +88,7 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, er
     sample.status = status
     if error_msg:
         sample.error_msg = error_msg
-    
+
     await db.commit()
     await db.refresh(sample)
     return sample

@@ -1,4 +1,5 @@
 import shutil
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import (
@@ -10,13 +11,10 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from contextlib import asynccontextmanager
 
 from . import crud
 from .database import create_db_tables, get_async_session
-from .models import Samples
 from .schemas import SampleCreate, SampleResponse
 
 # Get the directory where main.py is located
@@ -25,6 +23,7 @@ TEMPLATES_DIR = BACKEND_DIR / "templates"
 
 # Create all tables in the database on startup
 # Base.metadata.create_all(bind=engine)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,7 +36,7 @@ app = FastAPI(
     title="Microdentify API",
     description="Metagenomic sample processing, location prediction and profile estimation",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Create a directory to store the uploaded files
@@ -48,6 +47,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 @app.get("/", include_in_schema=False)
 async def root():
     return {"status": "running", "message": "Microdentify"}
+
 
 @app.get("/metrics")
 def metrics():
@@ -130,7 +130,7 @@ async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make a
 @app.get("/samples/{sample_id}")
 async def get_sample_status(sample_id: str, db: AsyncSession = Depends(get_async_session)):
     """Get status of a specific sample"""
-    sample = await crud.get_sample_by_id(db, sample_id)  
+    sample = await crud.get_sample_by_id(db, sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
     return {
