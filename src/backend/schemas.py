@@ -8,12 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel
-
-
-# This part is for user registration
-class UserCreate(BaseModel):
-    name: str
-    email: str
+import uuid
 
 
 ####### SAMPLE TABLE ########
@@ -33,7 +28,7 @@ class SampleCreate(BaseModel):
 
 # What is sent back after creating a sample
 class SampleResponse(BaseModel):
-    id: int
+    id: uuid.UUID
     sample_name: str
     username: str  # Changed from 'user' to 'username'
     email: str
@@ -48,23 +43,3 @@ class SampleResponse(BaseModel):
 
 
 ####### ABUNDANCE TABLE #######
-"""
-
-"""
-
-
-class AbundanceItem(BaseModel):
-    taxon_name: str
-    taxon_id: Optional[str] = None
-    taxon_rank: Optional[str] = None
-    relative_abundance: float
-
-    class Config:
-        from_attributes = True
-
-
-# Full results response for a sample
-class SampleResults(BaseModel):
-    sample_name: str
-    status: str
-    abundances: List[AbundanceItem]

@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 
 from fastapi import (
-    BackgroundTasks,
     Depends,
     FastAPI,
     File,
@@ -12,9 +11,12 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from contextlib import asynccontextmanager
 
 from . import crud
-from .database import get_db
+from .database import create_db_tables, get_async_session
+from .models import Samples
 from .schemas import SampleCreate, SampleResponse
 
 # Get the directory where main.py is located
@@ -24,11 +26,18 @@ TEMPLATES_DIR = BACKEND_DIR / "templates"
 # Create all tables in the database on startup
 # Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_db_tables()
+    yield
+
+
 # FastAPI app
 app = FastAPI(
     title="Microdentify API",
     description="Metagenomic sample processing, location prediction and profile estimation",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 # Create a directory to store the uploaded files
@@ -40,17 +49,21 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 async def root():
     return {"status": "running", "message": "Microdentify"}
 
+@app.get("/metrics")
+def metrics():
+    """Basic metrics endpoint to prevent 404 errors"""
+    return {"status": "ok", "message": "Metrics endpoint"}
+
 
 # Upload a new sample
 @app.post("/samples", response_model=SampleResponse, status_code=201)
 async def upload_sample(
-    background_task: BackgroundTasks,
     username: str = Form(..., description="Enter your username"),
     email: str = Form(..., description="Enter your email"),
     sample_name: str = Form(..., description="Enter the sample_name"),
     r1: UploadFile = File(..., description="Forward read R1.fastq.gz"),
     r2: UploadFile = File(..., description="Reverse read R2.fastq.gz"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),  # Keep AsyncSession
 ):
     """
     Upload paired FASTQ files and trigger Snakemake pipeline
@@ -60,7 +73,8 @@ async def upload_sample(
     sample_obj = SampleCreate(username=username, email=email, sample_name=sample_name)
 
     # Check if sample already exists
-    if crud.get_sample_by_name(db, sample_obj.sample_name):
+    existing_sample = await crud.get_sample_by_name(db, sample_obj.sample_name)  # await
+    if existing_sample:
         raise HTTPException(status_code=400, detail=f"Sample '{sample_obj.sample_name}' already exists")
 
     # Validate file extensions
@@ -78,7 +92,7 @@ async def upload_sample(
         shutil.copyfileobj(r2.file, f)
 
     # Create database record
-    new_sample = crud.create_sample(
+    new_sample = await crud.create_sample(  # await
         db=db,
         username=sample_obj.username,
         email=sample_obj.email,
@@ -87,21 +101,22 @@ async def upload_sample(
         r2_path=str(r2_path),
     )
 
-    # We need to run the background snakemake operation
+    # TODO: Queue Snakemake task with Celery
+    # run_snakemake_pipeline.delay(job_id=new_sample.id, ...)
 
     # Return immediately with "pending" status
     return new_sample
 
 
 @app.get("/samples")
-def list_samples(db: Session = Depends(get_db)):
+async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make async
     """List all submitted samples"""
-    samples = crud.get_all_samples(db)
+    samples = await crud.get_all_samples(db)  # await
     return {
         "total": len(samples),
         "samples": [
             {
-                "id": s.id,
+                "id": str(s.id),
                 "sample_name": s.sample_name,
                 "user": s.username,
                 "status": s.status,
@@ -112,9 +127,23 @@ def list_samples(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/samples/{sample_id}")
+async def get_sample_status(sample_id: str, db: AsyncSession = Depends(get_async_session)):
+    """Get status of a specific sample"""
+    sample = await crud.get_sample_by_id(db, sample_id)  
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return {
+        "id": str(sample.id),
+        "sample_name": sample.sample_name,
+        "status": sample.status,
+        "submitted_at": sample.submitted_at,
+        "r1_path": sample.r1_path,
+        "r2_path": sample.r2_path,
+    }
+
+
 # Interactive map for the user
-
-
 @app.get("/map", response_class=HTMLResponse)
 def interactive_map():
     """Serve the interactive Malmo map"""
