@@ -26,14 +26,17 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+    
     # Timezone
     timezone="Europe/Stockholm",
     enable_utc=True,
+    
     # Task tracking
     # track_started=True makes Celery emit a "STARTED" state when
     # the worker begins executing a task. Without this, tasks jump
     # straight from PENDING to SUCCESS/FAILURE.
     task_track_started=True,
+    
     # Timeouts
     # Snakemake pipeline for metagenomcis sample process takes approx 40 min per sample on LUNARC systems.
     # We set generous limits.
@@ -41,20 +44,24 @@ celery_app.conf.update(
     # time_limit does a hard SIGKILL (uncatchable safety net).
     task_soft_time_limit=7200,  # 2 hours soft limit
     task_time_limit=9000,  # 2.5 hours hard kill
+    
     # Result expiry
     # How long Redis keeps the task result after completion.
     # 24 hours is more than enough for the real results are in the DB.
     result_expires=86400,
+    
     # Reliability
     # acks_late=True: the task message is acknowledged AFTER the
     # worker finishes executing, not when it starts. This means
     # if the worker crashes mid-pipeline, the task goes BACK to
     # the Redis queue and another worker can retry it.
     task_acks_late=True,
+    
     # Only fetch 1 task at a time per worker process.
     # Since each task runs for 40 min, prefetching more would
     # just hold them idle in memory.
     worker_prefetch_multiplier=1,
+    
     # Concurrency
     # How many tasks one worker handles simultaneously.
     # Each task runs a Snakemake process that submits SLURM jobs.

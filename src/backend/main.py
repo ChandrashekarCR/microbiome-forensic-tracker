@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import crud
 from .database import create_db_tables, get_async_session
 from .schemas import SampleCreate, SampleResponse
+from .tasks import run_pipeline
 
 # Get the directory where main.py is located
 BACKEND_DIR = Path(__file__).parent
@@ -40,7 +41,7 @@ app = FastAPI(
 )
 
 # Create a directory to store the uploaded files
-UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR = Path("/home/chandru/binp51/uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
@@ -101,8 +102,16 @@ async def upload_sample(
         r2_path=str(r2_path),
     )
 
-    # TODO: Queue Snakemake task with Celery
+    # Queue Snakemake task with Celery
     # run_snakemake_pipeline.delay(job_id=new_sample.id, ...)
+    task = run_pipeline.delay(
+        sample_id=str(new_sample.id),
+        sample_name=sample_name,
+        r1_path=str(r1_path),
+        r2_path=str(r2_path)
+    )
+
+    await crud.update_celery_task_id(db,str(new_sample.id), task.id)
 
     # Return immediately with "pending" status
     return new_sample
@@ -121,6 +130,8 @@ async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make a
                 "user": s.username,
                 "status": s.status,
                 "submitted_at": s.submitted_at,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at
             }
             for s in samples
         ],
