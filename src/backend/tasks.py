@@ -9,15 +9,30 @@ to JSON, pushed to Redis, and this function executes in the Celery worker.
 import csv
 from pathlib import Path
 
-# import crud
+from .database import create_db_tables, get_async_session
+import logging
+from pathlib import Path
+from datetime import datetime, timezone
+
+import yaml
+from celery import states
+from celery.utils.log import get_task_logger
+
+from .celery_app import celery_app
+from .models import Samples
+
+logger = get_task_logger(__name__)
 
 # Path to your project root (where Snakefile lives)
 PROJECT_ROOT = Path("/home/chandru/binp51")
 SNAKEFILE = PROJECT_ROOT / "workflow" / "Snakefile"
 CONFIG_FILE = PROJECT_ROOT / "config" / "config_single_run.yaml"
-PROFILE = PROJECT_ROOT / "profiles" / "single"
+PROFILE = PROJECT_ROOT / "profiles" / "single_run"
 CONFIG_DIR = PROJECT_ROOT / "config"
-
+RESULTS_BASE = Path("/home/chandru/lu2025-12-38/Students/chandru/backend_results")
+RUNTIME_DIR = PROJECT_ROOT / "config" / "runtime"
+TASK_LOGS_DIR = PROJECT_ROOT / "logs" / "celery_tasks"
+SNAKEMAKE_BIN = "snakemake"  # assumes conda env is activated when worker starts
 
 def generate_sample_sheet(job_id: int, sample_name: str, r1_path: str, r2_path: str):
     """
