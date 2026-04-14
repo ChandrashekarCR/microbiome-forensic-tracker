@@ -41,8 +41,9 @@ app = FastAPI(
 )
 
 # Create a directory to store the uploaded files
-UPLOAD_DIR = Path("/home/chandru/binp51/uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+PROJECT_ROOT = Path("/home/chandru/binp51")
+UPLOAD_DIR = PROJECT_ROOT / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @app.get("/", include_in_schema=False)
@@ -103,15 +104,15 @@ async def upload_sample(
     )
 
     # Queue Snakemake task with Celery
-    # run_snakemake_pipeline.delay(job_id=new_sample.id, ...)
     task = run_pipeline.delay(
         sample_id=str(new_sample.id),
         sample_name=sample_name,
-        r1_path=str(r1_path),
-        r2_path=str(r2_path)
+        r1_path=str(r1_path.resolve()),  # Absolute path
+        r2_path=str(r2_path.resolve())   # Absolute path
     )
 
-    await crud.update_celery_task_id(db,str(new_sample.id), task.id)
+    # Store Celery task ID for tracking
+    await crud.update_celery_task_id(db, str(new_sample.id), task.id)
 
     # Return immediately with "pending" status
     return new_sample

@@ -27,14 +27,19 @@ logger = get_task_logger(__name__)
 
 # Path to your project root (where Snakefile lives)
 PROJECT_ROOT = Path("/home/chandru/binp51")
-UPLOAD_DIR = PROJECT_ROOT / "src" / "backend" / "uploads" # Where FastAPI saves uploaded files (must match UPLOAD_DIR in main.py)
+UPLOAD_DIR = PROJECT_ROOT / "uploads"  # ← MUST MATCH main.py UPLOAD_DIR
 SNAKEFILE = PROJECT_ROOT / "workflow" / "Snakefile"
 CONFIG_FILE = PROJECT_ROOT / "config" / "config_single_run.yaml"
 PROFILE = PROJECT_ROOT / "profiles" / "single_run"
-RESULTS_BASE = Path("/home/chandru/lu2025-12-38/Students/chandru/backend_results")
+RESULTS_BASE = PROJECT_ROOT / "results"  # ← Use project results by default
 RUNTIME_DIR = PROJECT_ROOT / "config" / "runtime"
 TASK_LOGS_DIR = PROJECT_ROOT / "logs" / "celery_tasks"
 SNAKEMAKE_BIN = "snakemake"  # assumes conda env is activated when worker starts
+
+# Verify critical paths exist
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TASK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
 #generate_sample_sheet(123214,"malmo_park2", "some_path1", "some_path2")
@@ -155,7 +160,7 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
         #   per_sample_results=TRue
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = TASK_LOGS_DIR / F"{sample_name}_{timestamp}.log"
+        log_file = TASK_LOGS_DIR / f"{sample_name}_{timestamp}.log"
 
         snakemake_cmd = [
             SNAKEMAKE_BIN,
@@ -163,8 +168,7 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
             "--profile", str(PROFILE),
             "--configfile", str(CONFIG_FILE),
             "--config", f"samples_file={sheet_path}",
-            "per_sample_results=True",
-            "--rerun-incomplete"
+            "per_sample_results=True"
         ]
 
         logger.info(f"[{sample_name}] Command: {' '.join(snakemake_cmd)}")

@@ -26,6 +26,7 @@ __pycache__*
 *.png
 *.txt
 *.sif
+*.rdb
 
 # Ignore the databases folders and all the malmo.db inside it
 # Also ignore uploads folder

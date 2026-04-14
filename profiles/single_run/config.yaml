@@ -13,15 +13,27 @@ max-jobs-per-second: 5
 local-cores: 2
 
 # Job management
-lactency-wait: 30
+latency-wait: 30
 keep-going: true
 
 # Output and logging
-pringshellcmds: false
+printshellcmds: false
 
 # Use conda environments from main environment
 use-conda: true
 conda-frontend: "mamba"
+
+# Use conda environments from main environment
+use-conda: true
+conda-frontend: "mamba"
+
+# Enable container execution natively
+software-deployment-method: 
+  - apptainer
+  - conda
+
+# Pass LUNARC binds to all container jobs globally
+apptainer-args: "--bind /lunarc/nobackup/projects/snic2019-34-3:/lunarc/nobackup/projects/snic2019-34-3 --bind /home/chandru:/home/chandru"
 
 # Efficieny Reporting
 slurm-efficiency-report: true
@@ -127,3 +139,11 @@ set-resources:
     mem_mb: 200000            # 200 GB allocated; rule passes 90% (180 GB) to MEGAHIT
                               # via --memory in bytes, leaving headroom for OS overhead.
     slurm_job_name: "megahit"
+
+  dnaberts_embeddings:
+    slurm_partition: "gpua40"
+    slurm_extra: "--gpus-per-task=1"
+    runtime: "60m"
+    cpus: 12
+    mem_mb: 16000
+    slurm_job_name: "dnaberts_embeddings"
