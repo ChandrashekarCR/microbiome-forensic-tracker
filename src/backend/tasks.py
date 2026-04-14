@@ -6,22 +6,18 @@ When FastAPI calls run_pipeline.delay(...), the arguments are serialized
 to JSON, pushed to Redis, and this function executes in the Celery worker.
 """
 
+import csv
 import os
 import subprocess
-import csv
-from pathlib import Path
-
-from backend.database import SyncSessionLocal
-import logging
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 import yaml
-from celery import states
 from celery.utils.log import get_task_logger
 
 from backend.celery_app import celery_app
-from backend.models import Samples, Abundance
+from backend.database import SyncSessionLocal
+from backend.models import Abundance, Samples
 
 logger = get_task_logger(__name__)
 
@@ -42,7 +38,8 @@ TASK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
-#generate_sample_sheet(123214,"malmo_park2", "some_path1", "some_path2")
+# generate_sample_sheet(123214,"malmo_park2", "some_path1", "some_path2")
+
 
 # This function is used in every API end point. It opens a database session, gives it to the endpoint and the closes it when done.
 def _get_db():
@@ -54,6 +51,7 @@ def _get_db():
         db.close()  # Then close the database at the end afeter utilizing it.
         raise
 
+
 def _update_status(db, sample_id: int, **kwargs):
     """
     Update a samples status and optional felds in the database
@@ -62,14 +60,15 @@ def _update_status(db, sample_id: int, **kwargs):
     sample = db.query(Samples).filter(Samples.id == sample_id).first()
     if not sample:
         logger.error(f"Sample {sample_id} not found in database!")
-    
+
     for key, value in kwargs.items():
-        if hasattr(sample,key) and value is not None:
+        if hasattr(sample, key) and value is not None:
             setattr(sample, key, value)
-    
+
     db.commit()
     db.refresh(sample)
     logger.info(f"[Sample {sample_id}] Status updated: {kwargs}")
+
 
 def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str):
     """
@@ -77,20 +76,20 @@ def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str
     """
     reports_dir = Path(results_dir) / "11_final_reports"
     ranks = ["phylum", "class", "order", "family", "genus", "species"]
-    
+
     for rank in ranks:
         csv_path = reports_dir / f"kraken_bracken_{rank}.csv"
         if not csv_path.exists():
             logger.warning(f"Abundance file missing: {csv_path}")
             continue
 
-        with open(csv_path, newline='', encoding='utf-8') as csvfile:
+        with open(csv_path, newline="", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
-            
+
             # Usually the columns are: classifier, clade, tax_id, <sample_name>
             # Let's dynamically get the 4th column name which holds the abundance value
             fieldnames = reader.fieldnames
-            abundance_col = fieldnames[3] 
+            abundance_col = fieldnames[3]
 
             for row in reader:
                 try:
@@ -101,12 +100,12 @@ def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str
                         clade=row["clade"],
                         taxa_id=int(row["tax_id"]),
                         rank=rank,
-                        relative_abundance=float(row[abundance_col])
+                        relative_abundance=float(row[abundance_col]),
                     )
                     db.add(abundance)
                 except ValueError as e:
                     logger.warning(f"Skipping row due to data format error: {row}. Error: {e}")
-                    
+
         # Commit the transaction for each file/rank
         db.commit()
         logger.info(f"[{sample_name}] Successfully imported '{rank}' abundances into DB.")
@@ -117,13 +116,13 @@ def _generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path
     Write a per-sample TSV in the format helper_scripts.py expects:
     """
     sheets_dir = RUNTIME_DIR / "sample_sheets"
-    sheets_dir.mkdir(parents=True, exist_ok=True)       
+    sheets_dir.mkdir(parents=True, exist_ok=True)
 
     sheet_path = sheets_dir / f"{sample_name}.tsv"
 
     with open(sheet_path, "w", newline="") as f:
         writer = csv.writer(f, delimiter="\t")
-        writer.writerow(["sample", "r1", "r2"])          
+        writer.writerow(["sample", "r1", "r2"])
         writer.writerow([sample_name, r1_path, r2_path])
 
     logger.info(f"Sample sheet written: {sheet_path}")
@@ -131,8 +130,13 @@ def _generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path
 
 
 # Celery tasks
-@celery_app.task(bind=True, name= "run_pipeline", max_retries=1, default_retry=120,)
-def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: str):
+@celery_app.task(
+    bind=True,
+    name="run_pipeline",
+    max_retries=1,
+    default_retry=120,
+)
+def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: str):
     """
     Run the full snakemake pipelin for one sample
     This funcitons excecutes inside the celery worker process.
@@ -141,13 +145,13 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
     """
     # Get the database
     db = _get_db()
-    TASK_LOGS_DIR.mkdir(parents=True,exist_ok=True)
+    TASK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         # Step1: Mark as processing
-        _update_status(db,sample_id,status="processing",started_at=datetime.now(timezone.utc)) 
+        _update_status(db, sample_id, status="processing", started_at=datetime.now(timezone.utc))
 
-        self.update_state(state='PROGRESS',meta={'step':'preparing','sample': sample_name})
+        self.update_state(state="PROGRESS", meta={"step": "preparing", "sample": sample_name})
 
         # Step2: Generate the per-sample TSV
         sheet_path = _generate_sample_sheet(sample_name, r1_path, r2_path)
@@ -164,24 +168,25 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
 
         snakemake_cmd = [
             SNAKEMAKE_BIN,
-            "--snakefile", str(SNAKEFILE),
-            "--profile", str(PROFILE),
-            "--configfile", str(CONFIG_FILE),
-            "--config", f"samples_file={sheet_path}",
-            "per_sample_results=True"
+            "--snakefile",
+            str(SNAKEFILE),
+            "--profile",
+            str(PROFILE),
+            "--configfile",
+            str(CONFIG_FILE),
+            "--config",
+            f"samples_file={sheet_path}",
+            "per_sample_results=True",
         ]
 
         logger.info(f"[{sample_name}] Command: {' '.join(snakemake_cmd)}")
 
-        self.update_state(
-            state="PROGRESS",
-            meta={"step":"snakemake_running","sample":sample_name}
-        )
+        self.update_state(state="PROGRESS", meta={"step": "snakemake_running", "sample": sample_name})
 
         # Step4: Run Snakemake
         with open(log_file, "w") as log_fh:
-            result = subprocess.run(snakemake_cmd,cwd=str(PROJECT_ROOT),stdout=log_fh,stderr=subprocess.STDOUT,check=False)
-        
+            result = subprocess.run(snakemake_cmd, cwd=str(PROJECT_ROOT), stdout=log_fh, stderr=subprocess.STDOUT, check=False)
+
         # Step5: CHeck the resutl
         if result.returncode != 0:
             with open(log_file) as lf:
@@ -191,20 +196,21 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
             logger.error(f"[{sample_name}] FAILED (rc={result.returncode})")
 
             _update_status(
-                db, sample_id,
+                db,
+                sample_id,
                 status="failed",
                 error_msg=f"Exit code {result.returncode}:\n{error_tail}",
                 log_path=str(log_file),
             )
             raise RuntimeError(f"Pipeline failed for {sample_name}")
-        
-        # Step6: Success 
+
+        # Step6: Success
         logger.info(f"[{sample_name}] Pipeline completed!")
 
         # Compute the results directory (mirrors what Snakefile does)
         results_dir = os.path.join(
             str(CONFIG_FILE).replace("config_single_run.yaml", ""),
-            ".."  # We'll read it properly
+            "..",  # We'll read it properly
         )
         # The actual results dir is: config's results_dir + sample_name
         # Read it from the config to stay in sync
@@ -214,14 +220,14 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
 
         try:
             logger.info(f"[{sample_name}] Importing abundance CSVs to database")
-            _import_abundance_csv(db,str(sample_id),sample_name,results_dir)
+            _import_abundance_csv(db, str(sample_id), sample_name, results_dir)
         except Exception as e:
             logger.error(f"[{sample_name}] Failed to import abundance data: {e}")
-            _update_status(db,sample_id,status='failed',completed_at=datetime.now(timezone.utc),
-                           log_path=str(log_file))
+            _update_status(db, sample_id, status="failed", completed_at=datetime.now(timezone.utc), log_path=str(log_file))
 
         _update_status(
-            db, sample_id,
+            db,
+            sample_id,
             status="completed",
             completed_at=datetime.now(timezone.utc),
             log_path=str(log_file),

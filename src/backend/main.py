@@ -104,12 +104,7 @@ async def upload_sample(
     )
 
     # Queue Snakemake task with Celery
-    task = run_pipeline.delay(
-        sample_id=str(new_sample.id),
-        sample_name=sample_name,
-        r1_path=str(r1_path.resolve()),  
-        r2_path=str(r2_path.resolve())   
-    )
+    task = run_pipeline.delay(sample_id=str(new_sample.id), sample_name=sample_name, r1_path=str(r1_path.resolve()), r2_path=str(r2_path.resolve()))
 
     # Store Celery task ID for tracking
     await crud.update_celery_task_id(db, str(new_sample.id), task.id)
@@ -121,7 +116,7 @@ async def upload_sample(
 @app.get("/samples")
 async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make async
     """List all submitted samples"""
-    samples = await crud.get_all_samples(db)  
+    samples = await crud.get_all_samples(db)
     return {
         "total": len(samples),
         "samples": [
@@ -134,14 +129,14 @@ async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make a
                 "submitted_at": s.submitted_at,
                 "started_at": s.started_at,
                 "completed_at": s.completed_at,
-                "error_msg": s.error_msg
+                "error_msg": s.error_msg,
             }
             for s in samples
         ],
     }
 
 
-@app.get("/samples/{sample_name}",response_model=SampleResponse,status_code=201)
+@app.get("/samples/{sample_name}", response_model=SampleResponse, status_code=201)
 async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """Get status of a specific sample"""
     sample = await crud.get_sample_by_name(db, sample_name)
