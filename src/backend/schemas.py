@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-####### SAMPLE TABLE ########
+# SAMPLE TABLE 
 """
 There are two pydantic schemas that will do the following -:
 1) SamplCreate - To represent data expected when creating an item.
@@ -29,7 +29,7 @@ class SampleCreate(BaseModel):
 class SampleResponse(BaseModel):
     id: uuid.UUID
     sample_name: str
-    username: str  # Changed from 'user' to 'username'
+    username: str  
     email: str
     status: str
     submitted_at: datetime
@@ -41,4 +41,21 @@ class SampleResponse(BaseModel):
         from_attributes = True  # Allow reading from SQLAlchemy model
 
 
-####### ABUNDANCE TABLE #######
+# ABUNDANCE TABLES
+"""
+There are two pydantic schemas that will do the following -:
+1) AbundanceReponse - To represent data to the user after a request has been made
+"""
+
+class AbundanceResponse(BaseModel):
+    sample_id: str
+    sample_name: str
+    classifier: str
+    clade: str
+    taxa_id: int
+    rank: str
+    relative_abundance: float
+
+    class Config:
+        from_attributes = True
+
