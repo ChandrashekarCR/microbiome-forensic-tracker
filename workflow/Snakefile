@@ -49,6 +49,11 @@ print(f"[Snakefile] Loaded {len(SAMPLES)} sample(s): {SAMPLES}", file=sys.stderr
 # Samples folder for the Malmo samples
 DATA_DIR = config["data"]["raw_dir"]
 RESULTS_DIR = config["data"]["results_dir"]
+# When Celery passes --config per_sample_results=True, nest results
+# under the sample name. Normal batch runs are unaffected.
+if config.get("per_sample_results") and len(SAMPLES) == 1:
+    RESULTS_DIR = os.path.join(RESULTS_DIR, SAMPLES[0]) + "/"
+    print(f"[Snakefile] Per-sample results: {RESULTS_DIR}", file=sys.stderr)
 READS = ["R1", "R2"]
 RANKS = config["taxonomy"]["ranks"]
 

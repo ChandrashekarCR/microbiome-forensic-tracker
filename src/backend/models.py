@@ -16,7 +16,7 @@ from .database import Base
 class Samples(Base):
     __tablename__ = "samples"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     sample_name = Column(String(200), index=True)
     username = Column(String(100), index=True)
     email = Column(String(100))

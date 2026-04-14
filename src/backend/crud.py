@@ -69,7 +69,7 @@ async def get_all_samples(db: AsyncSession) -> list[Samples]:
     return result.scalars().all()
 
 
-async def update_sample_status(db: AsyncSession, sample_id: str, status: str, error_msg: str = None):
+async def update_sample_status(db: AsyncSession, sample_id: str, status: str, **kwargs):
     """
     UPDATE sample status
     Eg.
@@ -86,9 +86,20 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, er
         return None
 
     sample.status = status
-    if error_msg:
-        sample.error_msg = error_msg
+    
+    for key, value in kwargs.items():
+        if hasattr(sample, key) and value is not None:
+            setattr(sample, key, value)
 
     await db.commit()
     await db.refresh(sample)
     return sample
+
+async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id: str):
+    """Store the Celery task UUID in the sample record."""
+    stmt = select(Samples).where(Samples.id == sample_id)
+    result = await db.execute(stmt)
+    sample = result.scalars().first()
+    if sample:
+        sample.celery_task_id = celery_task_id
+        await db.commit()
