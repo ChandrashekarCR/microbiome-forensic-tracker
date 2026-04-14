@@ -33,3 +33,8 @@ class Samples(Base):
     submitted_at = Column(DateTime(timezone=True), default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Celery task tracking
+    celery_task_id = Column(String(200), nullable=True)  # UUID of the Celery task
+    error_msg = Column(String, nullable=True)  # Error message if pipeline fails
+    log_path = Column(String, nullable=True)  # Path to Snakemake log file

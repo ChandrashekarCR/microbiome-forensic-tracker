@@ -74,8 +74,8 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, **
     UPDATE sample status
     Eg.
         await update_sample_status(db, sample_id, "running")
-        await update_sample_status(db, sample_id, "pass")
-        await update_sample_status(db, sample_id, "fail", error_msg="Pipeline crashed")
+        await update_sample_status(db, sample_id, "completed")
+        await update_sample_status(db, sample_id, "failed", error_msg="Pipeline crashed")
     """
 
     stmt = select(Samples).where(Samples.id == sample_id)
@@ -93,6 +93,17 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, **
 
     await db.commit()
     await db.refresh(sample)
+    return sample
+
+
+async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id: str):
+    """Store the Celery task UUID in the sample record for tracking."""
+    stmt = select(Samples).where(Samples.id == sample_id)
+    result = await db.execute(stmt)
+    sample = result.scalars().first()
+    if sample:
+        sample.celery_task_id = celery_task_id
+        await db.commit()
     return sample
 
 async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id: str):
