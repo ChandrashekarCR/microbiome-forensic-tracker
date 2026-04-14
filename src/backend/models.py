@@ -4,7 +4,7 @@
 # Importing libraries
 import uuid
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Integer, Float, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -38,3 +38,17 @@ class Samples(Base):
     celery_task_id = Column(String(200), nullable=True)  # UUID of the Celery task
     error_msg = Column(String, nullable=True)  # Error message if pipeline fails
     log_path = Column(String, nullable=True)  # Path to Snakemake log file
+
+# Table 2: abundance
+# This table consists of the rsa values of the processed samples
+class Abundance(Base):
+    __tablename__ = "abundance"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sample_id = Column(String(36),ForeignKey('samples.id'),nullable=False, index=True)
+    sample_name = Column(String(200), index=True)
+    classifier = Column(String(200),nullable=False)
+    clade = Column(String(400),nullable=False)
+    taxa_id = Column(Integer, nullable=False)
+    rank = Column(String(200),nullable=False)
+    relative_abundance = Column(Float, nullable=False)

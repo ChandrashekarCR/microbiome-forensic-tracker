@@ -44,4 +44,5 @@ __pycache__*
 .src/rag/05_forensic_pipeline/reports/*
 
 # Ignore all files that store information on the sample runs in tsv
+./config/runtime/
 ./config/*.tsv

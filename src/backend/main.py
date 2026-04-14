@@ -107,8 +107,8 @@ async def upload_sample(
     task = run_pipeline.delay(
         sample_id=str(new_sample.id),
         sample_name=sample_name,
-        r1_path=str(r1_path.resolve()),  # Absolute path
-        r2_path=str(r2_path.resolve())   # Absolute path
+        r1_path=str(r1_path.resolve()),  
+        r2_path=str(r2_path.resolve())   
     )
 
     # Store Celery task ID for tracking
@@ -121,38 +121,33 @@ async def upload_sample(
 @app.get("/samples")
 async def list_samples(db: AsyncSession = Depends(get_async_session)):  # make async
     """List all submitted samples"""
-    samples = await crud.get_all_samples(db)  # await
+    samples = await crud.get_all_samples(db)  
     return {
         "total": len(samples),
         "samples": [
             {
                 "id": str(s.id),
                 "sample_name": s.sample_name,
-                "user": s.username,
+                "username": s.username,
+                "email": s.email,
                 "status": s.status,
                 "submitted_at": s.submitted_at,
                 "started_at": s.started_at,
-                "completed_at": s.completed_at
+                "completed_at": s.completed_at,
+                "error_msg": s.error_msg
             }
             for s in samples
         ],
     }
 
 
-@app.get("/samples/{sample_id}")
-async def get_sample_status(sample_id: str, db: AsyncSession = Depends(get_async_session)):
+@app.get("/samples/{sample_name}",response_model=SampleResponse,status_code=201)
+async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """Get status of a specific sample"""
-    sample = await crud.get_sample_by_id(db, sample_id)
+    sample = await crud.get_sample_by_name(db, sample_name)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
-    return {
-        "id": str(sample.id),
-        "sample_name": sample.sample_name,
-        "status": sample.status,
-        "submitted_at": sample.submitted_at,
-        "r1_path": sample.r1_path,
-        "r2_path": sample.r2_path,
-    }
+    return sample
 
 
 # Interactive map for the user

@@ -21,7 +21,7 @@ from celery import states
 from celery.utils.log import get_task_logger
 
 from backend.celery_app import celery_app
-from backend.models import Samples
+from backend.models import Samples, Abundance
 
 logger = get_task_logger(__name__)
 
@@ -71,6 +71,47 @@ def _update_status(db, sample_id: int, **kwargs):
     db.refresh(sample)
     logger.info(f"[Sample {sample_id}] Status updated: {kwargs}")
 
+def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str):
+    """
+    Parse the Bracken CSV output files and insert them into the Abundance SQL table.
+    """
+    reports_dir = Path(results_dir) / "11_final_reports"
+    ranks = ["phylum", "class", "order", "family", "genus", "species"]
+    
+    for rank in ranks:
+        csv_path = reports_dir / f"kraken_bracken_{rank}.csv"
+        if not csv_path.exists():
+            logger.warning(f"Abundance file missing: {csv_path}")
+            continue
+
+        with open(csv_path, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            
+            # Usually the columns are: classifier, clade, tax_id, <sample_name>
+            # Let's dynamically get the 4th column name which holds the abundance value
+            fieldnames = reader.fieldnames
+            abundance_col = fieldnames[3] 
+
+            for row in reader:
+                try:
+                    abundance = Abundance(
+                        sample_id=str(sample_id),
+                        sample_name=sample_name,
+                        classifier=row["classifier"],
+                        clade=row["clade"],
+                        taxa_id=int(row["tax_id"]),
+                        rank=rank,
+                        relative_abundance=float(row[abundance_col])
+                    )
+                    db.add(abundance)
+                except ValueError as e:
+                    logger.warning(f"Skipping row due to data format error: {row}. Error: {e}")
+                    
+        # Commit the transaction for each file/rank
+        db.commit()
+        logger.info(f"[{sample_name}] Successfully imported '{rank}' abundances into DB.")
+
+
 def _generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path:
     """
     Write a per-sample TSV in the format helper_scripts.py expects:
@@ -88,47 +129,6 @@ def _generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path
     logger.info(f"Sample sheet written: {sheet_path}")
     return sheet_path
 
-def _write_config_override(sample_name: str) -> tuple[Path, Path]:
-    """
-    Generate a per-sample config override YAML.
-
-    WHY THIS IS NECESSARY:
-    Your rules (fastqc_raw, fastp, etc.) resolve input files as:
-        os.path.join(DATA_DIR, f"{w.sample}_R1.fastq.gz")
-
-    DATA_DIR = config["data"]["raw_dir"]. So we MUST set raw_dir to the
-    uploads/ directory where FastAPI saved the FASTQ files.
-
-    We also set results_dir to a per-sample subdirectory so concurrent
-    pipeline runs don't write to the same output folder.
-
-    Snakemake merges this with config_single_run.yaml — only the keys
-    we specify here are overridden. Everything else (tools, databases,
-    parameters, resources) stays the same.
-    """
-    configs_dir = RUNTIME_DIR / "configs"
-    configs_dir.mkdir(parents=True, exist_ok=True)
-
-    # Each sample gets its own results subdirectory
-    sample_results_dir = RESULTS_BASE / sample_name
-    sample_results_dir.mkdir(parents=True, exist_ok=True)
-
-    override = {
-        "data": {
-            "raw_dir": str(UPLOAD_DIR) + "/",       # WHERE FASTQ FILES ARE
-            "results_dir": str(sample_results_dir) + "/",  # WHERE OUTPUTS GO
-        },
-        "samples": {
-            "max_samples": 1,  # Only process this one sample
-        },
-    }
-
-    config_path = configs_dir / f"{sample_name}_override.yaml"
-    with open(config_path, "w") as f:
-        yaml.dump(override, f, default_flow_style=False)
-
-    logger.info(f"Config override written: {config_path}")
-    return config_path, sample_results_dir
 
 # Celery tasks
 @celery_app.task(bind=True, name= "run_pipeline", max_retries=1, default_retry=120,)
@@ -211,6 +211,14 @@ def run_pipeline(self,sample_id: int, sample_name:str, r1_path: str, r2_path: st
         with open(CONFIG_FILE) as cf:
             cfg = yaml.safe_load(cf)
         results_dir = os.path.join(cfg["data"]["results_dir"], sample_name)
+
+        try:
+            logger.info(f"[{sample_name}] Importing abundance CSVs to database")
+            _import_abundance_csv(db,str(sample_id),sample_name,results_dir)
+        except Exception as e:
+            logger.error(f"[{sample_name}] Failed to import abundance data: {e}")
+            _update_status(db,sample_id,status='failed',completed_at=datetime.now(timezone.utc),
+                           log_path=str(log_file))
 
         _update_status(
             db, sample_id,
