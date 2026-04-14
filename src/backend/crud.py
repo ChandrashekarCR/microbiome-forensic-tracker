@@ -86,7 +86,7 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, **
         return None
 
     sample.status = status
-    
+
     for key, value in kwargs.items():
         if hasattr(sample, key) and value is not None:
             setattr(sample, key, value)
@@ -105,12 +105,3 @@ async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id
         sample.celery_task_id = celery_task_id
         await db.commit()
     return sample
-
-async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id: str):
-    """Store the Celery task UUID in the sample record."""
-    stmt = select(Samples).where(Samples.id == sample_id)
-    result = await db.execute(stmt)
-    sample = result.scalars().first()
-    if sample:
-        sample.celery_task_id = celery_task_id
-        await db.commit()

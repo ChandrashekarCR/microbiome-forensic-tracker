@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-# SAMPLE TABLE 
+# SAMPLE TABLE
 """
 There are two pydantic schemas that will do the following -:
 1) SamplCreate - To represent data expected when creating an item.
@@ -29,7 +29,7 @@ class SampleCreate(BaseModel):
 class SampleResponse(BaseModel):
     id: uuid.UUID
     sample_name: str
-    username: str  
+    username: str
     email: str
     status: str
     submitted_at: datetime
@@ -47,6 +47,7 @@ There are two pydantic schemas that will do the following -:
 1) AbundanceReponse - To represent data to the user after a request has been made
 """
 
+
 class AbundanceResponse(BaseModel):
     sample_id: str
     sample_name: str
@@ -58,4 +59,3 @@ class AbundanceResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
