@@ -141,7 +141,7 @@ async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_asy
     """Get status of a specific sample"""
     sample = await crud.get_sample_by_name(db, sample_name)
     if not sample:
-        raise HTTPException(status_code=404, detail="Sample not found")
+        raise HTTPException(status_code=400, detail="Sample not found")
     return sample
 
 @app.delete("/samples/{sample_name}")
