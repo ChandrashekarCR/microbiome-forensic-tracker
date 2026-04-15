@@ -95,6 +95,20 @@ async def update_sample_status(db: AsyncSession, sample_id: str, status: str, **
     await db.refresh(sample)
     return sample
 
+async def delete_sample(db: AsyncSession, sample_name:str):
+    """
+    Delete a sample from the database by sample name.
+    Returns True if deleted, False if not found.
+    """
+    delete_sample = select(Samples).where(Samples.sample_name == sample_name)
+    result = await db.execute(delete_sample)
+    sample = result.scalars().first()
+    if not sample:
+        return False
+    
+    await db.delete(sample)
+    await db.commit()
+    return True
 
 async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id: str):
     """Store the Celery task UUID in the sample record for tracking."""

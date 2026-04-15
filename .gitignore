@@ -41,8 +41,8 @@ __pycache__*
 *.json
 /src/rag/02_chunking/chunks/*.md
 /src/rag/04_vectorstore/chroma_db
-.src/rag/05_forensic_pipeline/reports/*
+/src/rag/05_forensic_pipeline/reports/*
 
 # Ignore all files that store information on the sample runs in tsv
-./config/runtime/
-./config/*.tsv
+/config/runtime/*
+/config/*.tsv

@@ -172,5 +172,5 @@ pipeline:
     bracken: true
     standardize_bracken: true
     merge_bracken: true          
-    megahit_assembly: true       
-    dnaberts_embeddings: true    
+    megahit_assembly: false       
+    dnaberts_embeddings: false    
