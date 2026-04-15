@@ -48,10 +48,12 @@ class MicrobiomeNetworkFeatures:
         self.glasso.fit(X_clr)
 
         # Extract the precision matrix (Theta)
-        self.precision_matrix = self.glasso.precision_  # Sparse inverse covariance
-        # covariance_matrix = self.glasso.covariance_ # Covaraince matrix
+        best_lambda = self.glasso.alpha_
+        print(f"Best lambda (alpha) selected by cv: {best_lambda}")
+        # Sparse inverse covariance
+        self.precision_matrix = self.glasso.precision_  
 
-        # Build the ecological metwork
+        # Build the ecological network
         # Convert to Adjacency Matrix (Boolean Network)
         # Any value sufficiently far from 0 is an edge
         self.adjacency_matrix = (np.abs(self.precision_matrix) > 1e-5).astype(int)
@@ -157,7 +159,7 @@ class MicrobiomeNetworkFeatures:
 
 
 samples = db_reader.DatabaseCreate(db="../../databases/malmo.db")
-rsa = DatabaseRSA(db="../../databases/malmo.db", db_table="malmo_order")
+rsa = DatabaseRSA(db="../../databases/malmo.db", db_table="malmo_phylum")
 df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
 
 X = df.drop(["sample_id", "latitude", "longitude", "zone"], axis=1)
@@ -165,4 +167,4 @@ X = df.drop(["sample_id", "latitude", "longitude", "zone"], axis=1)
 engineer = MicrobiomeNetworkFeatures(X)
 features = engineer.fit()
 print(features)
-engineer.plot_network(output_file="microbiome_network.png")
+#engineer.plot_network(output_file="microbiome_network.png")
