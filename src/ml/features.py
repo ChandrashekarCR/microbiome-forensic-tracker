@@ -5,53 +5,71 @@ import numpy as np
 import pandas as pd
 from skbio.stats.composition import clr
 from sklearn.covariance import GraphicalLassoCV
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import Pipeline
 
 from ml.data_loading import DatabaseRSA, db_reader
 
+class ZeroColumnFilter(BaseEstimator,TransformerMixin):
+    """
+    Remove columns that are all zeros (fit on train only).
+    """
+    def __init__(self, min_prevalence: float=0.05):
+        self.min_prevalence = min_prevalence
+    
+    def fit(self, X: pd.DataFrame, y: pd.Series=None):
+        X = X.astype(float)
+        X = X.loc[:, (X != 0 ).any(axis=0)]
+        self.keep_cols_ = X[X >= self.min_prevalence].index.tolist()
+        print(self.keep_cols_)
+        return self
+    
+    def transform(self,X):
+        return X.iloc[:,self.keep_cols_].copy()
 
-class MicrobiomeNetworkFeatures:
-    def __init__(self, X_abundance: pd.DataFrame, cv_folds: int = 5):
-        self.X_abundance = X_abundance
-        # Pre-preocessing for computational efficeincy
-        # Remove all-zero columns (taxa)
-        self.X_abundance = self.X_abundance.loc[:, (self.X_abundance != 0).any(axis=0)]
-        # Remove all-zero rows (samples)
-        self.X_abundance = self.X_abundance[(self.X_abundance != 0).any(axis=1)]
-
-        self.glasso = GraphicalLassoCV(cv=cv_folds, n_jobs=-1, max_iter=500)
-        self.precision_matrix = None
-        self.adjacency_matrix = None
+class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
+    """
+    Feature Engineering: CLR + ecological network summaries + diversity
+    Fit the GraphicalLasso only to the training data.
+    """
+    def __init__(self,cv_folds: int=5, max_iter:int=500, n_jobs: int=-1, top_k_edges:int=20):
+        self.top_k_edges = top_k_edges
+        self.glasso = GraphicalLassoCV(cv=cv_folds, n_jobs=n_jobs, max_iter=max_iter)
+        self.precision_matrix = None # Sparse Inverse Covariance matrix
+        self.adjacency_matrix = None # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
         self.keystone_taxa_ = []
 
-    def multiplicative_replacement(self, X, delta=1e-6) -> pd.DataFrame:
+    def multiplicative_replacement(self, X: np.ndarray, delta: float =1e-6) -> pd.DataFrame:
+        """
+        CLR log transformation requires non zeros values hen hadded a small 0 value which is negligible
+        """
         X = np.array(X, dtype=float)
         X[X == 0] = delta
         X /= X.sum(axis=1, keepdims=True)
         return X
-
-    def fit(self) -> pd.DataFrame:
+    
+    def fit(self, X:pd.DataFrame,y: pd.Series=None):
         """
-        self.X_abundance: pandas Dataframe where rows are samples and
-        columns are Taxa (Species). The values are relative abundances
+        Learn the ecological network from the training data only
         """
+        self.taxa_names_ = X.columns.to_list()
+        X_raw = X.values.copy()
 
-        # First we need to handle 0 values. We will replace 0s with a
-        # small delta while maintaing the compositional sum.
-        X_nonzero = self.multiplicative_replacement(self.X_abundance.values)
-
-        # To handle the compostion problem we will use centered log ratio
-        X_clr = clr(X_nonzero)
+        # CLR (Centered Log Ratio) Transforamtion to handle decompositions while sequencing
+        X_nonzero = self.multiplicative_replacement(X_raw)
+        self.X_clr_train_ = clr(X_nonzero)
+        print(self.X_clr_train_.shape)
 
         # Fit sparse inverse covariance
         # This solves the L1 penalized mathematical optimization
         print("Obtaining sprase inverse covariance matrix")
-        self.glasso.fit(X_clr)
+        self.glasso.fit(self.X_clr_train_)
 
         # Extract the precision matrix (Theta)
         best_lambda = self.glasso.alpha_
         print(f"Best lambda (alpha) selected by cv: {best_lambda}")
         # Sparse inverse covariance
-        self.precision_matrix = self.glasso.precision_  
+        self.precision_matrix = self.glasso.precision_ 
 
         # Build the ecological network
         # Convert to Adjacency Matrix (Boolean Network)
@@ -61,64 +79,65 @@ class MicrobiomeNetworkFeatures:
         G = nx.from_numpy_array(self.adjacency_matrix)
 
         # Extract network derived features per taxon
-        degree_centrality = nx.degree_centrality(G)
-        betweenness = nx.betweenness_centrality(G)
+        self.degree_centrality = nx.degree_centrality(G)
+        self.betweenness = nx.betweenness_centrality(G)
 
-        # Build augmented feature matrix
-        n_taxa = X_clr.shape[1]
+        return self
+    
+    def transform(self, X:pd.DataFrame):
+        """
+        Apply learned transformation to any data (train,val or test)
+        """
+        X_raw = X.values.copy()
+        X_nonzero = self.multiplicative_replacement(X_raw)
+        X_clr_data = clr(X_nonzero)
 
-        # Per-sample features: CLR abundances + network-weighted abundances
-        network_features = {}
+        features = {}
+        n_samples, n_taxa = X_clr_data.shape
 
         # a) Raw CLR features
-        for i in range(n_taxa):
-            taxon = self.X_abundance.columns[i]
-            network_features[f"clr_{taxon}"] = X_clr[:, i]
+        for i,taxon in enumerate(self.taxa_names_):
+            features[f"clr_{taxon}"] = X_clr_data[:, i]
 
         # b) Degree-weighted abundances (amplify ecologically connected taxa)
-        for i in range(n_taxa):
-            taxon = self.X_abundance.columns[i]
-            deg = degree_centrality.get(i, 0)
-            network_features[f"deg_weighted_{taxon}"] = X_clr[:, i] * deg
+        for i, taxon in enumerate(self.taxa_names_):
+            deg = self.degree_centrality.get(i, 0)
+            features[f"deg_weighted_{taxon}"] = X_clr_data[:, i] * deg
 
         # c) Hub scores (betweenness-weighted)
-        for i in range(n_taxa):
-            taxon = self.X_abundance.columns[i]
-            btw = betweenness.get(i, 0)
-            network_features[f"hub_weighted_{taxon}"] = X_clr[:, i] * btw
+        for i, taxon in enumerate(self.taxa_names_):
+            btw = self.betweenness.get(i, 0)
+            features[f"hub_weighted_{taxon}"] = X_clr_data[:, i] * btw
 
         # d) Network summary statistics per sample
         # Interaction strength: sum of precision matrix edges weighted by abundance
-        for i in range(X_clr.shape[0]):
-            sample_vec = X_clr[i, :]
+        for i in range(n_samples):
+            sample_vec = X_clr_data[i, :]
             # Quadratic form captures pairwise ecological interactions
-            network_features.setdefault("ecological_interaction_score", []).append(sample_vec @ self.precision_matrix @ sample_vec)
+            features.setdefault("ecological_interaction", []).append(sample_vec @ self.precision_matrix @ sample_vec)
 
         # e) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
         edges = np.argwhere(np.triu(self.adjacency_matrix, k=1) > 0)
 
         for u, v in edges:
-            taxon_u = self.X_abundance.columns[u]
-            taxon_v = self.X_abundance.columns[v]
+            taxon_u = self.taxa_names_[u]
+            taxon_v = self.taxa_names_[v]
             edge_name = f"edge_{taxon_u}_AND_{taxon_v}"
 
             # The active strength of this edge in each sample:
             # global_weight * abundance_u * abundance_v
             global_weight = self.precision_matrix[u, v]
-            edge_activations = global_weight * X_clr[:, u] * X_clr[:, v]
+            edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:, v]
 
-            network_features[edge_name] = edge_activations
-
-        self.extracted_features_ = pd.DataFrame(network_features, index=self.X_abundance.index)
-        return self.extracted_features_
-
-        # return pd.DataFrame(network_features, index=self.X_abundance.index)
-
-    def plot_network(self, output_file="microbiome_network.png"):
+            features[edge_name] = edge_activations
+        
+        return pd.DataFrame(features,index=X.index)
+    
+    def plot_network(self, output_file: str | None ="microbiome_network.png"):
 
         # Taxa names
-        taxa_names = self.X_abundance.columns
+        taxa_names = self.taxa_names_
 
         # Build the graph
         G = nx.from_numpy_array(self.adjacency_matrix)
@@ -163,8 +182,15 @@ rsa = DatabaseRSA(db="../../databases/malmo.db", db_table="malmo_phylum")
 df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
 
 X = df.drop(["sample_id", "latitude", "longitude", "zone"], axis=1)
+print(X.shape)
+filter = ZeroColumnFilter()
+filter.fit(X)
+X = filter.transform(X)
+print(X.shape)
 
-engineer = MicrobiomeNetworkFeatures(X)
-features = engineer.fit()
-print(features)
+#engineer = MicrobiomeFeatureEngineer()
+#features = engineer.fit(X)
+#print(features)
+#transformed = engineer.transform(X)
+#print(transformed)
 #engineer.plot_network(output_file="microbiome_network.png")
