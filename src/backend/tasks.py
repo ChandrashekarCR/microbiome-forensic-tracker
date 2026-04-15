@@ -177,6 +177,7 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
             "--config",
             f"samples_file={sheet_path}",
             "per_sample_results=True",
+            "--unlock",
         ]
 
         logger.info(f"[{sample_name}] Command: {' '.join(snakemake_cmd)}")
@@ -218,6 +219,7 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
             cfg = yaml.safe_load(cf)
         results_dir = os.path.join(cfg["data"]["results_dir"], sample_name)
 
+        # Step7: Import the datafrom csv to sql table for malmo_backend database
         try:
             logger.info(f"[{sample_name}] Importing abundance CSVs to database")
             _import_abundance_csv(db, str(sample_id), sample_name, results_dir)
