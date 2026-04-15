@@ -11,8 +11,12 @@ Assembly rules optimized for gut/oral metagenomics (Malmo cohort):
 
 rule megahit_assembly:
     input:
-        r1=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"),
-        r2=os.path.join(RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz"),
+        r1=os.path.join(
+            RESULTS_DIR, "05_error_correction", "{sample}_R1_corrected.fastq.gz"
+        ),
+        r2=os.path.join(
+            RESULTS_DIR, "05_error_correction", "{sample}_R2_corrected.fastq.gz"
+        ),
     output:
         contigs=os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "{sample}.fa"),
         log_file=os.path.join(RESULTS_DIR, "06_assembly", "{sample}", "log"),
@@ -24,7 +28,9 @@ rule megahit_assembly:
         runtime=config["resources"]["megahit"]["runtime_min"],
     params:
         megahit=TOOLS["megahit"],
-        contigs=lambda w, output: os.path.join(os.path.dirname(output.contigs), "final.contigs.fa"),
+        contigs=lambda w, output: os.path.join(
+            os.path.dirname(output.contigs), "final.contigs.fa"
+        ),
         output_dir=lambda w, output: os.path.dirname(output.contigs),
         min_contig_len=config["parameters"]["megahit"]["min_contig_len"],
         # Store k_list as a plain string - commas in the value confuse

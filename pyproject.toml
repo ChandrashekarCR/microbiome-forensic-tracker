@@ -22,7 +22,6 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "ruff>=0.1.0",
-    "black>=23.0",
     "isort>=5.0",
 ]
 
@@ -87,7 +86,6 @@ all = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "ruff>=0.1.0",
-    "black>=23.0",
     "isort>=5.0",
     "fastapi>=0.131.0",
     "fastapi[all]",
@@ -119,12 +117,6 @@ line-length = 150
 [tool.ruff.lint]
 select = ["E", "F", "C", "B", "I"]
 ignore = ["E203","B008","C901"]
-
-[tool.isort]
-profile = "black"
-
-[tool.black]
-line-length = 150
 
 [tool.pytest.ini_options]
 minversion = "7.0"
