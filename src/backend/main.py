@@ -144,15 +144,17 @@ async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_asy
         raise HTTPException(status_code=400, detail="Sample not found")
     return sample
 
+
 @app.delete("/samples/{sample_name}")
 async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """
     Deleate a sample by sample name
     """
-    deleted = await crud.delete_sample(db,sample_name)
+    deleted = await crud.delete_sample(db, sample_name)
     if not deleted:
         raise HTTPException(status_code=404, detail="Sample not found")
-    return {'ok': True, 'message':f"Sample {sample_name} deleted."}
+    return {"ok": True, "message": f"Sample {sample_name} deleted."}
+
 
 # Interactive map for the user
 @app.get("/map", response_class=HTMLResponse)

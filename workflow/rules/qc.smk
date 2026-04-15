@@ -51,14 +51,26 @@ rule fastqc_raw:
 # Step 7: FASTQC Processed reads
 rule fastqc_processed:
     input:
-        r1=lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"),
-        r2=lambda w: os.path.join(RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz"),
+        r1=lambda w: os.path.join(
+            RESULTS_DIR, "05_error_correction", f"{w.sample}_R1_corrected.fastq.gz"
+        ),
+        r2=lambda w: os.path.join(
+            RESULTS_DIR, "05_error_correction", f"{w.sample}_R2_corrected.fastq.gz"
+        ),
     output:
         # HTML and zip files
-        html_r1=os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.html"),
-        zip_r1=os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.zip"),
-        html_r2=os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.html"),
-        zip_r2=os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.zip"),
+        html_r1=os.path.join(
+            RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.html"
+        ),
+        zip_r1=os.path.join(
+            RESULTS_DIR, "06_fastqc_post", "{sample}_R1_corrected_fastqc.zip"
+        ),
+        html_r2=os.path.join(
+            RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.html"
+        ),
+        zip_r2=os.path.join(
+            RESULTS_DIR, "06_fastqc_post", "{sample}_R2_corrected_fastqc.zip"
+        ),
     log:
         os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}.log"),
     threads: config["resources"]["fastqc"]["threads"]
@@ -110,7 +122,9 @@ rule multiqc:
             sample=SAMPLES,
         ),
         expand(
-            os.path.join(RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"),
+            os.path.join(
+                RESULTS_DIR, "06_fastqc_post", "{sample}_{read}_corrected_fastqc.html"
+            ),
             sample=SAMPLES,
             read=READS,
         ),
