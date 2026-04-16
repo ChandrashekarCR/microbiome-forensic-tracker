@@ -1,0 +1,26 @@
+# config.yaml
+database:
+  path: "../../databases/malmo.db"
+  table: "malmo_phylum"
+
+data_splitting:
+  test_size: 0.2
+  random_state: 42
+
+mlflow:
+  experiment_name: "Microbiome_Geolocation"
+
+model_hyperparameters:
+  xgb_reg:
+    n_estimators: 100
+    max_depth: 4
+    learning_rate: 0.1
+    random_state: 42
+    objective: "reg:squarederror"
+  
+  xgb_clf:
+    n_estimators: 100
+    max_depth: 4
+    learning_rate: 0.1
+    random_state: 42
+    objective: "multi:softprob"
