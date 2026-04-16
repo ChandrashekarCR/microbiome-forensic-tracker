@@ -47,7 +47,7 @@ class DatabaseRSA:
         df = pd.merge(metadata_df, rsa_df, on="sample_id", how="inner")
 
         # Drop columns
-        df = df.drop(columns=["barcode", "name", "date", "time", "altitude", "precision"])
+        df = df.drop(columns=["barcode", "name", "date", "time", "altitude", "precision"],axis=1)
 
         return df
 

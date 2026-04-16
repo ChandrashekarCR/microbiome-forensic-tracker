@@ -20,19 +20,18 @@ class ZeroColumnFilter(BaseEstimator,TransformerMixin):
     def fit(self, X: pd.DataFrame, y: pd.Series=None):
         X = X.astype(float)
         X = X.loc[:, (X != 0 ).any(axis=0)]
-        self.keep_cols_ = X[X >= self.min_prevalence].index.tolist()
-        print(self.keep_cols_)
+        self.keep_cols_ = X[X >= self.min_prevalence].columns.tolist()
         return self
     
-    def transform(self,X):
-        return X.iloc[:,self.keep_cols_].copy()
+    def transform(self,X: pd.DataFrame) -> pd.DataFrame:
+        return X.loc[:,self.keep_cols_].copy()
 
 class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
     """
     Feature Engineering: CLR + ecological network summaries + diversity
     Fit the GraphicalLasso only to the training data.
     """
-    def __init__(self,cv_folds: int=5, max_iter:int=500, n_jobs: int=-1, top_k_edges:int=20):
+    def __init__(self,cv_folds: int=5, max_iter:int=2000, n_jobs: int=-1, top_k_edges:int=20):
         self.top_k_edges = top_k_edges
         self.glasso = GraphicalLassoCV(cv=cv_folds, n_jobs=n_jobs, max_iter=max_iter)
         self.precision_matrix = None # Sparse Inverse Covariance matrix
@@ -58,7 +57,6 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         # CLR (Centered Log Ratio) Transforamtion to handle decompositions while sequencing
         X_nonzero = self.multiplicative_replacement(X_raw)
         self.X_clr_train_ = clr(X_nonzero)
-        print(self.X_clr_train_.shape)
 
         # Fit sparse inverse covariance
         # This solves the L1 penalized mathematical optimization
@@ -93,7 +91,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         X_clr_data = clr(X_nonzero)
 
         features = {}
-        n_samples, n_taxa = X_clr_data.shape
+        n_samples = X_clr_data.shape[0]
 
         # a) Raw CLR features
         for i,taxon in enumerate(self.taxa_names_):
@@ -134,16 +132,13 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         
         return pd.DataFrame(features,index=X.index)
     
-    def plot_network(self, output_file: str | None ="microbiome_network.png"):
-
-        # Taxa names
-        taxa_names = self.taxa_names_
+    def plot_network(self, output_file: str="microbiome_network.png"):
 
         # Build the graph
         G = nx.from_numpy_array(self.adjacency_matrix)
 
         # Relabel nodes from array indices (0, 1, 2) to biological names (Taxa 1, Taxa 2)
-        mapping = dict(enumerate(taxa_names))
+        mapping = dict(enumerate(self.taxa_names_))
         G = nx.relabel_nodes(G, mapping)
 
         # Network visualization gets messy if we plot everything.
@@ -177,20 +172,3 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         print(f"Network visualization saved successfully to {output_file}")
 
 
-samples = db_reader.DatabaseCreate(db="../../databases/malmo.db")
-rsa = DatabaseRSA(db="../../databases/malmo.db", db_table="malmo_phylum")
-df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
-
-X = df.drop(["sample_id", "latitude", "longitude", "zone"], axis=1)
-print(X.shape)
-filter = ZeroColumnFilter()
-filter.fit(X)
-X = filter.transform(X)
-print(X.shape)
-
-#engineer = MicrobiomeFeatureEngineer()
-#features = engineer.fit(X)
-#print(features)
-#transformed = engineer.transform(X)
-#print(transformed)
-#engineer.plot_network(output_file="microbiome_network.png")

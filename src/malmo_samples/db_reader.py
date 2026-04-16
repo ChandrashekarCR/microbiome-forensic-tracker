@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 
+pd.set_option('future.no_silent_downcasting',True)
+
 class DatabaseCreate:
     def __init__(self, db):
         self.db = db
@@ -47,9 +49,9 @@ class DatabaseCreate:
             }
         )
         df["barcode"] = df["barcode"].astype(int)
-        df["latitude"] = df["latitude"].replace("", np.nan)
-        df["longitude"] = df["longitude"].replace("", np.nan)
-        df["precision"] = df["precision"].replace("", np.nan)
+        df["latitude"] = df["latitude"].replace("", np.nan).astype(float)
+        df["longitude"] = df["longitude"].replace("", np.nan).astype(float)
+        df["precision"] = df["precision"].replace("", np.nan).astype(float)
 
         # Fill NaN values with the start geopoint values
         df["latitude"] = df["latitude"].fillna(df["start_geopoint_latitude"])
