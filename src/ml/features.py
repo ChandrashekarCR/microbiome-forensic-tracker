@@ -24,7 +24,8 @@ class ZeroColumnFilter(BaseEstimator,TransformerMixin):
         return self
     
     def transform(self,X: pd.DataFrame) -> pd.DataFrame:
-        return X.loc[:,self.keep_cols_].copy()
+        # Cast to float to prevent object dtype errors in downstream models like XGBoost
+        return X.loc[:,self.keep_cols_].copy().astype(float)
 
 class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
     """
@@ -32,8 +33,11 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
     Fit the GraphicalLasso only to the training data.
     """
     def __init__(self,cv_folds: int=5, max_iter:int=2000, n_jobs: int=-1, top_k_edges:int=20):
+        self.cv_folds = cv_folds
+        self.max_iter = max_iter
+        self.n_jobs = n_jobs
         self.top_k_edges = top_k_edges
-        self.glasso = GraphicalLassoCV(cv=cv_folds, n_jobs=n_jobs, max_iter=max_iter)
+        self.glasso = GraphicalLassoCV(cv=self.cv_folds, n_jobs=self.n_jobs, max_iter=self.max_iter)
         self.precision_matrix = None # Sparse Inverse Covariance matrix
         self.adjacency_matrix = None # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
         self.keystone_taxa_ = []
