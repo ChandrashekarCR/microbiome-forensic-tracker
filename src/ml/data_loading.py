@@ -49,6 +49,18 @@ class DatabaseRSA:
         # Drop columns
         df = df.drop(columns=["barcode", "name", "date", "time", "altitude", "precision"],axis=1)
 
+        # 1. Enforce string datatypes
+        df['sample_id'] = df['sample_id'].astype(str)
+        df['zone'] = df['zone'].astype(str)
+        
+        # 2. Enforce float for coordinates
+        df['latitude'] = df['latitude'].astype(float)
+        df['longitude'] = df['longitude'].astype(float)
+        
+        # 3. Enforce float for all remaining abundance columns
+        taxa_cols = [col for col in df.columns if col not in ['sample_id', 'zone', 'latitude', 'longitude']]
+        df[taxa_cols] = df[taxa_cols].astype(float)
+
         return df
 
     def sql_to_clean(self) -> pd.DataFrame:
