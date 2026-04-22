@@ -1,6 +1,10 @@
+# Import libraries
 import numpy as np
 import pandas as pd
 
+# Global function - Haversine distance formula for aalclating the distance between two points with respect to 
+# curvature of earths radius
+EARTH_RADIUS = 6371
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
     Calculate the great circle distance between two points 
@@ -14,7 +18,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     dlat = lat2 - lat1 
     a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
     c = 2 * np.arcsin(np.sqrt(a)) 
-    r = 6371 # Radius of earth in kilometers
+    r = EARTH_RADIUS # Radius of earth in kilometers
     return c * r
 
 def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_true=None, zones_pred=None):

@@ -14,7 +14,7 @@ def build_pipeline(use_network_features=True):
     """
     steps = []
 
-    #steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=0.05)))
+    steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=0.05)))
 
     if use_network_features:
         steps.append(('network_features',MicrobiomeFeatureEngineer()))
@@ -78,7 +78,7 @@ def run_regression_pipeline(df,use_network=False):
 
         test_preds = pipeline.predict(X_test)
 
-        test_metreics = evaluate_coordinates(
+        test_metrics = evaluate_coordinates(
             y_true_lat=y_test_coords['latitude'].values,
             y_true_lon=y_test_coords['longitude'].values,
             y_pred_lat=test_preds[:,0],
@@ -86,7 +86,8 @@ def run_regression_pipeline(df,use_network=False):
             zones_true=y_test_zone.values
         )
 
-        print(test_metreics)
+        for metric,value in test_metrics.items():
+            print(metric,value)
 
         # Log the config parameters and the final model from the last fold
         mlflow.log_params(config.model_hyperparameters.xgb_reg)
