@@ -72,6 +72,9 @@ class DatabaseRSA:
         return df
 
 
+class DatabaseDNABERTS:
+    pass
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A script to get the data from the database.", usage="")
     parser.add_argument("-i", dest="database", required=True, help="Enter the path to the database.")
