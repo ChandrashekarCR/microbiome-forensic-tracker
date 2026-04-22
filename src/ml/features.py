@@ -6,9 +6,6 @@ import pandas as pd
 from skbio.stats.composition import clr
 from sklearn.covariance import GraphicalLassoCV
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.pipeline import Pipeline
-
-from ml.data_loading import DatabaseRSA, db_reader
 
 class ZeroColumnFilter(BaseEstimator,TransformerMixin):
     """

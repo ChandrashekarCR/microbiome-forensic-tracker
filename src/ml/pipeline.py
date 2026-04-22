@@ -24,7 +24,7 @@ def build_pipeline(use_network_features=True):
 
     return Pipeline(steps)
 
-def run_regression_pipeline(df,use_network=False):
+def run_regression_pipeline(df,use_network=True):
     mlflow.set_experiment(config.mlflow.experiment_name)
 
     # Initialize splitter for splitting the data
