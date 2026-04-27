@@ -46,3 +46,7 @@ __pycache__*
 # Ignore all files that store information on the sample runs in tsv
 /config/runtime/*
 /config/*.tsv
+
+# Ignore all the files in mlruns
+/src/ml/mlruns
+/src/ml/mlflow.db

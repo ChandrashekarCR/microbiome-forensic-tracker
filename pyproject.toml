@@ -75,7 +75,8 @@ ml = [
     "lightgbm>=4.0",
     "optuna>=3.0",
     "scikit-bio>=0.7.0",
-    "networkx>=3.6.0"
+    "networkx>=3.6.0",
+    "mlflow>=3.11.0"
     ]
 
 # For local development: everything loose (pip resolves conflicts)

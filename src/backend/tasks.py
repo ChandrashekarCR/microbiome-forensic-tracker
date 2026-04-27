@@ -177,7 +177,6 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
             "--config",
             f"samples_file={sheet_path}",
             "per_sample_results=True",
-            "--unlock",
         ]
 
         logger.info(f"[{sample_name}] Command: {' '.join(snakemake_cmd)}")
