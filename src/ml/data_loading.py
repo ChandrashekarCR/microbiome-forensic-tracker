@@ -154,6 +154,41 @@ class DatabaseDNABERTS:
 
         return emb_array
     
+    def get_all_embeddings(self) -> pd.DataFrame:
+        """
+        Get all the embeddings and retrun then as pandas data frame
+        Columns: sample_id, num_contigs, embeddings
+        """
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Select all the datam
+        cursor.execute(
+            """
+            SELECT sample_id, embeddings from embeddings 
+            """
+        )
+
+        rows = cursor.fetchall()
+        conn.close()
+        data = []
+
+        for row in rows:
+            sample_id = row[0]
+
+            # Reconstruct numpy arrau from bytes
+            in_buffer = io.BytesIO(row[1])
+            emb_array = np.load(in_buffer)
+
+            # Append as a dictionary to easily convert to Dataframe later
+            data.append({
+                "sample_id": sample_id,
+                "embeddings": emb_array
+            })
+        
+        return pd.DataFrame(data)
+    
     def load_data_(self,base_dir:str):
 
         # Create the table
@@ -195,4 +230,11 @@ if __name__ == "__main__":
     #print(df)
 
     db_bert = DatabaseDNABERTS(args.database)
-    db_bert.load_data_(args.bert_dir)
+    #db_bert.load_data_(args.bert_dir)
+
+    df_embeddings = db_bert.get_all_embeddings()
+    print(df_embeddings.head())
+
+    # Example: Check array shape for first sample
+    first_sample = df_embeddings.iloc[0]
+    print(f"Sample: {first_sample['sample_id']}, Array Shape: {first_sample['embeddings'].shape}")

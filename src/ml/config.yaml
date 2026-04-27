@@ -6,21 +6,37 @@ database:
 data_splitting:
   test_size: 0.2
   random_state: 42
+  n_splits: 3
 
 mlflow:
   experiment_name: "Microbiome_Geolocation"
+  tracking_uri: "http://127.0.0.1:5001"
 
-model_hyperparameters:
-  xgb_reg:
+feature_engineering:
+  min_prevalence: 0.05
+  cv_folds: 5
+  max_iter: 2000
+  top_k_edges: 20
+
+# Stage 1: Baseline Models (no tuning on default parameters)
+stage_1_baseline:
+  XGBoost:
     n_estimators: 100
     max_depth: 4
     learning_rate: 0.1
     random_state: 42
     objective: "reg:squarederror"
-  
-  xgb_clf:
+
+  RandomForest:
     n_estimators: 100
-    max_depth: 4
-    learning_rate: 0.1
+    max_depth: 10
     random_state: 42
-    objective: "multi:softprob"
+    n_jobs: -1
+  
+# Stage 2: Is the same models parameters but with feature engineering
+# There are no major changes for the model parameters here
+
+# Stage 3: Tuned hyperparameters (only for top 5)
+
+
+  
