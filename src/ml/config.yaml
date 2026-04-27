@@ -1,6 +1,6 @@
 # config.yaml
 database:
-  path: "../../databases/malmo.db"
+  path: "/home/chandru/binp51/databases/malmo.db"
   table: "malmo_phylum"
 
 data_splitting:
