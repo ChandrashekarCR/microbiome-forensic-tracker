@@ -1,7 +1,7 @@
 """Interactive Malmo sample collection map generator."""
 
-from db_reader import DatabaseCreate
-from map_builder import build_malmo_map, load_malmo_boundary
+from malmo_samples.db_reader import DatabaseCreate
+from malmo_samples.map_builder import build_malmo_map, load_malmo_boundary
 
 
 def main():

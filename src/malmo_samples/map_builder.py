@@ -2,7 +2,7 @@
 
 import folium
 import osmnx as ox
-from map_components import (
+from malmo_samples.map_components import (
     add_base_layers,
     add_boundary_layer,
     add_cluster_layer,

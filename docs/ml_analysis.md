@@ -62,7 +62,7 @@ $$ \hat{\Theta} = \arg \min_{\Theta \succ 0} \underbrace{\left( \text{tr}(S\Thet
 If an added link provides only a tiny benefit to the fit, the $\lambda$ tax overrides it, forcing $\Theta_{i,j}$ to exactly $0$. A properly tuned $\lambda$ (via `GraphicalLassoCV`) acts like a machete, slicing away weak friend-of-a-friend links and leaving behind explicit, true ecological interactions.
 
 #### Objective for Spatial Feature Engineering
-Why do this before pushing data into ML models (like Random Forest or XGBoost) to predict latitude/longitude?
+Why do this before pushing data into ML models to predict latitude/longitude?
 
 1. **Dimensionality Reduction via Biological Signal**: Instead of feeding 5,000 noisy species to your ML model, you compute the SPIEC-EASI network and keep only the strictly connected taxa. Meaningless "tourist" species are filtered natively.
 2. **Network/Topological Features**: Different geographies harbor totally distinct community structures. By computing graph features (e.g., degree centrality, betweenness), we extract:
