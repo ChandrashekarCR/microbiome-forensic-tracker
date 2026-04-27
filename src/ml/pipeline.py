@@ -2,7 +2,7 @@ import mlflow
 import numpy as np
 from sklearn.pipeline import Pipeline
 
-from ml.features import ZeroColumnFilter, MicrobiomeFeatureEngineer
+from ml.features import ZeroColumnFilter, MicrobiomeFeatureEngineer, SytheticMinorityOverSampling
 from ml.models import load_and_prep_data, TrainTestSplit, XGBoostCoordinateModel
 from ml.config import config
 from ml.evaluation import evaluate_coordinates
@@ -25,6 +25,9 @@ def build_pipeline(use_network_features=True):
     return Pipeline(steps)
 
 def run_regression_pipeline(df,use_network=True):
+    
+    # Dertermine tracking URI
+    #mlflow.set_tracking_uri(config.mlflow.tracking_uri)
     mlflow.set_experiment(config.mlflow.experiment_name)
 
     # Initialize splitter for splitting the data
@@ -70,8 +73,8 @@ def run_regression_pipeline(df,use_network=True):
         
         # 6. Log Overall CV Metrics
         avg_mae = np.mean(fold_scores)
-        print(f"\nCompleted Strategy CV. Average MAE: {avg_mae:.4f}")
-        mlflow.log_metric("cv_avg_mae", avg_mae)
+        print(f"\nCompleted Strategy CV. Average Mean Error: {avg_mae:.4f}")
+        mlflow.log_metric("cv_avg_me", avg_mae)
         
         # 7. Evaluate the final model on the data it has never seen before
         X_test, y_test_zone, y_test_coords = splitter.get_test_data()
@@ -86,11 +89,12 @@ def run_regression_pipeline(df,use_network=True):
             zones_true=y_test_zone.values
         )
 
+        print(f"\nTest predicitons evalutions")
         for metric,value in test_metrics.items():
             print(metric,value)
 
         # Log the config parameters and the final model from the last fold
-        mlflow.log_params(config.model_hyperparameters.xgb_reg)
+        mlflow.log_params(config.stage_1_baseline.XGBoost)
         # Log the final pipeline (from the last fold) so it can be deployed easily
         mlflow.sklearn.log_model(pipeline, "final_coordinate_pipeline")
 
@@ -99,9 +103,6 @@ if __name__ == "__main__":
     df = load_and_prep_data()
     
     print("\n========== REGRESSION PIPELINE ==========")
-    run_regression_pipeline(df)
-    #run_regression_experiment(df)
+    run_regression_pipeline(df,use_network=True)
 
-    #print("\n========== CLASSIFICATION PIPELINE ==========")
-    #run_classification_pipeline(df)
 

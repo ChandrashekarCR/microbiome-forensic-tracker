@@ -23,6 +23,7 @@ class ZeroColumnFilter(BaseEstimator,TransformerMixin):
     def transform(self,X: pd.DataFrame) -> pd.DataFrame:
         # Cast to float to prevent object dtype errors in downstream models like XGBoost
         return X.loc[:,self.keep_cols_].copy().astype(float)
+    
 
 class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
     """

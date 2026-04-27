@@ -71,7 +71,7 @@ class TrainTestSplit:
 class XGBoostCoordinateModel(BaseEstimator,TransformerMixin):
     def __init__(self):
         # Fetch params directly from config when initialized
-        self.params = config.model_hyperparameters.xgb_reg
+        self.params = config.stage_1_baseline.XGBoost
         self.model = XGBRegressor(**self.params)
     
     def fit(self, X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame=None,y_val:pd.DataFrame=None):
