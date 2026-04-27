@@ -18,8 +18,6 @@ def load_and_prep_data() -> pd.DataFrame:
        
     return df
 
-print(load_and_prep_data().head())
-
 # Stratifier train test and validation
 class TrainTestSplit:
     def __init__(self, df: pd.DataFrame, n_splits: int=4, test_size: float=0.2):
