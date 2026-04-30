@@ -2,7 +2,7 @@ import mlflow
 import numpy as np
 from sklearn.pipeline import Pipeline
 
-from ml.features import ZeroColumnFilter, MicrobiomeFeatureEngineer, SytheticMinorityOverSampling
+from ml.features import ZeroColumnFilter, MicrobiomeFeatureEngineer
 from ml.models import load_and_prep_data, TrainTestSplit, XGBoostCoordinateModel
 from ml.config import config
 from ml.evaluation import evaluate_coordinates
@@ -103,6 +103,6 @@ if __name__ == "__main__":
     df = load_and_prep_data()
     
     print("\n========== REGRESSION PIPELINE ==========")
-    run_regression_pipeline(df,use_network=True)
+    run_regression_pipeline(df,use_network=False)
 
 
