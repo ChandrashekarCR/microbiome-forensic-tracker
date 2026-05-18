@@ -12,6 +12,7 @@ mlflow:
   experiment_name: "Microbiome_Geolocation"
   tracking_uri: "http://127.0.0.1:5001"
 
+# Parameters to pass to the feature engineering
 feature_engineering:
   min_prevalence: 0.05
   cv_folds: 5
