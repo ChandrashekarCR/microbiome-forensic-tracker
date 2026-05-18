@@ -11,6 +11,8 @@ from ml.model_registry import models as model_registry
 from ml.config import config
 from ml.evaluation import evaluate_coordinates
 
+from omegaconf import ListConfig
+
 
 def _wrap_multioutput(estimator):
     if isinstance(estimator, MultiOutputRegressor):
@@ -42,7 +44,7 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
-
+# Evaluate a single model with cross validation. This function is called in the _rank_models.
 def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
     fold_scores = []
 
@@ -76,18 +78,14 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
         fold_scores.append(fold_mae)
             
         print(f"Fold {fold+1} Mean Haversine Error: {fold_mae:.2f} km")
-            
-        # Log all your custom metrics for this fold
-        for k, v in metrics.items():
-            mlflow.log_metric(f"fold_{fold+1}_{k}", v)
-        
+                   
     # 6. Log Overall CV Metrics
     avg_mae = np.mean(fold_scores)
     print(f"\nCompleted Strategy CV. Average Haversine Error: {avg_mae:.4f}")
 
     return float(avg_mae)
 
-
+# Use all the models mentioned and evaluate each one individually on the train and validation dataset.
 def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_features: bool, top_k: int = 5):
     results = []
     for model_def in model_defs:
@@ -120,6 +118,7 @@ def _make_haversine_scorer():
     return _scorer
 
 
+# The model which passes through all the filtering criteria is made to be tuned with all the hyperparameters.
 def _tune_top_model(splitter: TrainTestSplit, model_def: dict):
     model_type = model_def.get("model_type")
     tuning_cfg = config.stage_3.grids.get(model_type) if "stage_3" in config else None
@@ -127,11 +126,30 @@ def _tune_top_model(splitter: TrainTestSplit, model_def: dict):
         print(f"No tuning grid found for {model_type}. Skipping tuning.")
         return build_pipeline(model_def["estimator"], use_network_features=True)
 
+    print(f"\nSTAGE 3: {model_def['name']} (feature engineering + hyperparameter tuning)")
+
     pipeline = build_pipeline(model_def["estimator"], use_network_features=True)
 
-    param_distributions = {f"model__estimator__{k}": v for k, v in tuning_cfg.items()}
+    
+    param_distributions = {}
+    for k, v in tuning_cfg.items():
+        if isinstance(v, ListConfig):
+            param_distributions[f"model__estimator__{k}"] = list(v)
+        else:
+            param_distributions[f"model__estimator__{k}"] = v
+
+    min_class_count = splitter.y_cv_zone.value_counts().min()
+    requested_folds = int(config.stage_3.cv_folds)
+    cv_folds = max(2, min(requested_folds, int(min_class_count)))
+
+    if cv_folds < requested_folds:
+        print(
+            f"Reducing stage_3 cv_folds from {requested_folds} to {cv_folds} "
+            f"due to small class counts (min={min_class_count})."
+        )
+
     cv = StratifiedKFold(
-        n_splits=config.stage_3.cv_folds,
+        n_splits=cv_folds,
         shuffle=True,
         random_state=config.stage_3.random_state,
     ).split(splitter.X_cv, splitter.y_cv_zone)
@@ -148,20 +166,19 @@ def _tune_top_model(splitter: TrainTestSplit, model_def: dict):
     )
 
     search.fit(splitter.X_cv, splitter.y_cv_coords)
+    print(f"\nStage 3 complete for {model_type}")
     print(f"Best params for {model_type}: {search.best_params_}")
     print(f"Best CV score (negative mean error): {search.best_score_:.4f}")
 
     return search.best_estimator_
 
 
-def run_multistage_selection(df, top_k: int = 5, use_mlflow: bool = False):
+def run_multistage_selection(df, top_k: int = 2):
     """
-    Stage 1: baseline models (no network features) -> select top K.
-    Stage 2: add network features on top K -> select best.
-    Stage 3: tune best model with network features -> evaluate on holdout test.
+    STAGE 1: Baseline model ranking.
+    STAGE 2: Re-evaluate top K models with feature engineering.
+    STAGE 3: Best model with feature engineering + hyperparameter tuning.
     """
-    if use_mlflow:
-        mlflow.set_experiment(config.mlflow.experiment_name)
 
     splitter = TrainTestSplit(
         df,
@@ -169,6 +186,7 @@ def run_multistage_selection(df, top_k: int = 5, use_mlflow: bool = False):
         test_size=config.data_splitting.test_size,
     )
 
+    print("\nSTAGE 1: Baseline model ranking")
     stage1_models = model_registry.get_baseline_models()
     top_stage1, stage1_results = _rank_models(
         splitter, stage1_models, use_network_features=False, top_k=top_k
@@ -178,6 +196,7 @@ def run_multistage_selection(df, top_k: int = 5, use_mlflow: bool = False):
     for r in top_stage1:
         print(f"{r['name']}: {r['avg_mae']:.4f} km")
 
+    print("\nSTAGE 2: Re-evaluate with top K models (feature engineering)")
     top_stage2, stage2_results = _rank_models(
         splitter, top_stage1, use_network_features=True, top_k=1
     )
@@ -198,7 +217,7 @@ def run_multistage_selection(df, top_k: int = 5, use_mlflow: bool = False):
         zones_true=y_test_zone.values,
     )
 
-    print("\nFinal Test Evaluation (Tuned Model):")
+    print("\nSTAGE 3 Final Test Evaluation (tuned model):")
     for metric, value in test_metrics.items():
         print(metric, value)
 
@@ -214,6 +233,6 @@ if __name__ == "__main__":
     df = load_and_prep_data()
     
     print("\n========== MULTI-STAGE MODEL SELECTION ==========")
-    run_multistage_selection(df, top_k=5, use_mlflow=False)
+    run_multistage_selection(df, top_k=5)
 
 
