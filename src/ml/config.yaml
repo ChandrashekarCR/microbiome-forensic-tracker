@@ -19,7 +19,7 @@ feature_engineering:
   top_k_edges: 20
 
 # Stage 1: Baseline Models (no tuning on default parameters)
-stage_1_baseline:
+stage_1:
   XGBoost:
     n_estimators: 100
     max_depth: 4
