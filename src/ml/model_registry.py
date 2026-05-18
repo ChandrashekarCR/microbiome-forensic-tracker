@@ -52,4 +52,5 @@ class ModelRegistry:
 
 models = ModelRegistry()
 
-print(models.get_baseline_models())
+if __name__ == "__main__":
+    print(models.get_baseline_models())
