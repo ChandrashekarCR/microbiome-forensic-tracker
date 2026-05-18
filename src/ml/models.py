@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from xgboost import XGBRegressor, XGBClassifier
-from sklearn.base import BaseEstimator, TransformerMixin
 
 from ml.data_loading import DatabaseRSA
 from malmo_samples import db_reader
@@ -67,32 +65,3 @@ class TrainTestSplit:
         Returns the pure 20% blind hold-out set untouched by CV.
         """
         return self.X_test, self.y_test_zone, self.y_test_coords
-
-class XGBoostCoordinateModel(BaseEstimator,TransformerMixin):
-    def __init__(self):
-        # Fetch params directly from config when initialized
-        self.params = config.model_hyperparameters.xgb_reg
-        self.model = XGBRegressor(**self.params)
-    
-    def fit(self, X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame=None,y_val:pd.DataFrame=None):
-        """
-        Fits the model. Uses validation set for early stopping if proviede,
-        """
-        if X_val is not None and y_val is not None:
-            # XGBoost allows evaluating against a validation set during training
-            self.model.fit(
-                X_train, y_train,
-                eval_set=[(X_val, y_val)],
-                verbose=False
-            )
-        else:
-            self.model.fit(X_train, y_train)
-        
-        self.is_fitted_ = True 
-        return self
-
-    def predict(self,X):
-        return self.model.predict(X)
-    
-    def get_model(self):
-        return self.model
