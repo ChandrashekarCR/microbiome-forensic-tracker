@@ -31,6 +31,7 @@ class ModelRegistry:
         model_classes = {
             "XGBoost": XGBRegressor,
             "RandomForest": RandomForestRegressor,
+            "LightGBM": LGBMRegressor
         }
         
         for model_name, params in stage_1_config.items():

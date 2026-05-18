@@ -32,6 +32,13 @@ stage_1:
     max_depth: 10
     random_state: 42
     n_jobs: -1
+
+  LightGBM:
+    n_estimators: 200
+    learning_rate: 0.05
+    max_depth: -1
+    random_state: 42
+    n_jobs: -1
   
 # Stage 2: Is the same models parameters but with feature engineering
 # There are no major changes for the model parameters here
@@ -55,6 +62,10 @@ stage_3:
       min_samples_split: [2, 5, 10]
       min_samples_leaf: [1, 2, 4]
 
+    LightGBM:
+          n_estimators: [200, 400]
+          learning_rate: [0.01, 0.05, 0.1]
+          num_leaves: [31, 63, 127]
 
 
   
