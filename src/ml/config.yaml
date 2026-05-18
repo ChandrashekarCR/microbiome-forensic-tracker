@@ -16,7 +16,7 @@ mlflow:
 feature_engineering:
   min_prevalence: 0.05
   cv_folds: 5
-  max_iter: 2000
+  max_iter: 5000
   top_k_edges: 20
 
 # Stage 1: Baseline Models (no tuning on default parameters)
