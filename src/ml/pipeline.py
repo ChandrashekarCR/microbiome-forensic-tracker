@@ -94,7 +94,7 @@ def run_regression_pipeline(df,use_network=True):
             print(metric,value)
 
         # Log the config parameters and the final model from the last fold
-        mlflow.log_params(config.stage_1_baseline.XGBoost)
+        mlflow.log_params(config.stage_1.XGBoost)
         # Log the final pipeline (from the last fold) so it can be deployed easily
         mlflow.sklearn.log_model(pipeline, "final_coordinate_pipeline")
 

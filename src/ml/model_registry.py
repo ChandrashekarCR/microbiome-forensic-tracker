@@ -25,7 +25,7 @@ class ModelRegistry:
         Stage 1: Load all baseline models from config.yaml
         Returns list of dicts with {name, estimator, params}
         """
-        stage_1_config = config.stage_1_baseline
+        stage_1_config = config.stage_1
         models = []
         
         model_classes = {
