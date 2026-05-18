@@ -23,6 +23,7 @@ class ZeroColumnFilter(BaseEstimator,TransformerMixin):
     def transform(self,X: pd.DataFrame) -> pd.DataFrame:
         # Cast to float to prevent object dtype errors in downstream models like XGBoost
         return X.loc[:,self.keep_cols_].copy().astype(float)
+    
 
 class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
     """
@@ -41,11 +42,25 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
 
     def multiplicative_replacement(self, X: np.ndarray, delta: float =1e-6) -> pd.DataFrame:
         """
-        CLR log transformation requires non zeros values hen hadded a small 0 value which is negligible
+        CLR log transformation requires non zeros values when adding a small delta value (negligible).
+        Includes numerical stability checks.
         """
         X = np.array(X, dtype=float)
+        
+        # Replace zeros with delta
         X[X == 0] = delta
-        X /= X.sum(axis=1, keepdims=True)
+        
+        # Normalize by row sums (relative abundance)
+        row_sums = X.sum(axis=1, keepdims=True)
+        if np.any(row_sums <= 0):
+            print("Warning: Zero or negative row sums detected. Adding minimum threshold.")
+            row_sums = np.maximum(row_sums, delta)
+        
+        X = X / row_sums
+        
+        # Clip to valid range to avoid log(0) or log(negative)
+        X = np.clip(X, delta, 1.0 - delta)
+        
         return X
     
     def fit(self, X:pd.DataFrame,y: pd.Series=None):
@@ -55,13 +70,18 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         self.taxa_names_ = X.columns.to_list()
         X_raw = X.values.copy()
 
-        # CLR (Centered Log Ratio) Transforamtion to handle decompositions while sequencing
+        # CLR (Centered Log Ratio) Transformation to handle compositional data from sequencing
         X_nonzero = self.multiplicative_replacement(X_raw)
         self.X_clr_train_ = clr(X_nonzero)
+        
+        # Check for NaN or Inf
+        if np.any(~np.isfinite(self.X_clr_train_)):
+            print("Warning: NaN/Inf detected in CLR data. Replacing with 0.")
+            self.X_clr_train_ = np.nan_to_num(self.X_clr_train_, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Fit sparse inverse covariance
         # This solves the L1 penalized mathematical optimization
-        print("Obtaining sprase inverse covariance matrix")
+        print("Obtaining sparse inverse covariance matrix")
         self.glasso.fit(self.X_clr_train_)
 
         # Extract the precision matrix (Theta)
