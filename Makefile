@@ -119,7 +119,7 @@ venv-ml: # For machine leanring development
 
 venv-all: # Complete environment
 	@echo "Installing full env and dev tools environment for development."
-	@$(PYTHON) -m venv .venv-all
+	@$(BASE_PYTHON) -m venv .venv-all
 	@. .venv-all/bin/activate && pip install -U pip && pip install -e ".[all]"
 	@echo "[venv-all] ok"
 
