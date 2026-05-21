@@ -22,7 +22,10 @@ jobs:
           cache: "pip"
       
       - name: Install linting tools
-        run: make venv-all
+        run: |
+          echo "Setting up virtual environment..."
+          make BASE_PYTHON=python3.11 venv-all
+          echo "Linting tools installed successfully!"
 
       - name: Code format
         run: make format 
@@ -42,7 +45,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: make venv-all
+        run: |
+          echo "Setting up virtual environment..."
+          make BASE_PYTHON=python3.11 venv-all
+          echo "Linting tools installed successfully!"
 
       - name: Run Pytest
         run: make test
