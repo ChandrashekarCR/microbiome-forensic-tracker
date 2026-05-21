@@ -24,7 +24,7 @@ jobs:
       - name: Install linting tools
         run: |
           echo "Setting up virtual environment..."
-          make BASE_PYTHON=python3.11 venv-all
+          make venv-all
           echo "Linting tools installed successfully!"
 
       - name: Code format
@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "Setting up virtual environment..."
-          make BASE_PYTHON=python3.11 venv-all
+          make venv-all
           echo "Linting tools installed successfully!"
 
       - name: Run Pytest
