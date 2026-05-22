@@ -1,5 +1,5 @@
 BASE_PYTHON ?= python
-PYTHON := .venv/bin/python
+PYTHON := .venv-all/bin/python
 
 DEFAULT_GOAL := all
 SHELL := bash
@@ -79,7 +79,7 @@ format: # Code formatting using ruff and black
 	@$(PYTHON) -m ruff check --fix src/ tests/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
 	@$(PYTHON) -m ruff format src/ tests/ || (echo '[format] ruff format failed' >&2; exit 1)
 	@echo "Formatting snakemake rules and files with snakefmt.."
-	@. .venv-snakemake/bin/activate && snakefmt workflow/rules/*.smk workflow/Snakefile || (echo '[format] snakefmt formatting failed' >&2; exit 1)
+	@. .venv-all/bin/activate && snakefmt workflow/rules/*.smk workflow/Snakefile || (echo '[format] snakefmt formatting failed' >&2; exit 1)
 	@echo "[format] ok."	
 
 test: # Run pytests for script

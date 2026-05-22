@@ -2,6 +2,8 @@
 
 import folium
 import osmnx as ox
+
+from config import MALMO_CENTER
 from malmo_samples.map_components import (
     add_base_layers,
     add_boundary_layer,
@@ -12,8 +14,6 @@ from malmo_samples.map_components import (
     add_title,
     add_ui_plugins,
 )
-
-from config import MALMO_CENTER
 
 
 def load_malmo_boundary():

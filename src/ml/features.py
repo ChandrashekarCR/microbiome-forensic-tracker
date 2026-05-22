@@ -4,66 +4,69 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from skbio.stats.composition import clr
-from sklearn.covariance import GraphicalLassoCV
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.covariance import GraphicalLassoCV
 
-class ZeroColumnFilter(BaseEstimator,TransformerMixin):
+
+class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
     Remove columns that are all zeros (fit on train only).
     """
-    def __init__(self, min_prevalence: float=0.05):
+
+    def __init__(self, min_prevalence: float = 0.05):
         self.min_prevalence = min_prevalence
-    
-    def fit(self, X: pd.DataFrame, y: pd.Series=None):
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None):
         X = X.astype(float)
-        X = X.loc[:, (X != 0 ).any(axis=0)]
+        X = X.loc[:, (X != 0).any(axis=0)]
         self.keep_cols_ = X[X >= self.min_prevalence].columns.tolist()
         return self
-    
-    def transform(self,X: pd.DataFrame) -> pd.DataFrame:
-        # Cast to float to prevent object dtype errors in downstream models like XGBoost
-        return X.loc[:,self.keep_cols_].copy().astype(float)
-    
 
-class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        # Cast to float to prevent object dtype errors in downstream models like XGBoost
+        return X.loc[:, self.keep_cols_].copy().astype(float)
+
+
+class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
     """
     Feature Engineering: CLR + ecological network summaries + diversity
     Fit the GraphicalLasso only to the training data.
     """
-    def __init__(self,cv_folds: int=5, max_iter:int=2000, n_jobs: int=-1, top_k_edges:int=20):
+
+    def __init__(self, cv_folds: int = 5, max_iter: int = 2000, n_jobs: int = -1, top_k_edges: int = 20):
         self.cv_folds = cv_folds
         self.max_iter = max_iter
         self.n_jobs = n_jobs
         self.top_k_edges = top_k_edges
         self.glasso = GraphicalLassoCV(cv=self.cv_folds, n_jobs=self.n_jobs, max_iter=self.max_iter)
-        self.precision_matrix = None # Sparse Inverse Covariance matrix
-        self.adjacency_matrix = None # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
+        self.precision_matrix = None  # Sparse Inverse Covariance matrix
+        self.adjacency_matrix = None  # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
         self.keystone_taxa_ = []
 
-    def multiplicative_replacement(self, X: np.ndarray, delta: float =1e-6) -> pd.DataFrame:
+    def multiplicative_replacement(self, X: np.ndarray, delta: float = 1e-6) -> pd.DataFrame:
         """
         CLR log transformation requires non zeros values when adding a small delta value (negligible).
         Includes numerical stability checks.
         """
         X = np.array(X, dtype=float)
-        
+
         # Replace zeros with delta
         X[X == 0] = delta
-        
+
         # Normalize by row sums (relative abundance)
         row_sums = X.sum(axis=1, keepdims=True)
         if np.any(row_sums <= 0):
             print("Warning: Zero or negative row sums detected. Adding minimum threshold.")
             row_sums = np.maximum(row_sums, delta)
-        
+
         X = X / row_sums
-        
+
         # Clip to valid range to avoid log(0) or log(negative)
         X = np.clip(X, delta, 1.0 - delta)
-        
+
         return X
-    
-    def fit(self, X:pd.DataFrame,y: pd.Series=None):
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None):
         """
         Learn the ecological network from the training data only
         """
@@ -73,7 +76,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         # CLR (Centered Log Ratio) Transformation to handle compositional data from sequencing
         X_nonzero = self.multiplicative_replacement(X_raw)
         self.X_clr_train_ = clr(X_nonzero)
-        
+
         # Check for NaN or Inf
         if np.any(~np.isfinite(self.X_clr_train_)):
             print("Warning: NaN/Inf detected in CLR data. Replacing with 0.")
@@ -88,7 +91,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         best_lambda = self.glasso.alpha_
         print(f"Best lambda (alpha) selected by cv: {best_lambda}")
         # Sparse inverse covariance
-        self.precision_matrix = self.glasso.precision_ 
+        self.precision_matrix = self.glasso.precision_
 
         # Build the ecological network
         # Convert to Adjacency Matrix (Boolean Network)
@@ -102,8 +105,8 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         self.betweenness = nx.betweenness_centrality(G)
 
         return self
-    
-    def transform(self, X:pd.DataFrame):
+
+    def transform(self, X: pd.DataFrame):
         """
         Apply learned transformation to any data (train,val or test)
         """
@@ -115,7 +118,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         n_samples = X_clr_data.shape[0]
 
         # a) Raw CLR features
-        for i,taxon in enumerate(self.taxa_names_):
+        for i, taxon in enumerate(self.taxa_names_):
             features[f"clr_{taxon}"] = X_clr_data[:, i]
 
         # b) Degree-weighted abundances (amplify ecologically connected taxa)
@@ -150,10 +153,10 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
             edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:, v]
 
             features[edge_name] = edge_activations
-        
-        return pd.DataFrame(features,index=X.index)
-    
-    def plot_network(self, output_file: str="microbiome_network.png"):
+
+        return pd.DataFrame(features, index=X.index)
+
+    def plot_network(self, output_file: str = "microbiome_network.png"):
 
         # Build the graph
         G = nx.from_numpy_array(self.adjacency_matrix)
@@ -191,5 +194,3 @@ class MicrobiomeFeatureEngineer(BaseEstimator,TransformerMixin):
         plt.savefig(output_file, dpi=300)
         plt.close()
         print(f"Network visualization saved successfully to {output_file}")
-
-
