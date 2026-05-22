@@ -4,8 +4,8 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
+pd.set_option("future.no_silent_downcasting", True)
 
-pd.set_option('future.no_silent_downcasting',True)
 
 class DatabaseCreate:
     def __init__(self, db):

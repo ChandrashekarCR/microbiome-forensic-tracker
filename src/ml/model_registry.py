@@ -1,9 +1,9 @@
-from xgboost import XGBRegressor
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import Ridge, Lasso
 from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 
 from ml.config import config
+
 
 class ModelRegistry:
     """
@@ -18,7 +18,7 @@ class ModelRegistry:
         # Filter out None values and invalid params
         filtered_params = {k: v for k, v in params.items() if v is not None}
         return model_class(**filtered_params)
-    
+
     @staticmethod
     def get_baseline_models():
         """
@@ -27,29 +27,21 @@ class ModelRegistry:
         """
         stage_1_config = config.stage_1
         models = []
-        
-        model_classes = {
-            "XGBoost": XGBRegressor,
-            "RandomForest": RandomForestRegressor,
-            "LightGBM": LGBMRegressor
-        }
-        
+
+        model_classes = {"XGBoost": XGBRegressor, "RandomForest": RandomForestRegressor, "LightGBM": LGBMRegressor}
+
         for model_name, params in stage_1_config.items():
             model_class = model_classes.get(model_name)
             if model_class is None:
                 print(f"Warning: Model {model_name} not found in registry")
                 continue
-            
+
             estimator = ModelRegistry._instantiate_model(model_class, params)
-            
-            models.append({
-                "name": f"{model_name}_baseline",
-                "estimator": estimator,
-                "params": params,
-                "model_type": model_name
-            })
-        
+
+            models.append({"name": f"{model_name}_baseline", "estimator": estimator, "params": params, "model_type": model_name})
+
         return models
+
 
 models = ModelRegistry()
 
