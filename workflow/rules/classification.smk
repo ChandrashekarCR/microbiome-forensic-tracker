@@ -37,11 +37,11 @@ rule kraken:
         mkdir -p {params.out_dir}
 
         kraken2 \
-                --db {params.database} \
-                --threads {threads} \
-                --report {output.kraken_report} \
-                --output {output.kraken} \
-                --paired {input.r1} {input.r2} > {log} 2>&1
+            --db {params.database} \
+            --threads {threads} \
+            --report {output.kraken_report} \
+            --output {output.kraken} \
+            --paired {input.r1} {input.r2} >{log} 2>&1
         """
 
 
@@ -70,9 +70,9 @@ rule bracken:
         mkdir -p {params.out_dir}
 
         bracken \
-                -r {params.read_len} \
-                -i {input.kraken_report} \
-                -o {output.bracken_report} \
-                -d {params.database} \
-                -l {params.rank} > {log.bracken_log} 2>&1
+            -r {params.read_len} \
+            -i {input.kraken_report} \
+            -o {output.bracken_report} \
+            -d {params.database} \
+            -l {params.rank} >{log.bracken_log} 2>&1
         """

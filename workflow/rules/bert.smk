@@ -45,6 +45,5 @@ rule dnaberts_embeddings:
             -b {params.batch_size} \
             -m {params.max_length} \
             -l {params.overlap} \
-            -d {params.cuda} > {log} 2>&1
-        
+            -d {params.cuda} >{log} 2>&1
         """
