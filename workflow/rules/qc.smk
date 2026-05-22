@@ -36,14 +36,14 @@ rule fastqc_raw:
     shell:
         """
         # Create output directory
-        mkdir -p {params.output_dir}     
-        
+        mkdir -p {params.output_dir}
+
         echo "Running FastQC on {wildcards.sample}..."
-        
+
         # Run FastQC with bind mounts for /lunarc/nobackup
         apptainer exec {params.bind_paths} {params.fastqc} \
             fastqc {input.r1} {input.r2} -o {params.output_dir} -t {threads}
-        
+
         echo "FastQC completed successfully for {wildcards.sample}"
         """
 
@@ -84,14 +84,14 @@ rule fastqc_processed:
     shell:
         """
         # Create output directory
-        mkdir -p {params.output_dir}     
-        
+        mkdir -p {params.output_dir}
+
         echo "Running FastQC on {wildcards.sample}..."
-        
+
         # Run FastQC with bind mounts for /lunarc/nobackup
         apptainer exec {params.bind_paths} {params.fastqc} \
             fastqc {input.r1} {input.r2} -o {params.output_dir} -t {threads}
-        
+
         echo "FastQC completed successfully for {wildcards.sample}"
         """
 
@@ -145,5 +145,5 @@ rule multiqc:
         mkdir -p {params.output_dir}
 
         apptainer exec {params.bind_paths} {params.multiqc} \
-             multiqc {params.results_dir} -o {output.multiqc_report} > {log} 2>&1
+            multiqc {params.results_dir} -o {output.multiqc_report} >{log} 2>&1
         """

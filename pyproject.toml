@@ -23,6 +23,7 @@ dev = [
     "pytest-cov>=3.0",
     "ruff>=0.1.0",
     "isort>=5.0",
+    "snakefmt"
 ]
 
 # Backend (FastAPI + core ML)
@@ -107,7 +108,9 @@ all = [
     "snakemake>=9.19.0",
     "snakemake-executor-plugin-slurm>=2.2.0",
     "snakemake-executor-plugin-slurm-jobstep>=0.4.0",
-    "snakemake-interface-storage-plugins>=4.4.1"
+    "snakemake-interface-storage-plugins>=4.4.1",
+    "snakefmt",
+    "shfmt-py"
 ]
 
 [tool.setuptools.packages.find]

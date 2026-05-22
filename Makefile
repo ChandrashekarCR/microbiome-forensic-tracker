@@ -1,5 +1,9 @@
 BASE_PYTHON ?= python
+VENV_ALL := .venv-all
 PYTHON := .venv-all/bin/python
+
+# Ensure venv binaries (shfmt) are visible
+export PATH := $(VENV_ALL)/bin:$(PATH)
 
 DEFAULT_GOAL := all
 SHELL := bash
@@ -79,12 +83,12 @@ format: # Code formatting using ruff and black
 	@$(PYTHON) -m ruff check --fix src/ tests/ || (echo '[format] ruff import sorting failed' >&2; exit 1)
 	@$(PYTHON) -m ruff format src/ tests/ || (echo '[format] ruff format failed' >&2; exit 1)
 	@echo "Formatting snakemake rules and files with snakefmt.."
-	@. .venv-all/bin/activate && snakefmt workflow/rules/*.smk workflow/Snakefile || (echo '[format] snakefmt formatting failed' >&2; exit 1)
+	@$(PYTHON) -m snakefmt workflow/rules/*.smk workflow/Snakefile || (echo '[format] snakefmt formatting failed' >&2; exit 1)
 	@echo "[format] ok."	
 
 test: # Run pytests for script
 	@echo "Running core tests.."
-	@. .venv-all/bin/activate && pytest tests/
+	@$(PYTHON) -m pytest tests/
 	@echo "[test] ok"
 
 venv-snakemake: # For snakemake excecution

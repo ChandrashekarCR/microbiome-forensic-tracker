@@ -45,8 +45,8 @@ rule megahit_assembly:
         # Megahit refuses to run if the output directory already exists
         rm -rf {params.output_dir}
 
-        echo "Starting MEGAHIT Assembly for {wildcards.sample}" > {log.megahit_log}
-        echo "K-list: {params.k_list}" >> {log.megahit_log}
+        echo "Starting MEGAHIT Assembly for {wildcards.sample}" >{log.megahit_log}
+        echo "K-list: {params.k_list}" >>{log.megahit_log}
 
         # Create a temporary diretory
         # Prefer SLURM's local NVMe scratch ($TMPDIR) for MEGAHIT temp files.
@@ -71,9 +71,9 @@ rule megahit_assembly:
             --min-contig-len {params.min_contig_len} \
             --num-cpu-threads {threads} \
             --memory {params.memory_bytes} \
-            --verbose >> {log.megahit_log} 2>&1
-        
+            --verbose >>{log.megahit_log} 2>&1
+
         echo "Renaming the final.contigs.fa as {wildcards.sample}.fa"
         mv {params.contigs} {output.contigs}
-        echo "Assembly complete for {wildcards.sample}" >> {log.megahit_log}
+        echo "Assembly complete for {wildcards.sample}" >>{log.megahit_log}
         """

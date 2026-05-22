@@ -50,23 +50,23 @@ rule fastp:
         """
         # Create output directory
         mkdir -p {params.output_dir}
-        
+
         echo "Running fastp on {wildcards.sample}..."
-        
+
         # Run fastp with bind mounts - SEPARATE R1/R2 processing
         apptainer exec {params.bind_paths} {params.fastp} \
-             fastp \
-                --in1 {input.r1} \
-                --in2 {input.r2} \
-                --out1 {output.r1_out} \
-                --out2 {output.r2_out} \
-                --html {output.html} \
-                --json {output.json} \
-                {params.dont_eval_dup} \
-                --qualified_quality_phred {params.quality} \
-                --thread {threads} \
-                {params.trim_poly_g} &> {log}
-        
+            fastp \
+            --in1 {input.r1} \
+            --in2 {input.r2} \
+            --out1 {output.r1_out} \
+            --out2 {output.r2_out} \
+            --html {output.html} \
+            --json {output.json} \
+            {params.dont_eval_dup} \
+            --qualified_quality_phred {params.quality} \
+            --thread {threads} \
+            {params.trim_poly_g} &>{log}
+
         echo "fastp completed successfully for {wildcards.sample}"
         """
 
@@ -113,25 +113,24 @@ rule adapter_removal:
     shell:
         """
         mkdir -p {params.output_dir}
-        
+
         echo "Running Adapter Removal on {wildcards.sample}"
         # Run the adapter removal command
         apptainer exec {params.bind_paths} {params.adapter_removal} AdapterRemoval \
-                --gzip \
-                --file1 {input.r1} \
-                --file2 {input.r2} \
-                --output1 {output.trimmed_r1} \
-                --output2 {output.trimmed_r2} \
-                --discarded {params.prefix}.discarded.fastq.gz \
-                --singleton {params.prefix}.singleton.fastq.gz \
-                --settings {params.prefix}.settings \
-                --adapter-list {params.common_adapters} \
-                {params.trimns_flag} \
-                {params.trimqualities_flag} \
-                --threads {threads}
+            --gzip \
+            --file1 {input.r1} \
+            --file2 {input.r2} \
+            --output1 {output.trimmed_r1} \
+            --output2 {output.trimmed_r2} \
+            --discarded {params.prefix}.discarded.fastq.gz \
+            --singleton {params.prefix}.singleton.fastq.gz \
+            --settings {params.prefix}.settings \
+            --adapter-list {params.common_adapters} \
+            {params.trimns_flag} \
+            {params.trimqualities_flag} \
+            --threads {threads}
 
         echo "Adapter Removal completeed sucessfully for {wildcards.sample}"
-        
         """
 
 
@@ -167,19 +166,19 @@ rule remove_human_reads:
         mkdir -p {params.output_dir}
 
         apptainer exec {params.bind_paths} {params.bowtie2} bowtie2 \
-                {params.sensitivity} \
-                --threads {threads} \
-                -x {params.host_genome} \
-                --un-conc-gz {params.output_dir}/{wildcards.sample}_clean \
-                -1 {input.r1} \
-                -2 {input.r2} \
-                > {params.output_dir}/{wildcards.sample}.sam 2> {log}
-        
-        rm {params.output_dir}/{wildcards.sample}.sam 
+            {params.sensitivity} \
+            --threads {threads} \
+            -x {params.host_genome} \
+            --un-conc-gz {params.output_dir}/{wildcards.sample}_clean \
+            -1 {input.r1} \
+            -2 {input.r2} \
+            >{params.output_dir}/{wildcards.sample}.sam 2>{log}
+
+        rm {params.output_dir}/{wildcards.sample}.sam
         mv {params.output_dir}/{wildcards.sample}_clean.1 {output.r1}
         mv {params.output_dir}/{wildcards.sample}_clean.2 {output.r2}
 
-        echo "Removed Human reads from the microbiome"                 
+        echo "Removed Human reads from the microbiome"
         """
 
 
@@ -238,51 +237,53 @@ rule error_correction:
         {params.repair} \
             in={input.r1} in2={input.r2} \
             out={params.tmp_r1} out2={params.tmp_r2} \
-            repair=t -Xmx{params.memory_gb}g -eoom > {log.repair} 2>&1
+            repair=t -Xmx{params.memory_gb}g -eoom >{log.repair} 2>&1
 
         if [ ! -s "{params.tmp_r1}" ] || [ ! -s "{params.tmp_r2}" ]; then
-            echo "ERROR: repair.sh produced empty output" >&2; exit 1
+            echo "ERROR: repair.sh produced empty output" >&2
+            exit 1
         fi
 
-        echo "Starting error correction for {wildcards.sample}" > {log.tadpole}
+        echo "Starting error correction for {wildcards.sample}" >{log.tadpole}
 
         # Attempt 1: conservative tadpole
         if {params.tadpole} mode=correct \
-                in={params.tmp_r1} in2={params.tmp_r2} \
-                out={output.r1} out2={output.r2} \
-                -Xmx{params.memory_gb}g threads={threads} buildthreads={threads} \
-                k={params.k_size} {params.conservative} prealloc=f \
-                {params.ecc} {params.reassemble} pincer=f tail=f >> {log.tadpole} 2>&1; then
-            echo "Attempt 1 (conservative tadpole) succeeded" >> {log.tadpole}
+            in={params.tmp_r1} in2={params.tmp_r2} \
+            out={output.r1} out2={output.r2} \
+            -Xmx{params.memory_gb}g threads={threads} buildthreads={threads} \
+            k={params.k_size} {params.conservative} prealloc=f \
+            {params.ecc} {params.reassemble} pincer=f tail=f >>{log.tadpole} 2>&1; then
+            echo "Attempt 1 (conservative tadpole) succeeded" >>{log.tadpole}
             rm -f {params.tmp_r1} {params.tmp_r2}
 
         # Attempt 2: minimal tadpole
         elif {params.tadpole} mode=correct \
-                in={params.tmp_r1} in2={params.tmp_r2} \
-                out={output.r1} out2={output.r2} \
-                -Xmx12g threads=1 buildthreads=1 k=21 \
-                conservative=t prealloc=f ecc=t reassemble=f >> {log.tadpole} 2>&1; then
-            echo "Attempt 2 (minimal tadpole) succeeded" >> {log.tadpole}
+            in={params.tmp_r1} in2={params.tmp_r2} \
+            out={output.r1} out2={output.r2} \
+            -Xmx12g threads=1 buildthreads=1 k=21 \
+            conservative=t prealloc=f ecc=t reassemble=f >>{log.tadpole} 2>&1; then
+            echo "Attempt 2 (minimal tadpole) succeeded" >>{log.tadpole}
             rm -f {params.tmp_r1} {params.tmp_r2}
 
         # Attempt 3: BBDuk
         elif {params.bbduk} \
-                in={params.tmp_r1} in2={params.tmp_r2} \
-                out={output.r1} out2={output.r2} \
-                mode=correct ecc=t aggressive=f -Xmx8g threads=1 >> {log.tadpole} 2>&1; then
-            echo "Attempt 3 (BBDuk) succeeded" >> {log.tadpole}
+            in={params.tmp_r1} in2={params.tmp_r2} \
+            out={output.r1} out2={output.r2} \
+            mode=correct ecc=t aggressive=f -Xmx8g threads=1 >>{log.tadpole} 2>&1; then
+            echo "Attempt 3 (BBDuk) succeeded" >>{log.tadpole}
             rm -f {params.tmp_r1} {params.tmp_r2}
 
         # Fallback: pass repaired reads through unchanged
         else
-            echo "All correction methods failed — using repaired reads" >> {log.tadpole}
+            echo "All correction methods failed — using repaired reads" >>{log.tadpole}
             cp {params.tmp_r1} {output.r1}
             cp {params.tmp_r2} {output.r2}
             rm -f {params.tmp_r1} {params.tmp_r2}
         fi
 
         if [ ! -s "{output.r1}" ] || [ ! -s "{output.r2}" ]; then
-            echo "CRITICAL: output files are empty or missing" >&2; exit 1
+            echo "CRITICAL: output files are empty or missing" >&2
+            exit 1
         fi
-        echo "Error correction complete for {wildcards.sample}" >> {log.tadpole}
+        echo "Error correction complete for {wildcards.sample}" >>{log.tadpole}
         """
