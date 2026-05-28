@@ -79,6 +79,7 @@ ml = [
     "networkx>=3.6.0",
     "mlflow>=3.11.0",
     "imbalanced-learn",
+    "pyvis"
     ]
 
 # For local development: everything loose (pip resolves conflicts)
@@ -110,7 +111,8 @@ all = [
     "snakemake-executor-plugin-slurm-jobstep>=0.4.0",
     "snakemake-interface-storage-plugins>=4.4.1",
     "snakefmt",
-    "shfmt-py"
+    "shfmt-py",
+    "pyvis"
 ]
 
 [tool.setuptools.packages.find]
