@@ -112,7 +112,8 @@ all = [
     "snakemake-executor-plugin-slurm-jobstep>=0.4.0",
     "snakemake-interface-storage-plugins>=4.4.1",
     "snakefmt",
-    "shfmt-py"
+    "shfmt-py",
+    "pyvis"
 ]
 
 [tool.setuptools.packages.find]

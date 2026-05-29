@@ -2,7 +2,7 @@ BASE_PYTHON ?= python
 VENV_ALL := .venv-all
 PYTHON := .venv-all/bin/python
 
-# Ensure venv binaries (shfmt) are visible
+# Ensure venv binaries are visible
 export PATH := $(VENV_ALL)/bin:$(PATH)
 
 DEFAULT_GOAL := all
