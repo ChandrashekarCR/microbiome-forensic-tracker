@@ -79,6 +79,8 @@ ml = [
     "networkx>=3.6.0",
     "mlflow>=3.11.0",
     "imbalanced-learn",
+    "torch>=2.0",
+    "torch_geometric"
     ]
 
 # For local development: everything loose (pip resolves conflicts)
