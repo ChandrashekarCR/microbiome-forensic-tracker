@@ -35,6 +35,9 @@ class TaxGraph:
         columns = ["precent","clade_reads","direct_reads","rank","tax_id","name"]
         self.kraken_df = pd.read_csv(self.kraken_report,sep="\t",names=columns, header=None)
     
+    def bracken_rsa_lookup(self, df:pd.DataFrame, tax_id:int, column_name:str) -> float:
+        result = df[df['tax_id'] ==  tax_id][column_name].values
+        return result[0] if len(result) > 0 else 0.0
 
     def lineage_from_kraken(self) -> list[tuple[int,int]]:
         # Set lists for nodes and edges
@@ -123,14 +126,62 @@ class TaxGraph:
                 
                 current_parent = parent_node['parent_tax_id']
         
+        # Step 3: Add RSA from Bracken data frame to each node as attributes
+        for organism in nodes_filtered:
+            organism['rsa'] = self.bracken_rsa_lookup(self.bracken_df,organism['tax_id'],'fraction_total_reads')
+
         return nodes_filtered, corrected_edges
 
+    def convert_nodes_edges_to_df(self,nodes:list, edges:list) -> list[pd.DataFrame]:
+        # Convert nodes to a dataframe
+        nodes_df = pd.DataFrame.from_dict(nodes)
+        edges_df = pd.DataFrame(edges,columns=['parent','child'])
 
+        # Add RSA propogration. These are edge attributes to tell how of RSA is propogating to the further levels
+        # rsa_porp = rsa_child/rsa_parent
+        edges_df['rsa_prop'] = edges_df.apply(
+            lambda row: self.bracken_rsa_lookup(nodes_df,row['child'],'rsa') /
+                        max(self.bracken_rsa_lookup(nodes_df,row['parent'],'rsa'),1e-10),
+            axis=1
+        )
+
+        # Add node metadata and overwrite parent_tax_id with compressed lineages
+        compressed_parent_map = dict(zip(edges_df['child'],edges_df['parent']))
+
+        nodes_df['parent_tax_id'] = nodes_df['tax_id'].map(compressed_parent_map)
+
+        nodes_df['branches'] = nodes_df.apply(
+            lambda row: edges_df[edges_df['parent'] == row['tax_id']].shape[0],
+            axis=1
+        )
+
+        nodes_df['parent_present'] = nodes_df['parent_tax_id'].apply(
+            lambda x: "Yes" if pd.notna(x) else "No"
+        )
+
+        return [nodes_df, edges_df]
+    
+    def tree_filterting_criteria(self):
+        # TODO: Write different filtering criteria for trimming down the graph
+        pass
+    
+    
+    def add_microbial_commuity_edges(self):
+        # TODO: Write a method from the feature engineering in ml scripts to account
+        # for a way to connect the diverse phylum.
+        pass
+
+    def convert_df_to_Data(self,nodes_df:pd.DataFrame,edges_df:pd.DataFrame):
+        pass
 
 kraken_report = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/08_kraken2/zr23059_137/kraken_report.tsv"
 bracken_dir = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/09_bracken/zr23059_137"
 G = TaxGraph(kraken_report,bracken_dir)
 v,e = G.lineage_from_kraken()
 v_new,e_new = G.filter_nodes_edges_based_on_bracken_outputs(v)
-print(len(v_new),len(e_new))
-print(len(v),len(e))
+
+# Convert the new nodes and new edges into dataframe
+node_df, edge_df = G.convert_nodes_edges_to_df(v_new,e_new)
+
+print(node_df.shape)
+print(edge_df.shape)
