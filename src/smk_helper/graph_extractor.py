@@ -10,9 +10,12 @@ from pathlib import Path
 
 
 class TaxGraph:
-    def __init__(self, kraken_report: str, bracken_dir: str):
+    def __init__(self, kraken_report: str, bracken_dir: str, min_abd: float=0.0001):
         self.kraken_report = kraken_report
         self.bracken_dir = bracken_dir
+        self.min_abd = min_abd
+        # Bracken based ranks
+        self.standard_ranks =  {"P", "C", "O", "F", "G", "S"}
 
         # Read the bracken files from directory and convert them to pandas dataframe
         self.bracken_df = pd.DataFrame()
@@ -25,13 +28,13 @@ class TaxGraph:
         
         # Make the naming compatible with kraken reports
         self.bracken_df = self.bracken_df.rename(columns={'taxonomy_id':'tax_id'})
+        # Filter RSA based on min_abd
+        self.bracken_df = self.bracken_df[self.bracken_df['fraction_total_reads'] >= self.min_abd ]
 
         # Read kraken as a dataframe
         columns = ["precent","clade_reads","direct_reads","rank","tax_id","name"]
         self.kraken_df = pd.read_csv(self.kraken_report,sep="\t",names=columns, header=None)
     
-    def filter_bracken_df(self, min_abd: float = 0.0001) -> pd.DataFrame:
-        return self.bracken_df[self.bracken_df['fraction_total_reads'] >= min_abd ]
 
     def lineage_from_kraken(self) -> list[tuple[int,int]]:
         # Set lists for nodes and edges
@@ -87,12 +90,47 @@ class TaxGraph:
                 # Push current node onto stack
                 stack.append((depth,tax_id))
         return nodes,edges
+    
+    def filter_nodes_edges_based_on_bracken_outputs(self,nodes: list) -> list[tuple[int,int]]:
+        # Step 1: Filter to bracken report taxa only
+        bracken_tax_ids = set(self.bracken_df['tax_id'].values)
+        all_nodes_lookup = {n['tax_id']: n for n in nodes}
+
+        # Filter the nodes
+        nodes_filtered = [n for n in nodes if n['tax_id'] in bracken_tax_ids]
+
+        # Step 2: Compress lineage (There are lot of non standard ranks like P1, P2, C1, C2...)
+        # These need to be skipped but the edges has to be re-calculated so that they point to bracken classifed ranks only.
+        corrected_edges = []
+        for node in nodes_filtered:
+            child_tax_id = node['tax_id']
+            current_parent = node['parent_tax_id']
+            
+            # If there is no parent, then we just continue
+            if current_parent is None:
+                continue
+            
+            # When the current parent is not None 
+            while current_parent is not None:
+                parent_node = all_nodes_lookup.get(current_parent)
+                if parent_node is None:
+                    break
+
+                parent_rank = parent_node['rank']
+                if parent_rank in self.standard_ranks and current_parent in bracken_tax_ids:
+                    corrected_edges.append((current_parent,child_tax_id))
+                    break
+                
+                current_parent = parent_node['parent_tax_id']
         
+        return nodes_filtered, corrected_edges
 
 
 
 kraken_report = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/08_kraken2/zr23059_137/kraken_report.tsv"
 bracken_dir = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/09_bracken/zr23059_137"
 G = TaxGraph(kraken_report,bracken_dir)
-print(G.filter_bracken_df())
-print(G.lineage_from_kraken())
+v,e = G.lineage_from_kraken()
+v_new,e_new = G.filter_nodes_edges_based_on_bracken_outputs(v)
+print(len(v_new),len(e_new))
+print(len(v),len(e))
