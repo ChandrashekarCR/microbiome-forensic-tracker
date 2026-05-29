@@ -169,6 +169,9 @@ class TaxGraph:
     def add_microbial_commuity_edges(self):
         # TODO: Write a method from the feature engineering in ml scripts to account
         # for a way to connect the diverse phylum.
+        # Essentially, the nodes would remain the same the taxonomy graph, but the number edges will increase
+        # Currently, the phylum nodes are disconnected, each taxonomy graph exists as a separate graphs
+        # Based on the inverse covariance matrix only the direct associations are connected.
         pass
 
     def convert_df_to_Data(self,nodes_df:pd.DataFrame,edges_df:pd.DataFrame):
