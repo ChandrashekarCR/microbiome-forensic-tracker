@@ -10,7 +10,7 @@ from sklearn.covariance import GraphicalLassoCV
 
 class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
-    Remove columns that are all zeros (fit on train only).
+    Remove columns that are all less than a certain threshold (fit on train only).
     """
 
     def __init__(self, min_prevalence: float = 0.05):
