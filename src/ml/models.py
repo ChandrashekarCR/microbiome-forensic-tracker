@@ -60,3 +60,10 @@ class TrainTestSplit:
         Returns the pure 20% blind hold-out set untouched by CV.
         """
         return self.X_test, self.y_test_zone, self.y_test_coords
+
+
+
+print(load_and_prep_data())
+splitter = TrainTestSplit(load_and_prep_data())
+
+print(splitter.stratifed_zone_data_split())

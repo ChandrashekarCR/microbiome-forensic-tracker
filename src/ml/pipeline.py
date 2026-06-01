@@ -226,4 +226,4 @@ if __name__ == "__main__":
     df = load_and_prep_data()
 
     print("\n========== MULTI-STAGE MODEL SELECTION ==========")
-    run_multistage_selection(df, top_k=5)
+    run_multistage_selection(df, top_k=2)
