@@ -19,7 +19,7 @@ def load_and_prep_data() -> pd.DataFrame:
 # Stratifier train test and validation
 class TrainTestSplit:
     def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2):
-        X_all = df.drop(columns=["sample_id", "latitude", "longitude", "zone"], axis=1)
+        X_all = df.drop(columns=["latitude", "longitude", "zone"], axis=1)
         y_zone_all = df["zone"]
         y_coords_all = df[["latitude", "longitude"]]
 
@@ -60,3 +60,13 @@ class TrainTestSplit:
         Returns the pure 20% blind hold-out set untouched by CV.
         """
         return self.X_test, self.y_test_zone, self.y_test_coords
+
+
+df = load_and_prep_data()
+print(df.head())
+splitter = TrainTestSplit(df)
+
+for fold, (train_idx,val_idx) in enumerate(splitter.stratifed_zone_data_split()):
+    # Number of folds , default=4
+    print(f"Processing fold {fold+1}/{splitter.n_splits}")
+    print(train_idx)

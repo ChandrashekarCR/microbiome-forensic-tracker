@@ -11,6 +11,9 @@ from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
 
+import warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
+
 
 def _wrap_multioutput(estimator):
     if isinstance(estimator, MultiOutputRegressor):

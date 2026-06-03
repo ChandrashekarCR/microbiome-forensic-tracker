@@ -1,7 +1,7 @@
 # config.yaml
 database:
   path: "/home/chandru/binp51/databases/malmo.db"
-  table: "malmo_phylum"
+  table: "malmo_class"
 
 data_splitting:
   test_size: 0.2
