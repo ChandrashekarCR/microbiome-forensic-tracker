@@ -147,3 +147,10 @@ set-resources:
     cpus: 12
     mem_mb: 16000
     slurm_job_name: "dnaberts_embeddings"
+  
+  extract_taxonomy:
+    slurm_partition: "lu48"
+    runtime: "15min"
+    mem_mb: 200
+    cpus: 2
+    slurm_job_name: "extract_taxonomy"

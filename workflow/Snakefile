@@ -23,6 +23,7 @@ from smk_helper.standardize_bracken import standardize_bracken, concat_tables
 from smk_helper.select_partition import select_best_partition
 
 ROOT_DIR = Path.cwd()
+GRAPH_EXTRACTOR = ROOT_DIR / config["parameters"]["taxgraph"]["path"]
 
 # Tool image directories
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k, v in config["tools"].items()}
@@ -121,6 +122,16 @@ if STEPS.get("dnaberts_embeddings"):
         )
     )
 
+if STEPS.get("extract_taxonomy"):
+    TARGETS.extend(
+        expand(
+            os.path.join(
+                RESULTS_DIR, "13_taxgraph", "{sample}", "nodes.csv"
+            ),
+            sample=SAMPLES,
+        )
+    )
+
 
 rule all:
     input:
@@ -133,3 +144,4 @@ include: "rules/classification.smk"
 include: "rules/postprocessing.smk"
 include: "rules/assembly.smk"
 include: "rules/bert.smk"
+include: "rules/lineage.smk"
