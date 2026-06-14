@@ -5,8 +5,8 @@ version: "1.0"
 
 # Data Directories
 data:
-  raw_dir: "/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples" #"/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files" 
-  results_dir : "/home/chandru/binp51/results" #"/home/chandru/lu2025-12-38/Students/chandru/assembly_testing"  
+  raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files" #"/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples"  
+  results_dir : "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing" #"/home/chandru/binp51/results" #"/home/chandru/lu2025-12-38/Students/chandru/assembly_testing"  
 
 # Sample Configuration
 samples:
