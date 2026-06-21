@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.model_selection import StratifiedKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, train_test_split
 
 from malmo_samples import db_reader
 from ml.config import config
@@ -16,7 +16,7 @@ def load_and_prep_data() -> pd.DataFrame:
     return df
 
 
-# Stratifier train test and validation
+# Differents methods of splitting data
 class TrainTestSplit:
     def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2):
         X_all = df.drop(columns=["latitude", "longitude", "zone"], axis=1)
@@ -44,6 +44,27 @@ class TrainTestSplit:
         """
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=config.data_splitting.random_state)
         return list(skf.split(self.X_cv, self.y_cv_zone))
+    
+    def repeated_zone_data_split(self) -> list:
+        """
+        Return indices which are meant for regression tasks and not for classification tasks
+        """
+        rkf = RepeatedKFold(n_splits=self.n_splits,n_repeats=config.data_splitting.n_repeats, random_state=config.data_splitting.random_state)
+        return list(rkf.split(self.X_cv))
+
+    def repeated_stratified_zone_data_split(self) -> list:
+        """
+        Returns repeated stratified k-fold cv on the remaining 80% data
+        """
+        rskf = RepeatedStratifiedKFold(n_splits=self.n_splits, n_repeats=config.data_splitting.n_repeats, random_state=config.data_splitting.random_state)
+        return list(rskf.split(self.X_cv,self.y_cv_zone))
+    
+    def leave_one_out_split(self) -> list:
+        """
+        Returns a list of indices which are from the 80% of the dataset and one is left out, rest is trained on
+        """
+        loocv = LeaveOneOut()
+        return list(loocv.split(self.X_cv))
 
     def get_fold_data(self, train_idx: int, val_idx: int) -> tuple:
         """
@@ -66,7 +87,6 @@ df = load_and_prep_data()
 print(df.head())
 splitter = TrainTestSplit(df)
 
-for fold, (train_idx,val_idx) in enumerate(splitter.stratifed_zone_data_split()):
+for fold, (train_idx,val_idx) in enumerate(splitter.repeated_zone_data_split()):
     # Number of folds , default=4
-    print(f"Processing fold {fold+1}/{splitter.n_splits}")
-    print(train_idx)
+    print(splitter.get_fold_data(train_idx,val_idx))    

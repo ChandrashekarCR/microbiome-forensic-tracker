@@ -1,12 +1,13 @@
 # config.yaml
 database:
   path: "/home/chandru/binp51/databases/malmo.db"
-  table: "malmo_class"
+  table: "malmo_phylum"
 
 data_splitting:
   test_size: 0.2
   random_state: 42
   n_splits: 3
+  n_repeats: 10
 
 mlflow:
   experiment_name: "Microbiome_Geolocation"
