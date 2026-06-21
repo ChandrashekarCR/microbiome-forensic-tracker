@@ -6,7 +6,7 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
 
 from ml.config import config
-from ml.evaluation import evaluate_coordinates
+from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
@@ -20,7 +20,7 @@ def _wrap_multioutput(estimator):
         return estimator
     return MultiOutputRegressor(estimator)
 
-
+# Build a pipline which is re-usable
 def build_pipeline(estimator, use_network_features: bool = True):
     """
     Build a reusable pipeline with optional network feature engineering.
@@ -47,11 +47,12 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
+# There are different ways of splitting the data, but everything generates indcices, we will use accordingly
 def _get_configured_cv_split(splitter: TrainTestSplit):
     """
     Dynamic CV selector based on the global pipeline execution strategy string
     """
-    strategy = config.piepline_excecution.get("cv_strategy","stratified").lower()
+    strategy = config.pipeline_excecution.get("cv_strategy","loo").lower()
 
     if strategy == "loo":
         return splitter.leave_one_out_split()
@@ -64,8 +65,8 @@ def _get_configured_cv_split(splitter: TrainTestSplit):
 def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
     fold_scores = []
     cv_splits = _get_configured_cv_split(splitter)
-    strategy = config.pipeline_excecution.get("cv_strategy","stratified").lower()
-    use_meters = config.pipeline_excecution.get("use_cartesion_meters",False)
+    #strategy = config.pipeline_excecution.get("cv_strategy","stratified").lower()
+    use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
 
     for fold, (train_idx, val_idx) in enumerate(cv_splits):
 
@@ -81,21 +82,31 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val)
 
-        # 5. Custom evaluation script
-        metrics = evaluate_coordinates(
-            y_true_lat=y_val_coords["latitude"].values,
-            y_true_lon=y_val_coords["longitude"].values,
-            y_pred_lat=preds_val[:, 0],
-            y_pred_lon=preds_val[:, 1],
-            zones_true=y_val_zone.values,
-        )
+        # 5. Custom evaluation script (use projected meters if configured)
+        if use_meters:
+            metrics = evaluate_projected_coordinates(
+                x_true=y_val_coords["X_meters"].values,
+                y_true=y_val_coords["Y_meters"].values,
+                x_pred=preds_val[:, 0],
+                y_pred=preds_val[:, 1],
+                zones_true=y_val_zone.values,
+            )
+            fold_mae = metrics["mean_error_km"]
+        else:
+            if "latitude" not in y_val_coords.columns or "longitude" not in y_val_coords.columns:
+                raise RuntimeError("y_cv_coords does not contain latitude/longitude; enable use_cartesian_meters or include lat/lon in TrainTestSplit")
+            metrics = evaluate_coordinates(
+                y_true_lat=y_val_coords["latitude"].values,
+                y_true_lon=y_val_coords["longitude"].values,
+                y_pred_lat=preds_val[:, 0],
+                y_pred_lon=preds_val[:, 1],
+                zones_true=y_val_zone.values,
+            )
+            fold_mae = metrics["mean_error_km"]
 
-        fold_mae = metrics["mean_error_km"]
         fold_scores.append(fold_mae)
-
         print(f"Fold {fold + 1} Mean Haversine Error: {fold_mae:.2f} km")
 
-    # 6. Log Overall CV Metrics
     avg_mae = np.mean(fold_scores)
     print(f"\nCompleted Strategy CV. Average Haversine Error: {avg_mae:.4f}")
 

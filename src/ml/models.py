@@ -1,4 +1,5 @@
 import pandas as pd
+from pyproj import Transformer
 from sklearn.model_selection import StratifiedKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, train_test_split
 
 from malmo_samples import db_reader
@@ -19,9 +20,24 @@ def load_and_prep_data() -> pd.DataFrame:
 # Differents methods of splitting data
 class TrainTestSplit:
     def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2):
-        X_all = df.drop(columns=["latitude", "longitude", "zone"], axis=1)
+        X_all = df.drop(columns=["latitude", "longitude", "zone","sample_id"], axis=1)
         y_zone_all = df["zone"]
-        y_coords_all = df[["latitude", "longitude"]]
+
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:3006", always_xy=True)
+        x_m, y_m = transformer.transform(
+            df['longitude'].to_numpy(),
+            df['latitude'].to_numpy(),
+        )
+
+        new_cols = pd.DataFrame(
+            {"X_meters": x_m, "Y_meters": y_m},
+            index=df.index,
+        )
+
+        df = pd.concat([df, new_cols], axis=1)
+
+        y_coords_all = df[['X_meters', 'Y_meters',"latitude","longitude"]]     
+        #y_coords_all = df[["latitude", "longitude"]]
 
         self.n_splits = n_splits
 
@@ -84,9 +100,11 @@ class TrainTestSplit:
 
 
 #df = load_and_prep_data()
-#print(df.head())
 #splitter = TrainTestSplit(df)
 #
 #for fold, (train_idx,val_idx) in enumerate(splitter.repeated_zone_data_split()):
 #    # Number of folds , default=4
-#    print(splitter.get_fold_data(train_idx,val_idx))    
+#    X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx,val_idx)
+#
+#    print(X_train)
+#    print(y_train_coords)    
