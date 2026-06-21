@@ -23,6 +23,16 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     r = EARTH_RADIUS  # Radius of earth in kilometers
     return c * r
 
+def euclidean_distance(x1,y1,x2,y2):
+    """
+    Cartesian distance between two sets of points in a projected CRS (e.g. EPSG:3006).
+    All coordinates are expected in meters.
+    Supports scalars, 1D arrays, or pandas Series.
+    """
+
+    dx = x2 - x1
+    dy = y2 - y1
+    return np.sqrt(dx**2 + dy**2) # Standard euclidean distance formula
 
 def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_true=None, zones_pred=None):
     """
@@ -59,5 +69,70 @@ def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_t
             # Clean string for mlflow metric naming
             clean_name = str(zone_name).replace(" ", "_").replace("-", "")
             metrics[f"zone_{clean_name}_mean_err_km"] = err
+
+    return metrics
+
+def evaluate_projected_coordinates(
+    x_true,
+    y_true,
+    x_pred,
+    y_pred,
+    zones_true=None,
+    zones_pred=None,
+    in_radius_thresholds_m=None,
+):
+    """
+    Evaluate spatial coordinate predictions in a projected CRS (e.g. EPSG:3006).
+    Distances are computed as Euclidean distances in meters.
+
+    x_*, y_* are coordinates in meters (after CRS transform).
+    """
+    # 1. Distances in meters
+    distances_m = euclidean_distance(x_true, y_true, x_pred, y_pred)
+
+    # 2. Basic error metrics (meters and km)
+    metrics = {
+        "median_error_m": float(np.median(distances_m)),
+        "mean_error_m": float(np.mean(distances_m)),
+        "max_error_m": float(np.max(distances_m)),
+        "median_error_km": float(np.median(distances_m) / 1000.0),
+        "mean_error_km": float(np.mean(distances_m) / 1000.0),
+        "max_error_km": float(np.max(distances_m) / 1000.0),
+    }
+
+    # 3. In-radius metrics (default thresholds in meters)
+    if in_radius_thresholds_m is None:
+        in_radius_thresholds_m = [50, 100, 250, 500, 1000]  # 50 m, 100 m, 250 m, 0.5 km, 1 km
+
+    for r in in_radius_thresholds_m:
+        percent = np.mean(distances_m <= r) * 100.0
+        metrics[f"in_radius_{r}m_pct"] = float(percent)
+
+    # 4. Zone-based expected error (same logic as your haversine version)
+    if zones_pred is not None and zones_true is not None:
+        df = pd.DataFrame(
+            {
+                "true_zone": zones_true,
+                "pred_zone": zones_pred,
+                "error_m": distances_m,
+            }
+        )
+
+        df["zone_correct"] = df["true_zone"] == df["pred_zone"]
+
+        group_stats = df.groupby("zone_correct")["error_m"].agg(["count", "mean"])
+        group_stats["proportion"] = group_stats["count"] / len(df)
+        group_stats["weighted_error"] = group_stats["mean"] * group_stats["proportion"]
+
+        expected_error_m = group_stats["weighted_error"].sum()
+        metrics["expected_distance_error_m"] = float(expected_error_m)
+        metrics["expected_distance_error_km"] = float(expected_error_m / 1000.0)
+
+        # Mean error per true zone
+        zone_perf = df.groupby("true_zone")["error_m"].mean().to_dict()
+        for zone_name, err_m in zone_perf.items():
+            clean_name = str(zone_name).replace(" ", "_").replace("-", "")
+            metrics[f"zone_{clean_name}_mean_err_m"] = float(err_m)
+            metrics[f"zone_{clean_name}_mean_err_km"] = float(err_m / 1000.0)
 
     return metrics

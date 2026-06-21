@@ -47,18 +47,27 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
-def _get_configured_cv_split(spliiter: TrainTestSplit):
+def _get_configured_cv_split(splitter: TrainTestSplit):
     """
     Dynamic CV selector based on the global pipeline execution strategy string
     """
     strategy = config.piepline_excecution.get("cv_strategy","stratified").lower()
 
+    if strategy == "loo":
+        return splitter.leave_one_out_split()
+    elif strategy == "repeated_kfold":
+        return splitter.repeated_zone_data_split()
+    else:
+        return splitter.repeated_stratified_zone_data_split()
+
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
 def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
     fold_scores = []
+    cv_splits = _get_configured_cv_split(splitter)
+    strategy = config.pipeline_excecution.get("cv_strategy","stratified").lower()
+    use_meters = config.pipeline_excecution.get("use_cartesion_meters",False)
 
-    for fold, (train_idx, val_idx) in enumerate(splitter.stratifed_zone_data_split()):
-        print(f"Processing Fold {fold + 1}/{splitter.n_splits}")
+    for fold, (train_idx, val_idx) in enumerate(cv_splits):
 
         # 1. Get fold data
         X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
