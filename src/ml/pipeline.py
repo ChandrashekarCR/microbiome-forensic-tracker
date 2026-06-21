@@ -14,7 +14,7 @@ from ml.models import TrainTestSplit, load_and_prep_data
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
 
-
+# Predict the latitude and longitude together
 def _wrap_multioutput(estimator):
     if isinstance(estimator, MultiOutputRegressor):
         return estimator
@@ -27,8 +27,10 @@ def build_pipeline(estimator, use_network_features: bool = True):
     """
     steps = []
 
+    # Prevalence filter toggle switch
     steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalence)))
 
+    # Feature Engineering toggle switch
     if use_network_features:
         steps.append(
             (
@@ -45,6 +47,11 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
+def _get_configured_cv_split(spliiter: TrainTestSplit):
+    """
+    Dynamic CV selector based on the global pipeline execution strategy string
+    """
+    strategy = config.piepline_excecution.get("cv_strategy","stratified").lower()
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
 def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
@@ -229,4 +236,4 @@ if __name__ == "__main__":
     df = load_and_prep_data()
 
     print("\n========== MULTI-STAGE MODEL SELECTION ==========")
-    run_multistage_selection(df, top_k=5)
+    run_multistage_selection(df, top_k=2)
