@@ -83,10 +83,10 @@ class TrainTestSplit:
         return self.X_test, self.y_test_zone, self.y_test_coords
 
 
-df = load_and_prep_data()
-print(df.head())
-splitter = TrainTestSplit(df)
-
-for fold, (train_idx,val_idx) in enumerate(splitter.repeated_zone_data_split()):
-    # Number of folds , default=4
-    print(splitter.get_fold_data(train_idx,val_idx))    
+#df = load_and_prep_data()
+#print(df.head())
+#splitter = TrainTestSplit(df)
+#
+#for fold, (train_idx,val_idx) in enumerate(splitter.repeated_zone_data_split()):
+#    # Number of folds , default=4
+#    print(splitter.get_fold_data(train_idx,val_idx))    
