@@ -52,7 +52,7 @@ def _get_configured_cv_split(splitter: TrainTestSplit):
     """
     Dynamic CV selector based on the global pipeline execution strategy string
     """
-    strategy = config.pipeline_excecution.get("cv_strategy","loo").lower()
+    strategy = config.pipeline_excecution.get("cv_strategy").lower()
 
     if strategy == "loo":
         return splitter.leave_one_out_split()
