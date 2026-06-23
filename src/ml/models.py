@@ -36,6 +36,7 @@ class TrainTestSplit:
 
         df = pd.concat([df, new_cols], axis=1)
 
+        # Pass in everything and let the user decided on which he wants to train on. Accordingly the evaution metrics are set.
         y_coords_all = df[['X_meters', 'Y_meters',"latitude","longitude"]]     
         #y_coords_all = df[["latitude", "longitude"]]
 

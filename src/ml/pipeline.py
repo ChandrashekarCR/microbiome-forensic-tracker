@@ -15,6 +15,7 @@ import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
 
 # Predict the latitude and longitude together
+# We just wrap any model with multiregressor which will predict latitude and longitude both simultaneously
 def _wrap_multioutput(estimator):
     if isinstance(estimator, MultiOutputRegressor):
         return estimator
@@ -65,13 +66,20 @@ def _get_configured_cv_split(splitter: TrainTestSplit):
 def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
     fold_scores = []
     cv_splits = _get_configured_cv_split(splitter)
-    #strategy = config.pipeline_excecution.get("cv_strategy","stratified").lower()
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
+    strategy = config.pipeline_excecution.get("cv_strategy").lower()
 
     for fold, (train_idx, val_idx) in enumerate(cv_splits):
 
         # 1. Get fold data
         X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
+
+        # Check if the use meters is switched on or off. If we are using cartesion then we need to train on x,y as cartesion cordinates
+        # and not as latitude and longitude
+        if use_meters:
+            y_train_coords = y_train_coords[['X_meters','Y_meters']]
+        else:
+            y_train_coords = y_train_coords[['latitude','longitude']]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
         pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features)
@@ -91,10 +99,8 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mae = metrics["mean_error_km"]
+            fold_mekm = metrics["mean_error_km"]
         else:
-            if "latitude" not in y_val_coords.columns or "longitude" not in y_val_coords.columns:
-                raise RuntimeError("y_cv_coords does not contain latitude/longitude; enable use_cartesian_meters or include lat/lon in TrainTestSplit")
             metrics = evaluate_coordinates(
                 y_true_lat=y_val_coords["latitude"].values,
                 y_true_lon=y_val_coords["longitude"].values,
@@ -102,15 +108,15 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred_lon=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mae = metrics["mean_error_km"]
+            fold_mekm = metrics["mean_error_km"]
 
-        fold_scores.append(fold_mae)
-        print(f"Fold {fold + 1} Mean Haversine Error: {fold_mae:.2f} km")
+        fold_scores.append(fold_mekm)
+        print(f"Fold {fold + 1} Mean Distance Error: {fold_mekm:.2f} km")
 
-    avg_mae = np.mean(fold_scores)
-    print(f"\nCompleted Strategy CV. Average Haversine Error: {avg_mae:.4f}")
+    avg_mekm = np.mean(fold_scores)
+    print(f"\nCompleted CV with strategy {strategy}. Mean Distance Error: {avg_mekm:.4f}")
 
-    return float(avg_mae)
+    return float(avg_mekm)
 
 
 # Use all the models mentioned and evaluate each one individually on the train and validation dataset.
@@ -120,17 +126,17 @@ def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_feature
         model_name = model_def["name"]
         estimator = model_def["estimator"]
         print(f"\nEvaluating {model_name} (network_features={use_network_features})")
-        avg_mae = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
+        avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
         results.append(
             {
                 "name": model_name,
                 "model_type": model_def.get("model_type"),
                 "estimator": estimator,
-                "avg_mae": avg_mae,
+                "avg_mekm": avg_mekm,
             }
         )
 
-    results.sort(key=lambda x: x["avg_mae"])
+    results.sort(key=lambda x: x["avg_mekm"])
     return results[:top_k], results
 
 
@@ -206,6 +212,7 @@ def run_multistage_selection(df, top_k: int = 2):
     STAGE 3: Best model with feature engineering + hyperparameter tuning.
     """
 
+    # Pass in the dataframe, number of split and test size
     splitter = TrainTestSplit(
         df,
         n_splits=config.data_splitting.n_splits,
@@ -218,37 +225,37 @@ def run_multistage_selection(df, top_k: int = 2):
 
     print("\nStage 1 Results (Top Models):")
     for r in top_stage1:
-        print(f"{r['name']}: {r['avg_mae']:.4f} km")
+        print(f"{r['name']}: {r['avg_mekm']:.4f} km")
 
-    print("\nSTAGE 2: Re-evaluate with top K models (feature engineering)")
-    top_stage2, stage2_results = _rank_models(splitter, top_stage1, use_network_features=True, top_k=1)
+    #print("\nSTAGE 2: Re-evaluate with top K models (feature engineering)")
+    #top_stage2, stage2_results = _rank_models(splitter, top_stage1, use_network_features=True, top_k=1)
+#
+    #best_model_def = top_stage2[0]
+    #print("\nStage 2 Best Model:")
+    #print(f"{best_model_def['name']}: {best_model_def['avg_mae']:.4f} km")
+#
+    #tuned_pipeline = _tune_top_model(splitter, best_model_def)
 
-    best_model_def = top_stage2[0]
-    print("\nStage 2 Best Model:")
-    print(f"{best_model_def['name']}: {best_model_def['avg_mae']:.4f} km")
-
-    tuned_pipeline = _tune_top_model(splitter, best_model_def)
-
-    X_test, y_test_zone, y_test_coords = splitter.get_test_data()
-    test_preds = tuned_pipeline.predict(X_test)
-    test_metrics = evaluate_coordinates(
-        y_true_lat=y_test_coords["latitude"].values,
-        y_true_lon=y_test_coords["longitude"].values,
-        y_pred_lat=test_preds[:, 0],
-        y_pred_lon=test_preds[:, 1],
-        zones_true=y_test_zone.values,
-    )
-
-    print("\nSTAGE 3 Final Test Evaluation (tuned model):")
-    for metric, value in test_metrics.items():
-        print(metric, value)
-
-    return {
-        "stage1_results": stage1_results,
-        "stage2_results": stage2_results,
-        "test_metrics": test_metrics,
-        "best_model": best_model_def,
-    }
+    #X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+    #test_preds = tuned_pipeline.predict(X_test)
+    #test_metrics = evaluate_coordinates(
+    #    y_true_lat=y_test_coords["latitude"].values,
+    #    y_true_lon=y_test_coords["longitude"].values,
+    #    y_pred_lat=test_preds[:, 0],
+    #    y_pred_lon=test_preds[:, 1],
+    #    zones_true=y_test_zone.values,
+    #)
+#
+    #print("\nSTAGE 3 Final Test Evaluation (tuned model):")
+    #for metric, value in test_metrics.items():
+    #    print(metric, value)
+#
+    #return {
+    #    "stage1_results": stage1_results,
+    #    "stage2_results": stage2_results,
+    #    "test_metrics": test_metrics,
+    #    "best_model": best_model_def,
+    #}
 
 
 if __name__ == "__main__":
