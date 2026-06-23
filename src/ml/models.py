@@ -44,7 +44,8 @@ class TrainTestSplit:
 
         # 1. Slice off the 20% blind test set first. Stratify by zone.
         (self.X_cv, self.X_test, self.y_cv_zone, self.y_test_zone, self.y_cv_coords, self.y_test_coords) = train_test_split(
-            X_all, y_zone_all, y_coords_all, test_size=test_size, stratify=y_zone_all, random_state=config.data_splitting.random_state
+            X_all, y_zone_all, y_coords_all, test_size=test_size, 
+            stratify=y_zone_all, random_state=config.data_splitting.random_state
         )
 
         # Reset indices so K-Fold integer indexing (.iloc) works perfectly
