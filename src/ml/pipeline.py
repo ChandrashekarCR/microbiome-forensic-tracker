@@ -4,12 +4,14 @@ from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
+import mlflow
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
+from ml.mlflow_utils import start_run
 
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
@@ -120,11 +122,24 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
 
 
 # Use all the models mentioned and evaluate each one individually on the train and validation dataset.
+# This is the main part of the machine learning architecture, becuase this ranks the models and is called in
+# in the run multistage selections
 def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_features: bool, top_k: int = 5):
+    
+    # Store the results for each model
     results = []
+    
     for model_def in model_defs:
         model_name = model_def["name"]
         estimator = model_def["estimator"]
+
+        # Start a separate run for each model
+        with start_run(run_name=f"stage1_{model_name}") as run:
+            # Log things like stage, network features, what ever is important
+            mlflow.set_tag("stage1", "baseline")
+            mlflow.set_tag("model_family",model_def.get("family","unknown"))
+            mlflow.set_tag("use_network_features",str(use_network_features))
+
         print(f"\nEvaluating {model_name} (network_features={use_network_features})")
         avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
         results.append(
