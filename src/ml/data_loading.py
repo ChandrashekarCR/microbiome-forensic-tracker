@@ -48,7 +48,7 @@ class DatabaseRSA:
 
     def merge_data(self, metadata_df: pd.DataFrame, rsa_df: pd.DataFrame) -> pd.DataFrame:
 
-        # Merge the data
+        # Merge the data - metadata and the RSA data
         df = pd.merge(metadata_df, rsa_df, on="sample_id", how="inner")
 
         # Drop columns
@@ -65,6 +65,9 @@ class DatabaseRSA:
         # 3. Enforce float for all remaining abundance columns
         taxa_cols = [col for col in df.columns if col not in ["sample_id", "zone", "latitude", "longitude"]]
         df[taxa_cols] = df[taxa_cols].astype(float)
+
+        # 4. Set the sample_id as the index for easier train/test/val split
+        #df.set_index("sample_id",inplace=True)
 
         return df
 
