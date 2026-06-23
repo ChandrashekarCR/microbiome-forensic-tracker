@@ -28,6 +28,7 @@ feature_engineering:
 
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
+  enabled: true
   XGBoost:
     enabled: true
     family: "tree"
@@ -75,9 +76,13 @@ stage_1:
   
 # Stage 2: Is the same models parameters but with feature engineering
 # There are no major changes for the model parameters here
+stage_2:
+  enabled: true
+  feature_extraction: "network_features" # Options: "network_features", "recursive_feature_elimination"
 
 # Stage 3: Tuned hyperparameters (only for top 5)
 stage_3:
+  enabled: false
   n_iter: 20
   cv_folds: 3
   random_state: 42
