@@ -10,7 +10,7 @@ from sklearn.covariance import GraphicalLassoCV
 
 class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
-    Remove columns that are all zeros (fit on train only).
+    Remove columns that are all less than a certain threshold (fit on train only).
     """
 
     def __init__(self, min_prevalence: float = 0.05):
@@ -194,3 +194,52 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         plt.savefig(output_file, dpi=300)
         plt.close()
         print(f"Network visualization saved successfully to {output_file}")
+
+
+class RecursiveFeatureElimination(BaseEstimator, TransformerMixin):
+    """
+    We perfrom reursive feature elimintaion to identify the GITs (Geographically informative taxa. mGPS paper adapted)
+    """
+
+    def __init__(self, n_features_to_select: int = None, cv: int = 5, random_state: int = 123, step: float = 0.1,
+                 remove_correlated: bool = True, correlation_threshold: float = 0.95, estimator=None):
+        """
+        Initialize RFE feature selector.
+        
+        Parameters:
+        -----------
+        n_features_to_select : int, optional
+            Number of features to select. If None, will determine automatically via CV.
+        cv : int
+            Number of cross-validation folds.
+        random_state : int
+            Random state for reproducibility.
+        step : float or int
+            Number of features to remove at each iteration.
+            If float between 0 and 1, it's the fraction of features to remove.
+        remove_correlated : bool
+            Whether to remove highly correlated features before RFE.
+        correlation_threshold : float
+            Threshold for removing correlated features.
+        estimator : sklearn estimator, optional
+            If None, uses RandomForestClassifier with default parameters.
+        """
+                
+        self.n_features_to_select = n_features_to_select
+        self.cv = cv
+        self.random_state = random_state
+        self.step = step
+        self.remove_correlated = remove_correlated
+        self.correlation_threshold = correlation_threshold
+        self.estimator = estimator
+
+         # Attributes to store during fit
+        self.selected_features_ = None
+        self.feature_ranking_ = None
+        self.support_ = None
+        self.best_accuracy_ = None
+        self.rfe_results_ = None
+        self.correlated_features_removed_ = None
+
+        
+        
