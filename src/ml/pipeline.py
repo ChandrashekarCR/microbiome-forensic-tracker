@@ -11,7 +11,7 @@ from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
-from ml.mlflow_utils import start_run
+from ml.mlflow_utils import start_run, log_model_params, log_model_metrics
 
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
@@ -114,7 +114,7 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
 
         fold_scores.append(fold_mekm)
         print(f"Fold {fold + 1} Mean Distance Error: {fold_mekm:.2f} km")
-
+        print(metrics)
     avg_mekm = np.mean(fold_scores)
     print(f"\nCompleted CV with strategy {strategy}. Mean Distance Error: {avg_mekm:.4f}")
 
@@ -140,16 +140,27 @@ def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_feature
             mlflow.set_tag("model_family",model_def.get("family","unknown"))
             mlflow.set_tag("use_network_features",str(use_network_features))
 
-        print(f"\nEvaluating {model_name} (network_features={use_network_features})")
-        avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
-        results.append(
-            {
-                "name": model_name,
-                "model_type": model_def.get("model_type"),
-                "estimator": estimator,
-                "avg_mekm": avg_mekm,
-            }
-        )
+            # Log model params
+            if hasattr(estimator,'get_params'):
+                mlflow.log_params(estimator.get_params())
+            
+            print(f"\nEvaluating {model_name} (network_features={use_network_features})")
+            
+            # Evaluate
+            avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
+
+
+            # Log the metrics
+            #log_model_metrics()
+
+            results.append(
+                {
+                    "name": model_name,
+                    "model_type": model_def.get("model_type"),
+                    "estimator": estimator,
+                    "avg_mekm": avg_mekm,
+                }
+            )
 
     results.sort(key=lambda x: x["avg_mekm"])
     return results[:top_k], results
