@@ -28,7 +28,6 @@ feature_engineering:
 
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
-  enabled: true
   XGBoost:
     enabled: true
     family: "tree"

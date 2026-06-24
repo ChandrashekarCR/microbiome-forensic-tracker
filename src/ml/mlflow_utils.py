@@ -57,5 +57,18 @@ def log_params_config():
 
     mlflow.log_params(params)
 
+def log_model_params(model):
+    """
+    Log model parameters
+    """
+    if hasattr(model,'get_params'):
+        params = model.get_params()
+        mlflow.log_params({f"model_{k}": v for k,v in params.items()})
 
+def log_model_metrics(metrics: Dict[str,float],step: Optional[int] = None):
+    """
+    Log evaluation metrics. A custom evalution metrics is set to measeure the cartesion and haversine distance
+    """
+    for key,value in metrics.items():
+        mlflow.log_metric(key,value,step=step)
 

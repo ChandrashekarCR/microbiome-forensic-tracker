@@ -34,7 +34,7 @@ def euclidean_distance(x1,y1,x2,y2):
     dy = y2 - y1
     return np.sqrt(dx**2 + dy**2) # Standard euclidean distance formula
 
-def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_true=None, zones_pred=None):
+def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_true=None, zones_pred=None) -> dict:
     """
     Evaluate models for spatial coordinates prediction using Haversine distance.
     Returns a dictionary of metrics ready to be logged to MLflow.
@@ -78,9 +78,8 @@ def evaluate_projected_coordinates(
     x_pred,
     y_pred,
     zones_true=None,
-    zones_pred=None,
-    in_radius_thresholds_m=None,
-):
+    zones_pred=None
+) -> dict:
     """
     Evaluate spatial coordinate predictions in a projected CRS (e.g. EPSG:3006).
     Distances are computed as Euclidean distances in meters.
@@ -89,24 +88,26 @@ def evaluate_projected_coordinates(
     """
     # 1. Distances in meters
     distances_m = euclidean_distance(x_true, y_true, x_pred, y_pred)
+    # Convert the distance into km
+    distances = distances_m / 10000.0
 
     # 2. Basic error metrics (meters and km)
     metrics = {
-        "median_error_m": float(np.median(distances_m)),
-        "mean_error_m": float(np.mean(distances_m)),
-        "max_error_m": float(np.max(distances_m)),
+        #"median_error_m": float(np.median(distances_m)),
+        #"mean_error_m": float(np.mean(distances_m)),
+        #"max_error_m": float(np.max(distances_m)),
         "median_error_km": float(np.median(distances_m) / 1000.0),
         "mean_error_km": float(np.mean(distances_m) / 1000.0),
         "max_error_km": float(np.max(distances_m) / 1000.0),
     }
 
-    # 3. In-radius metrics (default thresholds in meters)
-    if in_radius_thresholds_m is None:
-        in_radius_thresholds_m = [50, 100, 250, 500, 1000]  # 50 m, 100 m, 250 m, 0.5 km, 1 km
-
-    for r in in_radius_thresholds_m:
-        percent = np.mean(distances_m <= r) * 100.0
-        metrics[f"in_radius_{r}m_pct"] = float(percent)
+    # 3. In-radius metrics (default thresholds in km)   
+    # Calculate in-radius metrics
+    # Set the threshold in radius of km
+    thresholds = [0.5, 1, 3, 5, 10]
+    for r in thresholds:
+        percent = np.mean(distances <= r) * 100
+        metrics[f"in_radius_{r}km_pct"] = percent
 
     # 4. Zone-based expected error (same logic as your haversine version)
     if zones_pred is not None and zones_true is not None:
