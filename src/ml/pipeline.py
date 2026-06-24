@@ -65,8 +65,16 @@ def _get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.repeated_stratified_zone_data_split()
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
-    fold_scores = []
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
+    fold_mekm = []
+    fold_mdekm = []
+    fold_maxekm = []
+    fold_05km = []
+    fold_1km = []
+    fold_3km = []
+    fold_5km = []
+    fold_10km = []
+
     cv_splits = _get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
@@ -101,7 +109,6 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mekm = metrics["mean_error_km"]
         else:
             metrics = evaluate_coordinates(
                 y_true_lat=y_val_coords["latitude"].values,
@@ -110,15 +117,46 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred_lon=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mekm = metrics["mean_error_km"]
 
-        fold_scores.append(fold_mekm)
-        print(f"Fold {fold + 1} Mean Distance Error: {fold_mekm:.2f} km")
-        print(metrics)
-    avg_mekm = np.mean(fold_scores)
+        # Collect per fold metrics
+        fold_mekm.append(metrics["mean_error_km"])
+        fold_mdekm.append(metrics["median_error_km"])
+        fold_maxekm.append(metrics["max_error_km"])
+        fold_05km.append(metrics["in_radius_0.5km_pct"])
+        fold_1km.append(metrics["in_radius_1km_pct"])
+        fold_3km.append(metrics["in_radius_3km_pct"])
+        fold_5km.append(metrics["in_radius_5km_pct"])
+        fold_10km.append(metrics["in_radius_10km_pct"])
+
+
+        print(f"Fold {fold + 1} Mean Distance Error: {metrics["mean_error_km"]:.2f} km")
+    
+    # Calculate the mean of mean error in km per fold, mean of median, and mean of max error
+    # Aggregate
+    avg_mekm = float(np.mean(fold_mekm))
+    avg_mdekm = float(np.mean(fold_mdekm))
+    avg_maxekm = float(np.mean(fold_maxekm))
+    avg_05km = float(np.mean(fold_05km))
+    avg_1km = float(np.mean(fold_1km))
+    avg_3km = float(np.mean(fold_3km))
+    avg_5km = float(np.mean(fold_5km))
+    avg_10km = float(np.mean(fold_10km))
+
     print(f"\nCompleted CV with strategy {strategy}. Mean Distance Error: {avg_mekm:.4f}")
 
-    return float(avg_mekm)
+    # Final summary of the averaged metrics from the fold for logging
+    summary_metrics = {
+        "cv_mean_error_km": avg_mekm,
+        "cv_median_error_km": avg_mdekm,
+        "cv_max_error_km": avg_maxekm,
+        "cv_in_radius_0.5km_pct": avg_05km,
+        "cv_in_radius_1km_pct": avg_1km,
+        "cv_in_radius_3km_pct": avg_3km,
+        "cv_in_radius_5km_pct": avg_5km,
+        "cv_in_radius_10km_pct": avg_10km,
+    }
+
+    return avg_mekm , summary_metrics
 
 
 # Use all the models mentioned and evaluate each one individually on the train and validation dataset.
@@ -147,11 +185,11 @@ def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_feature
             print(f"\nEvaluating {model_name} (network_features={use_network_features})")
             
             # Evaluate
-            avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
+            avg_mekm, summary_metrics = evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
 
 
-            # Log the metrics
-            #log_model_metrics()
+            # Log the average summary metrics
+            log_model_metrics(metrics=summary_metrics)
 
             results.append(
                 {
