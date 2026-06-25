@@ -76,7 +76,7 @@ class DatabaseCreate:
             "altitude",
             "precision",
             "date",
-            "time",
+            "time"
         ]
 
         return df[cols]
@@ -129,5 +129,5 @@ class DatabaseCreate:
         return df
 
 
-# samples = DatabaseCreate(db="./databases/malmo.db")
-# print(samples.get_samples())
+#samples = DatabaseCreate(db="/home/chandru/binp51/databases/malmo.db")
+#print(samples.get_samples())
