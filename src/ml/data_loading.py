@@ -63,8 +63,17 @@ class DatabaseRSA:
         df["longitude"] = df["longitude"].astype(float)
 
         # 3. Enforce float for all remaining abundance columns
-        taxa_cols = [col for col in df.columns if col not in ["sample_id", "zone", "latitude", "longitude"]]
-        df[taxa_cols] = df[taxa_cols].astype(float)
+        for col in df.columns:
+            if col not in ["sample_id","zone","latitude","longitude"]:
+                try:
+                    df[col] = df[col].astype(float)
+                except (ValueError,TypeError) as e:
+                    print(f"Could not convert column {col} to float: {e}")
+                    # SKip this columns
+                    pass
+        
+        #taxa_cols = [col for col in df.columns if col not in ["sample_id", "zone", "latitude", "longitude"]]
+        #df[taxa_cols] = df[taxa_cols].astype(float)
 
         # 4. Set the sample_id as the index for easier train/test/val split
         #df.set_index("sample_id",inplace=True)
@@ -226,15 +235,16 @@ if __name__ == "__main__":
     rsa = DatabaseRSA(db=args.database, db_table=args.table)
     # print(rsa.sql_to_clean())
     #
-    # df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
-    # print(df)
+    df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
+    print(df)
+    #df.to_csv('malmo_species.csv',sep=",",header=True,index=False)
 
-    db_bert = DatabaseDNABERTS(args.database)
+    #db_bert = DatabaseDNABERTS(args.database)
     # db_bert.load_data_(args.bert_dir)
 
-    df_embeddings = db_bert.get_all_embeddings()
-    print(df_embeddings.head())
+    #df_embeddings = db_bert.get_all_embeddings()
+    #print(df_embeddings.head())
 
     # Example: Check array shape for first sample
-    first_sample = df_embeddings.iloc[0]
-    print(f"Sample: {first_sample['sample_id']}, Array Shape: {first_sample['embeddings'].shape}")
+    #first_sample = df_embeddings.iloc[0]
+    #print(f"Sample: {first_sample['sample_id']}, Array Shape: {first_sample['embeddings'].shape}")
