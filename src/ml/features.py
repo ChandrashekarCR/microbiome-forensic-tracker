@@ -128,7 +128,6 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         X_clr_data = clr(X_nonzero)
 
         features = {}
-        n_samples = X_clr_data.shape[0]
 
         # a) Raw CLR features
         for i, taxon in enumerate(self.taxa_names_):
@@ -144,14 +143,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
             btw = self.betweenness.get(i, 0)
             features[f"hub_weighted_{taxon}"] = X_clr_data[:, i] * btw
 
-        # d) Network summary statistics per sample
-        # Interaction strength: sum of precision matrix edges weighted by abundance
-        for i in range(n_samples):
-            sample_vec = X_clr_data[i, :]
-            # Quadratic form captures pairwise ecological interactions
-            features.setdefault("ecological_interaction", []).append(sample_vec @ self.precision_matrix @ sample_vec)
-
-        # e) Extract specific Sample-by-Edge active interactions
+        # d) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
         edges = np.argwhere(np.triu(self.adjacency_matrix, k=1) > 0)
 
