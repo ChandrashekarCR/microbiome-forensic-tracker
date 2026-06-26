@@ -10,21 +10,34 @@ from sklearn.covariance import GraphicalLassoCV
 
 class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
-    Remove columns that are all less than a certain threshold (fit on train only).
+    Remove columns that are present in less than min_prevalence of samples.
     """
 
-    def __init__(self, min_prevalence: float = 0.05):
+    def __init__(self, min_prevalence: float = 0.05, min_abd: float = 1e-6):
         self.min_prevalence = min_prevalence
+        self.min_abd = min_abd
+        self._keep_cols_ = None  # Private attribute
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
-        X = X.astype(float)
-        X = X.loc[:, (X != 0).any(axis=0)]
-        self.keep_cols_ = X[X >= self.min_prevalence].columns.tolist()
+        # Calculate prevalence
+        prevalence = (X > self.min_abd).mean(axis=0)
+        
+        # Keep columns that meet the prevalence threshold
+        keep_cols_ = prevalence >= self.min_prevalence
+        feature_names_in_ = X.columns[keep_cols_].tolist()
+        
+        # Store the list of column names
+        self._keep_cols_ = feature_names_in_
+        
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        # Cast to float to prevent object dtype errors in downstream models like XGBoost
-        return X.loc[:, self.keep_cols_].copy().astype(float)
+        if self._keep_cols_ is None:
+            raise ValueError("ZeroColumnFilter must be fitted before transform")
+            
+        X_out = X.loc[:, self._keep_cols_].copy()
+        X_out = X_out.loc[:, ~X_out.columns.duplicated(keep="first")]
+        return X_out.astype(float)
 
 
 class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):

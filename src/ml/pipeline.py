@@ -1,15 +1,18 @@
 import numpy as np
+import pandas as pd
 from omegaconf import ListConfig
 from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
+import mlflow
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
+from ml.mlflow_utils import log_feature_count
 
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
@@ -48,8 +51,52 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
+def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
+    """
+    Log feature counts before/after each preprocessing stage for train and validation data.
+    Counts are recorded after applying each fitted transform in the pipeline.
+    """
+    stage_counts = {}
+
+    def count_after_step(frame: pd.DataFrame, step_name: str, fitted_step):
+        transformed = fitted_step.transform(frame)
+        if isinstance(transformed, pd.DataFrame):
+            transformed = transformed.copy()
+            transformed.columns = transformed.columns.map(str)
+            transformed = transformed.loc[:, ~transformed.columns.duplicated(keep="first")]
+            transformed = transformed.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            transformed = transformed.astype(np.float32)
+            return transformed, transformed.shape[1]
+        transformed = np.asarray(transformed)
+        return transformed, transformed.shape[1]
+
+    # Raw input counts
+    stage_counts["raw"] = {"train": X_train.shape[1]}
+    log_feature_count(f"fold_{fold + 1}.raw.train.n_features", X_train.shape[1], fold)
+
+    # After ZeroColumnFilter
+    current_train = X_train
+    if "zeros_filter" in pipeline.named_steps:
+        current_train, n_train = count_after_step(current_train, "zeros_filter", pipeline.named_steps["zeros_filter"])
+        stage_counts["after_zero_filter"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_zero_filter.train.n_features", n_train, fold)
+
+    # After optional MicrobiomeFeatureEngineer
+    if "network_features" in pipeline.named_steps:
+        current_train, n_train = count_after_step(current_train, "network_features", pipeline.named_steps["network_features"])
+        stage_counts["after_network_features"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_network_features.train.n_features", n_train, fold)
+
+    # After optional RFE step
+    if "rfe" in pipeline.named_steps:
+        current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
+        stage_counts["after_rfe"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
+
+    return stage_counts
+
 # There are different ways of splitting the data, but everything generates indcices, we will use accordingly
-def _get_configured_cv_split(splitter: TrainTestSplit):
+def get_configured_cv_split(splitter: TrainTestSplit):
     """
     Dynamic CV selector based on the global pipeline execution strategy string
     """
@@ -63,9 +110,24 @@ def _get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.repeated_stratified_zone_data_split()
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
-    fold_scores = []
-    cv_splits = _get_configured_cv_split(splitter)
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
+    fold_mekm = []
+    fold_mdekm = []
+    fold_maxekm = []
+    fold_05km = []
+    fold_1km = []
+    fold_3km = []
+    fold_5km = []
+    fold_10km = []
+
+    feature_count_history = {
+        "raw": {"train": [], "val": []},
+        "after_zero_filter": {"train": [], "val": []},
+        "after_network_features": {"train": [], "val": []},
+        "after_rfe": {"train": [], "val": []},
+    }
+
+    cv_splits = get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
 
@@ -87,6 +149,12 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
 
+        # Log feature counts for this fold using the fitted preprocessing steps
+        stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
+        for stage_name, counts in stage_counts.items():
+            feature_count_history.setdefault(stage_name, {"train": [], "val": []})
+            feature_count_history[stage_name]["train"].append(counts["train"])
+
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val)
 
@@ -99,7 +167,6 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mekm = metrics["mean_error_km"]
         else:
             metrics = evaluate_coordinates(
                 y_true_lat=y_val_coords["latitude"].values,
@@ -108,25 +175,66 @@ def _evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features
                 y_pred_lon=preds_val[:, 1],
                 zones_true=y_val_zone.values,
             )
-            fold_mekm = metrics["mean_error_km"]
 
-        fold_scores.append(fold_mekm)
-        print(f"Fold {fold + 1} Mean Distance Error: {fold_mekm:.2f} km")
+        # Collect per fold metrics
+        fold_mekm.append(metrics["mean_error_km"])
+        fold_mdekm.append(metrics["median_error_km"])
+        fold_maxekm.append(metrics["max_error_km"])
+        fold_05km.append(metrics["in_radius_0.5km_pct"])
+        fold_1km.append(metrics["in_radius_1km_pct"])
+        fold_3km.append(metrics["in_radius_3km_pct"])
+        fold_5km.append(metrics["in_radius_5km_pct"])
+        fold_10km.append(metrics["in_radius_10km_pct"])
 
-    avg_mekm = np.mean(fold_scores)
+
+        print(f"Fold {fold + 1} Mean Distance Error: {metrics["mean_error_km"]:.2f} km")
+    
+    # Calculate the mean of mean error in km per fold, mean of median, and mean of max error
+    # Aggregate
+    avg_mekm = float(np.mean(fold_mekm))
+    avg_mdekm = float(np.mean(fold_mdekm))
+    avg_maxekm = float(np.mean(fold_maxekm))
+    avg_05km = float(np.mean(fold_05km))
+    avg_1km = float(np.mean(fold_1km))
+    avg_3km = float(np.mean(fold_3km))
+    avg_5km = float(np.mean(fold_5km))
+    avg_10km = float(np.mean(fold_10km))
+
     print(f"\nCompleted CV with strategy {strategy}. Mean Distance Error: {avg_mekm:.4f}")
 
-    return float(avg_mekm)
+    # Final summary of the averaged metrics from the fold for logging
+    summary_metrics = {
+        "cv_mean_error_km": avg_mekm,
+        "cv_median_error_km": avg_mdekm,
+        "cv_max_error_km": avg_maxekm,
+        "cv_in_radius_0.5km_pct": avg_05km,
+        "cv_in_radius_1km_pct": avg_1km,
+        "cv_in_radius_3km_pct": avg_3km,
+        "cv_in_radius_5km_pct": avg_5km,
+        "cv_in_radius_10km_pct": avg_10km,
+    }
+
+    return avg_mekm , summary_metrics
 
 
 # Use all the models mentioned and evaluate each one individually on the train and validation dataset.
+# This is the main part of the machine learning architecture, becuase this ranks the models and is called in
+# in the run multistage selections
 def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_features: bool, top_k: int = 5):
+    
+    # Store the results for each model
     results = []
+    
     for model_def in model_defs:
         model_name = model_def["name"]
         estimator = model_def["estimator"]
+
+        # Start a separate run for each model (MLflow logging handled by caller in run_experiments.py)
         print(f"\nEvaluating {model_name} (network_features={use_network_features})")
-        avg_mekm = _evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
+        
+        # Evaluate
+        avg_mekm, summary_metrics = evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
+
         results.append(
             {
                 "name": model_name,

@@ -1,7 +1,7 @@
 # config.yaml
 database:
   path: "/home/chandru/binp51/databases/malmo.db"
-  table: "malmo_phylum"
+  table: "malmo_species"
 
 data_splitting:
   test_size: 0.2
@@ -28,7 +28,6 @@ feature_engineering:
 
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
-  enabled: true
   XGBoost:
     enabled: true
     family: "tree"

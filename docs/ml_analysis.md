@@ -68,3 +68,15 @@ Why do this before pushing data into ML models to predict latitude/longitude?
 2. **Network/Topological Features**: Different geographies harbor totally distinct community structures. By computing graph features (e.g., degree centrality, betweenness), we extract:
    - **Hub Taxa Abundances**: Feed specifically the abundances of highly-connected keystone species to the model.
    - **Sub-module Aggregations**: Cluster the inferred network into isolated niches. Sum the CLR abundances of taxa within each cluster to create mathematically robust meta-features representing distinct spatial environments.
+
+#### Math to Biology interpretability
+
+Understanding why add these features derived from sparse inverse covraince matrix estimation using graphical lasso.
+
+| Feature Class | Mathematical Definition | Biological/ML Interpretation | Signal it Captures |
+|-------|-------|-------|-------|
+| **Raw CLR** | log(x_i/g(x)) | The baseline relative abundance of a specific taxon, corrected for sequencing depth (compositionality). | Basic taxonomic fingerprint
+| **Degree Weighted abundance** | CLR_i x Degree_i | **Hub Amplification**. Amplifies the signal of highly connected taxa (keystone species.) A high value means a dominant hub is present. | Generalists / Keystone species.
+| **Hub-Weighted (betweenness)** | CLR_I X Betweenness_i | **Bridge Amplification**. Amplfies taxa that connect different modules in the network. | Community connectors / Gatekeepers 
+Ecological Interaction (Quadratic)	xTΘxxTΘx (scalar)	A single sample-level score representing the total network cohesion/dysbiosis. High positive = stable interactions; High negative = strong competitive exclusion.	Overall ecosystem stability.
+Edge-Specific	Θuv×xu×xvΘuv​×xu​×xv​	Captures pairwise co-occurrence/co-exclusion strength specific to a sample. E.g., if Taxa A and B always compete, this feature shows how intense that competition is in this specific sample.	Pairwise ecological rules.
