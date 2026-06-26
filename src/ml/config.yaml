@@ -19,12 +19,6 @@ pipeline_excecution:
   cv_strategy: "repeated_kfold" # Options: "loo" (Leave-One-Out), "repeated_kfold", "stratified"
   use_cartesian_meters: true 
 
-# Parameters to pass to the feature engineering
-feature_engineering:
-  min_prevalence: 0.05
-  cv_folds: 5
-  max_iter: 5000
-  top_k_edges: 20
 
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
@@ -75,9 +69,14 @@ stage_1:
   
 # Stage 2: Is the same models parameters but with feature engineering
 # There are no major changes for the model parameters here
-stage_2:
-  enabled: true
-  feature_extraction: "network_features" # Options: "network_features", "recursive_feature_elimination"
+# Parameters to pass to the feature engineering
+feature_engineering:
+  min_prevalence: 0.05
+  use_network_features: true
+  cv_folds: 5
+  max_iter: 5000
+  top_k_edges: 20
+
 
 # Stage 3: Tuned hyperparameters (only for top 5)
 stage_3:

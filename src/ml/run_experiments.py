@@ -41,24 +41,6 @@ FE_VARIANTS = [
 ]
 
 
-def log_column_counts(X_original, X_filtered, stage_name="pipeline"):
-    """
-    Log column counts before and after filtering.
-    Useful for tracking feature reduction impact.
-    """
-    n_original = X_original.shape[1]
-    n_filtered = X_filtered.shape[1]
-    n_removed = n_original - n_filtered
-    removal_pct = (n_removed / n_original * 100) if n_original > 0 else 0.0
-    
-    mlflow.log_param(f"{stage_name}_n_cols_original", n_original)
-    mlflow.log_param(f"{stage_name}_n_cols_after_filter", n_filtered)
-    mlflow.log_param(f"{stage_name}_n_cols_removed", n_removed)
-    mlflow.log_metric(f"{stage_name}_removal_pct", removal_pct)
-    
-    print(f"Columns: {n_original} → {n_filtered} (removed {n_removed}, {removal_pct:.1f}%)")
-
-
 # ============================================================================
 # STAGE 1: Taxonomy Baseline
 # ============================================================================
@@ -67,7 +49,7 @@ def run_stage1_taxonomy_baseline():
     Experiment 1: Determine which taxonomy level provides best geolocation signal.
     Uses ONLY XGBoost baseline (no feature engineering, no hyperparameter tuning).
     """
-    print("STAGE 1: Taxonomy Baseline (XGBoost only, no feature engineering)")
+    print("STAGE 1: Taxonomy Baseline (XGBoost only, no feature engineering, no hyperparameter tuning)")
     
     stage1_results = {}
     
@@ -157,9 +139,7 @@ def run_stage2_feature_engineering(taxonomy_level: str):
     Experiment 2: Given the best taxonomy level, test feature engineering variants.
     Tests network feature combinations + RFE on/off.
     """
-    print("\n" + "="*80)
-    print(f"STAGE 2: FEATURE ENGINEERING VARIANTS (taxonomy: {taxonomy_level})")
-    print("="*80)
+    print(f"STAGE 2: Feature Engineering Variants (taxonomy: {taxonomy_level}), no hyperparameter tuning, only XGBoost")
     
     # Load data for best taxonomy level
     config.database.table = TAXONOMY_TABLES[taxonomy_level]
@@ -174,7 +154,7 @@ def run_stage2_feature_engineering(taxonomy_level: str):
     stage2_results = {}
     
     # Test 1: Network feature variants
-    print("\nTesting NETWORK FEATURE VARIANTS...")
+    print("\nTesting Network Feature Variants...")
     xgb_models = [m for m in model_registry.get_baseline_models() if m['model_type'] == "XGBoost"]
     xgb_def = xgb_models[0]
     
@@ -199,7 +179,7 @@ def run_stage2_feature_engineering(taxonomy_level: str):
             # MicrobiomeFeatureEngineer to accept feature_subset parameters.
             # For this demo, we evaluate with use_network_features=True (all features enabled).
             
-            print(f"      (Future: would use_clr={use_clr}, use_degree={use_degree}, use_hub={use_hub})")
+            print(f"(Future: would use_clr={use_clr}, use_degree={use_degree}, use_hub={use_hub})")
             
             # Evaluate with network features enabled (full set)
             avg_mekm, summary_metrics = evaluate_model_cv(
@@ -217,78 +197,77 @@ def run_stage2_feature_engineering(taxonomy_level: str):
                 "run_id": mlflow.active_run().info.run_id
             }
             
-            print(f"      Mean error: {avg_mekm:.4f} km")
+            print(f"Mean error: {avg_mekm:.4f} km")
     
     # Test 2: RFE variant (sketch; full RFE implementation would go here)
-    print("\n  Testing RFE (Recursive Feature Elimination)...")
-    run_name = f"stage2_rfe_{taxonomy_level}_{int(time.time())}"
-    with start_run(run_name=run_name):
-        mlflow.set_tag("stage", "stage2_feature_engineering")
-        mlflow.set_tag("taxonomy_level", taxonomy_level)
-        mlflow.set_tag("fe_type", "rfe")
-        mlflow.set_tag("use_rfe", "True")
-        
-        mlflow.log_param("model_type", "XGBoost")
-        mlflow.log_param("fe_type", "rfe")
-        
-        # TODO: Wrap RFE logic here when ready (see RecursiveFeatureElimination class in features.py)
-        print("      (Placeholder: RFE implementation to be added)")
-        
-        avg_mekm, summary_metrics = evaluate_model_cv(
-            splitter,
-            xgb_def["estimator"],
-            use_network_features=False  # RFE replaces network features
-        )
-        
-        log_model_metrics(metrics=summary_metrics)
-        
-        stage2_results["rfe"] = {
-            "fe_type": "rfe",
-            "fe_variant": "rfe",
-            "avg_mekm": avg_mekm,
-            "run_id": mlflow.active_run().info.run_id
-        }
-        
-        print(f"      Mean error: {avg_mekm:.4f} km")
-    
-    # Test 3: Network + RFE combo
-    print("\n  Testing NETWORK + RFE (combined)...")
-    run_name = f"stage2_network_rfe_{taxonomy_level}_{int(time.time())}"
-    with start_run(run_name=run_name):
-        mlflow.set_tag("stage", "stage2_feature_engineering")
-        mlflow.set_tag("taxonomy_level", taxonomy_level)
-        mlflow.set_tag("fe_type", "network_rfe")
-        mlflow.set_tag("use_network_features", "True")
-        mlflow.set_tag("use_rfe", "True")
-        
-        mlflow.log_param("model_type", "XGBoost")
-        mlflow.log_param("fe_type", "network_rfe")
-        
-        print("      (Placeholder: combined network + RFE to be added)")
-        
-        avg_mekm, summary_metrics = evaluate_model_cv(
-            splitter,
-            xgb_def["estimator"],
-            use_network_features=True  # Both enabled
-        )
-        
-        log_model_metrics(metrics=summary_metrics)
-        
-        stage2_results["network_rfe"] = {
-            "fe_type": "network_rfe",
-            "fe_variant": "network_rfe",
-            "avg_mekm": avg_mekm,
-            "run_id": mlflow.active_run().info.run_id
-        }
-        
-        print(f"      Mean error: {avg_mekm:.4f} km")
+#    print("\n  Testing RFE (Recursive Feature Elimination)...")
+#    run_name = f"stage2_rfe_{taxonomy_level}_{int(time.time())}"
+#    with start_run(run_name=run_name):
+#        mlflow.set_tag("stage", "stage2_feature_engineering")
+#        mlflow.set_tag("taxonomy_level", taxonomy_level)
+#        mlflow.set_tag("fe_type", "rfe")
+#        mlflow.set_tag("use_rfe", "True")
+#        
+#        mlflow.log_param("model_type", "XGBoost")
+#        mlflow.log_param("fe_type", "rfe")
+#        
+#        # TODO: Wrap RFE logic here when ready (see RecursiveFeatureElimination class in features.py)
+#        print("      (Placeholder: RFE implementation to be added)")
+#        
+#        avg_mekm, summary_metrics = evaluate_model_cv(
+#            splitter,
+#            xgb_def["estimator"],
+#            use_network_features=False  # RFE replaces network features
+#        )
+#        
+#        log_model_metrics(metrics=summary_metrics)
+#        
+#        stage2_results["rfe"] = {
+#            "fe_type": "rfe",
+#            "fe_variant": "rfe",
+#            "avg_mekm": avg_mekm,
+#            "run_id": mlflow.active_run().info.run_id
+#        }
+#        
+#        print(f"Mean error: {avg_mekm:.4f} km")
+#    
+#    # Test 3: Network + RFE combo
+#    print("\n  Testing NETWORK + RFE (combined)...")
+#    run_name = f"stage2_network_rfe_{taxonomy_level}_{int(time.time())}"
+#    with start_run(run_name=run_name):
+#        mlflow.set_tag("stage", "stage2_feature_engineering")
+#        mlflow.set_tag("taxonomy_level", taxonomy_level)
+#        mlflow.set_tag("fe_type", "network_rfe")
+#        mlflow.set_tag("use_network_features", "True")
+#        mlflow.set_tag("use_rfe", "True")
+#        
+#        mlflow.log_param("model_type", "XGBoost")
+#        mlflow.log_param("fe_type", "network_rfe")
+#        
+#        print("      (Placeholder: combined network + RFE to be added)")
+#        
+#        avg_mekm, summary_metrics = evaluate_model_cv(
+#            splitter,
+#            xgb_def["estimator"],
+#            use_network_features=True  # Both enabled
+#        )
+#        
+#        log_model_metrics(metrics=summary_metrics)
+#        
+#        stage2_results["network_rfe"] = {
+#            "fe_type": "network_rfe",
+#            "fe_variant": "network_rfe",
+#            "avg_mekm": avg_mekm,
+#            "run_id": mlflow.active_run().info.run_id
+#        }
+#        
+#        print(f"      Mean error: {avg_mekm:.4f} km")
     
     # Print summary
-    print("\n" + "-"*80)
-    print("STAGE 2 SUMMARY:")
+    print("Stage 2 Summary:")
     sorted_results = sorted(stage2_results.items(), key=lambda x: x[1]['avg_mekm'])
     for i, (variant, res) in enumerate(sorted_results, 1):
-        print(f"  {i}. {variant:25} → {res['avg_mekm']:8.4f} km")
+        print(f"{i}. {variant:25} → {res['avg_mekm']:8.4f} km")
     
     best_fe = sorted_results[0]
     print(f"\n✓ BEST FEATURE ENGINEERING: {best_fe[0]}")
