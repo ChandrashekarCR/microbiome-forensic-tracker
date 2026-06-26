@@ -19,12 +19,17 @@ class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         X = X.astype(float)
         X = X.loc[:, (X != 0).any(axis=0)]
-        self.keep_cols_ = X[X >= self.min_prevalence].columns.tolist()
+        prevalence_mask = (X >= self.min_prevalence).any(axis=0)
+        keep_cols = X.columns[prevalence_mask]
+        # Ensure unique column names to avoid downstream model issues
+        self.keep_cols_ = pd.Index(keep_cols).drop_duplicates().tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         # Cast to float to prevent object dtype errors in downstream models like XGBoost
-        return X.loc[:, self.keep_cols_].copy().astype(float)
+        X_out = X.loc[:, self.keep_cols_].copy()
+        X_out = X_out.loc[:, ~X_out.columns.duplicated(keep="first")]
+        return X_out.astype(float)
 
 
 class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):

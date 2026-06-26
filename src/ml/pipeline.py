@@ -1,4 +1,6 @@
+import time
 import numpy as np
+import pandas as pd
 from omegaconf import ListConfig
 from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
@@ -171,34 +173,20 @@ def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_feature
         model_name = model_def["name"]
         estimator = model_def["estimator"]
 
-        # Start a separate run for each model
-        with start_run(run_name=f"stage1_{model_name}") as run:
-            # Log things like stage, network features, what ever is important
-            mlflow.set_tag("stage1", "baseline")
-            mlflow.set_tag("model_family",model_def.get("family","unknown"))
-            mlflow.set_tag("use_network_features",str(use_network_features))
+        # Start a separate run for each model (MLflow logging handled by caller in run_experiments.py)
+        print(f"\nEvaluating {model_name} (network_features={use_network_features})")
+        
+        # Evaluate
+        avg_mekm, summary_metrics = evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
 
-            # Log model params
-            if hasattr(estimator,'get_params'):
-                mlflow.log_params(estimator.get_params())
-            
-            print(f"\nEvaluating {model_name} (network_features={use_network_features})")
-            
-            # Evaluate
-            avg_mekm, summary_metrics = evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
-
-
-            # Log the average summary metrics
-            log_model_metrics(metrics=summary_metrics)
-
-            results.append(
-                {
-                    "name": model_name,
-                    "model_type": model_def.get("model_type"),
-                    "estimator": estimator,
-                    "avg_mekm": avg_mekm,
-                }
-            )
+        results.append(
+            {
+                "name": model_name,
+                "model_type": model_def.get("model_type"),
+                "estimator": estimator,
+                "avg_mekm": avg_mekm,
+            }
+        )
 
     results.sort(key=lambda x: x["avg_mekm"])
     return results[:top_k], results
