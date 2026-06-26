@@ -12,6 +12,7 @@ from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
+from ml.mlflow_utils import log_feature_count
 
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
@@ -50,32 +51,14 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     return Pipeline(steps)
 
-
-def _log_feature_count(metric_name: str, count: int, fold: int = None):
-    """
-    Log a feature-count metric to MLflow if a run is active.
-    """
-    if fold is None:
-        mlflow.log_metric(metric_name, float(count))
-    else:
-        mlflow.log_metric(metric_name, float(count), step=fold)
-
-
-def _log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
+def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
     """
     Log feature counts before/after each preprocessing stage for train and validation data.
     Counts are recorded after applying each fitted transform in the pipeline.
     """
     stage_counts = {}
 
-    def _sanitize_frame(frame: pd.DataFrame) -> pd.DataFrame:
-        frame = frame.copy()
-        frame.columns = frame.columns.map(str)
-        frame = frame.loc[:, ~frame.columns.duplicated(keep="first")]
-        frame = frame.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
-        return frame.astype(np.float32)
-
-    def _count_after_step(frame: pd.DataFrame, step_name: str, fitted_step):
+    def count_after_step(frame: pd.DataFrame, step_name: str, fitted_step):
         transformed = fitted_step.transform(frame)
         if isinstance(transformed, pd.DataFrame):
             transformed = transformed.copy()
@@ -87,44 +70,33 @@ def _log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFra
         transformed = np.asarray(transformed)
         return transformed, transformed.shape[1]
 
-    X_train = _sanitize_frame(X_train)
-    X_val = _sanitize_frame(X_val)
-
     # Raw input counts
-    stage_counts["raw"] = {"train": X_train.shape[1], "val": X_val.shape[1]}
-    _log_feature_count(f"fold_{fold + 1}.raw.train.n_features", X_train.shape[1], fold)
-    _log_feature_count(f"fold_{fold + 1}.raw.val.n_features", X_val.shape[1], fold)
+    stage_counts["raw"] = {"train": X_train.shape[1]}
+    log_feature_count(f"fold_{fold + 1}.raw.train.n_features", X_train.shape[1], fold)
 
     # After ZeroColumnFilter
     current_train = X_train
-    current_val = X_val
     if "zeros_filter" in pipeline.named_steps:
-        current_train, n_train = _count_after_step(current_train, "zeros_filter", pipeline.named_steps["zeros_filter"])
-        current_val, n_val = _count_after_step(current_val, "zeros_filter", pipeline.named_steps["zeros_filter"])
-        stage_counts["after_zero_filter"] = {"train": n_train, "val": n_val}
-        _log_feature_count(f"fold_{fold + 1}.after_zero_filter.train.n_features", n_train, fold)
-        _log_feature_count(f"fold_{fold + 1}.after_zero_filter.val.n_features", n_val, fold)
+        current_train, n_train = count_after_step(current_train, "zeros_filter", pipeline.named_steps["zeros_filter"])
+        stage_counts["after_zero_filter"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_zero_filter.train.n_features", n_train, fold)
 
     # After optional MicrobiomeFeatureEngineer
     if "network_features" in pipeline.named_steps:
-        current_train, n_train = _count_after_step(current_train, "network_features", pipeline.named_steps["network_features"])
-        current_val, n_val = _count_after_step(current_val, "network_features", pipeline.named_steps["network_features"])
-        stage_counts["after_network_features"] = {"train": n_train, "val": n_val}
-        _log_feature_count(f"fold_{fold + 1}.after_network_features.train.n_features", n_train, fold)
-        _log_feature_count(f"fold_{fold + 1}.after_network_features.val.n_features", n_val, fold)
+        current_train, n_train = count_after_step(current_train, "network_features", pipeline.named_steps["network_features"])
+        stage_counts["after_network_features"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_network_features.train.n_features", n_train, fold)
 
     # After optional RFE step
     if "rfe" in pipeline.named_steps:
-        current_train, n_train = _count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
-        current_val, n_val = _count_after_step(current_val, "rfe", pipeline.named_steps["rfe"])
-        stage_counts["after_rfe"] = {"train": n_train, "val": n_val}
-        _log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
-        _log_feature_count(f"fold_{fold + 1}.after_rfe.val.n_features", n_val, fold)
+        current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
+        stage_counts["after_rfe"] = {"train": n_train}
+        log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
 
     return stage_counts
 
 # There are different ways of splitting the data, but everything generates indcices, we will use accordingly
-def _get_configured_cv_split(splitter: TrainTestSplit):
+def get_configured_cv_split(splitter: TrainTestSplit):
     """
     Dynamic CV selector based on the global pipeline execution strategy string
     """
@@ -155,7 +127,7 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         "after_rfe": {"train": [], "val": []},
     }
 
-    cv_splits = _get_configured_cv_split(splitter)
+    cv_splits = get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
 
@@ -178,11 +150,10 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         pipeline.fit(X_train, y_train_coords)
 
         # Log feature counts for this fold using the fitted preprocessing steps
-        stage_counts = _log_fold_feature_counts(fold, X_train, X_val, pipeline)
+        stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
         for stage_name, counts in stage_counts.items():
             feature_count_history.setdefault(stage_name, {"train": [], "val": []})
             feature_count_history[stage_name]["train"].append(counts["train"])
-            feature_count_history[stage_name]["val"].append(counts["val"])
 
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val)
@@ -242,30 +213,6 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         "cv_in_radius_5km_pct": avg_5km,
         "cv_in_radius_10km_pct": avg_10km,
     }
-
-    # Aggregate feature-count statistics across folds and log to MLflow
-    for stage_name, contexts in feature_count_history.items():
-        for context_name, values in contexts.items():
-            if not values:
-                continue
-            values_arr = np.asarray(values, dtype=float)
-            mlflow.log_metric(f"{stage_name}.{context_name}.n_features_mean", float(np.mean(values_arr)))
-            mlflow.log_metric(f"{stage_name}.{context_name}.n_features_std", float(np.std(values_arr)))
-            mlflow.log_metric(f"{stage_name}.{context_name}.n_features_min", float(np.min(values_arr)))
-            mlflow.log_metric(f"{stage_name}.{context_name}.n_features_max", float(np.max(values_arr)))
-
-    summary_metrics.update(
-        {
-            "raw_train_n_features_mean": float(np.mean(feature_count_history["raw"]["train"])),
-            "raw_train_n_features_std": float(np.std(feature_count_history["raw"]["train"])),
-            "raw_train_n_features_min": float(np.min(feature_count_history["raw"]["train"])),
-            "raw_train_n_features_max": float(np.max(feature_count_history["raw"]["train"])),
-            "after_zero_filter_train_n_features_mean": float(np.mean(feature_count_history["after_zero_filter"]["train"])),
-            "after_zero_filter_train_n_features_std": float(np.std(feature_count_history["after_zero_filter"]["train"])),
-            "after_zero_filter_train_n_features_min": float(np.min(feature_count_history["after_zero_filter"]["train"])),
-            "after_zero_filter_train_n_features_max": float(np.max(feature_count_history["after_zero_filter"]["train"])),
-        }
-    )
 
     return avg_mekm , summary_metrics
 

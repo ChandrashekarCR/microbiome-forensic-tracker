@@ -62,3 +62,13 @@ def log_model_metrics(metrics: Dict[str,float],step: Optional[int] = None):
     for key,value in metrics.items():
         mlflow.log_metric(key,value,step=step)
 
+def log_feature_count(metric_name: str, count: int, fold: int = None):
+    """
+    Log a feature-count metric to MLflow if a run is active.
+    The idea behind this is after every feature engineering step there are features which are removed.
+    We need to keep track of how many features are remaining after filtering.
+    """
+    if fold is None:
+        mlflow.log_metric(metric_name, float(count))
+    else:
+        mlflow.log_metric(metric_name, float(count), step=fold)
