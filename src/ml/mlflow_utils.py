@@ -46,16 +46,6 @@ def start_run(run_name: Optional[str] = None, nested: bool = False):
         nested=nested
     )
 
-# Get all the parameters from the config file as well
-def log_params_config():
-    """
-    Log all parameters directly from the config file
-    """
-
-    # Convert OmegaConf to dict and flatten if needed
-    params = OmegaConf.to_container(config,resolve=True)
-
-    mlflow.log_params(params)
 
 def log_model_params(model):
     """
