@@ -114,9 +114,6 @@ def run_stage1_taxonomy_baseline():
             
             # Log XGBoost model hyperparameters
             log_model_params(xgb_def['estimator'])
-            #if hasattr(xgb_def["estimator"], 'get_params'):
-            #    model_params = xgb_def["estimator"].get_params()
-            #    mlflow.log_params({f"model_{k}": str(v) for k, v in model_params.items()})
             
             # Evaluate the model across CV folds
             print(f"Evaluating {xgb_def['name']} with {config.data_splitting.n_splits} splits...")
@@ -143,7 +140,7 @@ def run_stage1_taxonomy_baseline():
     print("Experiment 1 Summary:")
     sorted_results = sorted(stage1_results.items(), key=lambda x: x[1]['avg_mekm'])
     for i, (level, res) in enumerate(sorted_results, 1):
-        print(f"  {i}. {level:12} - {res['avg_mekm']:8.4f} km (run_id: {res['run_id'][:8]})")
+        print(f"{i}. {level:12} - {res['avg_mekm']:8.4f} km (run_id: {res['run_id'][:8]})")
     
     # Return best taxonomy level for stage 2
     best_level = sorted_results[0][0]
