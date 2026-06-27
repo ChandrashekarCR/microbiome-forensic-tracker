@@ -1,4 +1,6 @@
 # Import libraries
+import warnings
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -6,8 +8,9 @@ import pandas as pd
 from skbio.stats.composition import clr
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.covariance import GraphicalLassoCV
-import warnings
+
 warnings.filterwarnings("ignore", message="invalid value encountered in subtract")
+
 
 class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
@@ -22,20 +25,20 @@ class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         # Calculate prevalence
         prevalence = (X > self.min_abd).mean(axis=0)
-        
+
         # Keep columns that meet the prevalence threshold
         keep_cols_ = prevalence >= self.min_prevalence
         feature_names_in_ = X.columns[keep_cols_].tolist()
-        
+
         # Store the list of column names
         self._keep_cols_ = feature_names_in_
-        
+
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         if self._keep_cols_ is None:
             raise ValueError("ZeroColumnFilter must be fitted before transform")
-            
+
         X_out = X.loc[:, self._keep_cols_].copy()
         X_out = X_out.loc[:, ~X_out.columns.duplicated(keep="first")]
         return X_out.astype(float)
@@ -47,9 +50,18 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
     Fit the GraphicalLasso only to the training data.
     """
 
-    def __init__(self, cv_folds: int = 5, max_iter: int = 2000, n_jobs: int = -1, top_k_edges: int = 20,
-                 use_clr: bool = True, use_degree: bool = False, use_hub: bool = False, use_edge: bool = False):
-        
+    def __init__(
+        self,
+        cv_folds: int = 5,
+        max_iter: int = 2000,
+        n_jobs: int = -1,
+        top_k_edges: int = 20,
+        use_clr: bool = True,
+        use_degree: bool = False,
+        use_hub: bool = False,
+        use_edge: bool = False,
+    ):
+
         self.cv_folds = cv_folds
         self.max_iter = max_iter
         self.n_jobs = n_jobs
@@ -60,7 +72,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         self.use_clr = use_clr
         self.use_degree = use_degree
         self.use_hub = use_hub
-        self.use_edge = use_edge        
+        self.use_edge = use_edge
 
     def multiplicative_replacement(self, X: np.ndarray, delta: float = 1e-6) -> pd.DataFrame:
         """
@@ -104,13 +116,15 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         for idx in top_k_indices:
             u, v = rows[idx], cols[idx]
             weight = edge_weights[idx]
-            top_edges.append({
-                'taxon_u': taxa_names[u],
-                'taxon_v': taxa_names[v],
-                'weight': weight,
-                'abs_weight': np.abs(weight),
-                'interaction_type': 'positive' if weight > 0 else 'negative'
-            })
+            top_edges.append(
+                {
+                    "taxon_u": taxa_names[u],
+                    "taxon_v": taxa_names[v],
+                    "weight": weight,
+                    "abs_weight": np.abs(weight),
+                    "interaction_type": "positive" if weight > 0 else "negative",
+                }
+            )
 
         return top_edges
 
@@ -187,17 +201,17 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         # d) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
         if self.use_edge:
-            top_edges = self.get_top_edges_by_absolute_weight(self.precision_matrix,self.taxa_names_,self.top_k_edges)
+            top_edges = self.get_top_edges_by_absolute_weight(self.precision_matrix, self.taxa_names_, self.top_k_edges)
 
             for edge in top_edges:
-                u = self.taxa_names_.index(edge['taxon_u'])
-                v = self.taxa_names_.index(edge['taxon_v'])
+                u = self.taxa_names_.index(edge["taxon_u"])
+                v = self.taxa_names_.index(edge["taxon_v"])
                 edge_name = f"edge_{edge['taxon_u']}_AND_{edge['taxon_v']}"
 
                 # The active strength of this edge in each sample:
                 # global_weight * abundance_u * abundance_v
-                global_weight = self.precision_matrix[u,v]
-                edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:,v]
+                global_weight = self.precision_matrix[u, v]
+                edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:, v]
                 features[edge_name] = edge_activations
 
         return pd.DataFrame(features, index=X.index)
@@ -240,9 +254,3 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         plt.savefig(output_file, dpi=300)
         plt.close()
         print(f"Network visualization saved successfully to {output_file}")
-
-
-
-
-        
-        
