@@ -130,6 +130,10 @@ ignore = ["E203","B008","C901"]
 minversion = "7.0"
 addopts = "-v --tb=short"
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore:Only one sample available",
+  "ignore:invalid value encountered in subtract",
+]
 
 [tool.mypy]
 python_version = "3.9"
