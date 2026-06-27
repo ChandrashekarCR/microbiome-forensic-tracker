@@ -166,17 +166,17 @@ def run_stage2_feature_engineering(taxonomy_level: str):
         (False, True, False, False),   # Degree only
         (False, False, True, False),   # Hub only
         (False, False, False, True),   # Edge only
-        (True, True, False, False),    # CLR + Degree
-        (True, False, True, False),    # CLR + Hub
-        (True, False, False, True),    # CLR + Edge
-        (False, True, True, False),    # Degree + Hub
-        (False, True, False, True),    # Degree + Edge
-        (False, False, True, True),    # Hub + Edge
-        (True, True, True, False),     # CLR + Degree + Hub
-        (True, True, False, True),     # CLR + Degree + Edge
-        (True, False, True, True),     # CLR + Hub + Edge
-        (False, True, True, True),     # Degree + Hub + Edge
-        (True, True, True, True),      # ALL features
+#        (True, True, False, False),    # CLR + Degree
+#        (True, False, True, False),    # CLR + Hub
+#        (True, False, False, True),    # CLR + Edge
+#        (False, True, True, False),    # Degree + Hub
+#        (False, True, False, True),    # Degree + Edge
+#        (False, False, True, True),    # Hub + Edge
+#        (True, True, True, False),     # CLR + Degree + Hub
+#        (True, True, False, True),     # CLR + Degree + Edge
+#        (True, False, True, True),     # CLR + Hub + Edge
+#        (False, True, True, True),     # Degree + Hub + Edge
+#        (True, True, True, True),      # ALL features
     ]
     
     # Test 1: Network feature variants
@@ -189,21 +189,8 @@ def run_stage2_feature_engineering(taxonomy_level: str):
         if use_edge: fe_name_parts.append("Edge")
         fe_name = "_".join(fe_name_parts) if fe_name_parts else "None"
         
-        # Feature count estimate (for logging)
-        n_features_estimate = 0
-        if use_clr:
-            n_features_estimate += df.shape[1] - 3  # all taxa
-        if use_degree:
-            n_features_estimate += df.shape[1] - 3
-        if use_hub:
-            n_features_estimate += df.shape[1] - 3
-        if use_edge:
-            n_features_estimate += config.feature_engineering.top_k_edges
-    
-        
-        print(f"\n  >>> Variant: {fe_name}")
-        print(f"      Flags: CLR={use_clr}, Deg={use_degree}, Hub={use_hub}, Edge={use_edge}")
-        print(f"      Estimated features: {n_features_estimate}")
+        print(f"\nVariant: {fe_name}")
+        print(f"Flags: CLR={use_clr}, Deg={use_degree}, Hub={use_hub}, Edge={use_edge}")
         
         run_name = f"stage2_fe_{fe_name}_{taxonomy_level}_{int(time.time())}"
         
@@ -229,7 +216,6 @@ def run_stage2_feature_engineering(taxonomy_level: str):
                 "use_hub": use_hub,
                 "use_edge": use_edge,
                 "top_k_edges": config.feature_engineering.top_k_edges,
-                "estimated_features": n_features_estimate,
                 "model_type": "XGBoost",
                 "taxonomy_level": taxonomy_level,
                 "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
@@ -399,10 +385,10 @@ def main():
     
     try:
         # Stage 1: Determine best taxonomy level
-        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
+        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
         
         # Stage 2: Determine best feature engineering approach
-        best_fe, stage2_results = run_stage2_feature_engineering('genus')
+        #best_fe, stage2_results = run_stage2_feature_engineering(best_taxonomy)
         
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)
