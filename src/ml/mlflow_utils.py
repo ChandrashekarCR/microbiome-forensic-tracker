@@ -1,10 +1,11 @@
 # Importing libraries
+import time
+from typing import Dict, Optional
+
 import mlflow
 import mlflow.sklearn
-import time
-from typing import Dict, Any, Optional
+
 from ml.config import config
-from omegaconf import OmegaConf
 
 
 # Get the experiment name
@@ -21,8 +22,9 @@ def get_experiment_id() -> str:
         experiment_id = mlflow.create_experiment(experiment_name)
     else:
         experiment_id = experiment.experiment_id
-    
+
     return experiment_id
+
 
 # Start the MLflow run
 def start_run(run_name: Optional[str] = None, nested: bool = False):
@@ -39,28 +41,26 @@ def start_run(run_name: Optional[str] = None, nested: bool = False):
     # Generate default run if not provied
     if run_name is None:
         run_name = f"{config.mlflow.run_name_prefix}_{int(time.time())}"
-    
-    return mlflow.start_run(
-        experiment_id=experiment_id,
-        run_name=run_name,
-        nested=nested
-    )
+
+    return mlflow.start_run(experiment_id=experiment_id, run_name=run_name, nested=nested)
 
 
 def log_model_params(model):
     """
     Log model parameters
     """
-    if hasattr(model,'get_params'):
+    if hasattr(model, "get_params"):
         params = model.get_params()
-        mlflow.log_params({f"model_{k}": v for k,v in params.items()})
+        mlflow.log_params({f"model_{k}": v for k, v in params.items()})
 
-def log_model_metrics(metrics: Dict[str,float],step: Optional[int] = None):
+
+def log_model_metrics(metrics: Dict[str, float], step: Optional[int] = None):
     """
     Log evaluation metrics. A custom evalution metrics is set to measeure the cartesion and haversine distance
     """
-    for key,value in metrics.items():
-        mlflow.log_metric(key,value,step=step)
+    for key, value in metrics.items():
+        mlflow.log_metric(key, value, step=step)
+
 
 def log_feature_count(metric_name: str, count: int, fold: int = None):
     """

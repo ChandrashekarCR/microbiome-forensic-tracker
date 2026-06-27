@@ -23,7 +23,8 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     r = EARTH_RADIUS  # Radius of earth in kilometers
     return c * r
 
-def euclidean_distance(x1,y1,x2,y2):
+
+def euclidean_distance(x1, y1, x2, y2):
     """
     Cartesian distance between two sets of points in a projected CRS (e.g. EPSG:3006).
     All coordinates are expected in meters.
@@ -32,7 +33,8 @@ def euclidean_distance(x1,y1,x2,y2):
 
     dx = x2 - x1
     dy = y2 - y1
-    return np.sqrt(dx**2 + dy**2) # Standard euclidean distance formula
+    return np.sqrt(dx**2 + dy**2)  # Standard euclidean distance formula
+
 
 def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_true=None, zones_pred=None) -> dict:
     """
@@ -72,14 +74,8 @@ def evaluate_coordinates(y_true_lat, y_true_lon, y_pred_lat, y_pred_lon, zones_t
 
     return metrics
 
-def evaluate_projected_coordinates(
-    x_true,
-    y_true,
-    x_pred,
-    y_pred,
-    zones_true=None,
-    zones_pred=None
-) -> dict:
+
+def evaluate_projected_coordinates(x_true, y_true, x_pred, y_pred, zones_true=None, zones_pred=None) -> dict:
     """
     Evaluate spatial coordinate predictions in a projected CRS (e.g. EPSG:3006).
     Distances are computed as Euclidean distances in meters.
@@ -93,15 +89,15 @@ def evaluate_projected_coordinates(
 
     # 2. Basic error metrics (meters and km)
     metrics = {
-        #"median_error_m": float(np.median(distances_m)),
-        #"mean_error_m": float(np.mean(distances_m)),
-        #"max_error_m": float(np.max(distances_m)),
+        # "median_error_m": float(np.median(distances_m)),
+        # "mean_error_m": float(np.mean(distances_m)),
+        # "max_error_m": float(np.max(distances_m)),
         "median_error_km": float(np.median(distances_m) / 1000.0),
         "mean_error_km": float(np.mean(distances_m) / 1000.0),
         "max_error_km": float(np.max(distances_m) / 1000.0),
     }
 
-    # 3. In-radius metrics (default thresholds in km)   
+    # 3. In-radius metrics (default thresholds in km)
     # Calculate in-radius metrics
     # Set the threshold in radius of km
     thresholds = [0.5, 1, 3, 5, 10]

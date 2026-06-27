@@ -67,17 +67,7 @@ class DatabaseCreate:
         df["date"] = pd.to_datetime(df["datetime"]).dt.date
         df["time"] = pd.to_datetime(df["datetime"]).dt.time
 
-        cols = [
-            "barcode",
-            "sample_id",
-            "name",
-            "latitude",
-            "longitude",
-            "altitude",
-            "precision",
-            "date",
-            "time"
-        ]
+        cols = ["barcode", "sample_id", "name", "latitude", "longitude", "altitude", "precision", "date", "time"]
 
         return df[cols]
 
@@ -129,5 +119,5 @@ class DatabaseCreate:
         return df
 
 
-#samples = DatabaseCreate(db="/home/chandru/binp51/databases/malmo.db")
-#print(samples.get_samples())
+# samples = DatabaseCreate(db="/home/chandru/binp51/databases/malmo.db")
+# print(samples.get_samples())
