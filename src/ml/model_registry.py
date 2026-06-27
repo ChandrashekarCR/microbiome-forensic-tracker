@@ -1,8 +1,8 @@
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
 from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
+from xgboost import XGBRegressor
 
 from ml.config import config
 
@@ -14,13 +14,12 @@ class ModelRegistry:
 
     # Master map linking strings in configuration to real Python classes
     MODEL_MAPPING = {
-        "XGBoost": XGBRegressor, 
-        "RandomForest": RandomForestRegressor, 
+        "XGBoost": XGBRegressor,
+        "RandomForest": RandomForestRegressor,
         "LightGBM": LGBMRegressor,
         "RidgeRegression": Ridge,
-        "NeuralNetwork": MLPRegressor
+        "NeuralNetwork": MLPRegressor,
     }
-    
 
     @staticmethod
     def _instantiate_model(model_class, params: dict):
@@ -28,7 +27,7 @@ class ModelRegistry:
         Helper to create a model instance from class + params dict
         """
         # Filter out None values and invalid params
-        # Parameters is set to None if mentioned in the config file 
+        # Parameters is set to None if mentioned in the config file
         filtered_params = {k: v for k, v in params.items() if v is not None}
         return model_class(**filtered_params)
 
@@ -38,17 +37,17 @@ class ModelRegistry:
         Stage 1: Load all baseline models from config.yaml
         Returns list of dicts with {name, estimator, params}
         """
-        stage_1_config = config.stage_1 # This is from the config file
+        stage_1_config = config.stage_1  # This is from the config file
         active_models = []
 
         for model_name, model_meta in stage_1_config.items():
             # 1. Skip models that have enabled set to False
             if not model_meta.get("enabled", True):
                 continue
-                
+
             # 2. Track model family (tree, linear, nn)
             family = model_meta.get("family", "unknown")
-            
+
             # 3. Optional filter: skip if we specified families and this doesn't match
             if allowed_families and family not in allowed_families:
                 continue
@@ -62,12 +61,7 @@ class ModelRegistry:
             params = model_meta.get("params", {})
             estimator = ModelRegistry._instantiate_model(model_class, params)
 
-            active_models.append({
-                "name": f"{model_name}_baseline",
-                "estimator": estimator,
-                "family": family,
-                "model_type": model_name
-            })
+            active_models.append({"name": f"{model_name}_baseline", "estimator": estimator, "family": family, "model_type": model_name})
 
         return active_models
 
