@@ -68,7 +68,7 @@ def build_pipeline(estimator, use_network_features: bool = True, feature_flags: 
     return Pipeline(steps)
 
 
-def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
+def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, pipeline: Pipeline):
     """
     Log feature counts before/after each preprocessing stage for train and validation data.
     Counts are recorded after applying each fitted transform in the pipeline.
@@ -124,6 +124,8 @@ def get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.leave_one_out_split()
     elif strategy == "repeated_kfold":
         return splitter.repeated_zone_data_split()
+    elif strategy == "group_kfold":
+        return splitter.groupkfold_zone_split()
     else:
         return splitter.repeated_stratified_zone_data_split()
 
@@ -169,7 +171,7 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         pipeline.fit(X_train, y_train_coords)
 
         # Log feature counts for this fold using the fitted preprocessing steps
-        stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
+        stage_counts = log_fold_feature_counts(fold, X_train, pipeline)
         for stage_name, counts in stage_counts.items():
             feature_count_history.setdefault(stage_name, {"train": [], "val": []})
             feature_count_history[stage_name]["train"].append(counts["train"])
