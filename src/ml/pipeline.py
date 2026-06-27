@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 from omegaconf import ListConfig
@@ -5,17 +7,16 @@ from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
-import mlflow
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
+from ml.mlflow_utils import log_feature_count
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
-from ml.mlflow_utils import log_feature_count
 
-import warnings
-warnings.filterwarnings('ignore', category=RuntimeWarning, module='sklearn.covariance')
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="sklearn.covariance")
+
 
 # Predict the latitude and longitude together
 # We just wrap any model with multiregressor which will predict latitude and longitude both simultaneously
@@ -24,8 +25,9 @@ def _wrap_multioutput(estimator):
         return estimator
     return MultiOutputRegressor(estimator)
 
+
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True):
+def build_pipeline(estimator, use_network_features: bool = True, feature_flags: dict = None):
     """
     Build a reusable pipeline with optional network feature engineering.
     """
@@ -36,13 +38,27 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     # Feature Engineering toggle switch
     if use_network_features:
+        # Default flags if not provieded
+        if feature_flags is None:
+            feature_flags = {
+                "use_clr": True,
+                "use_degree": False,
+                "use_hub": False,
+                "use_edge": False,
+                "top_k_edges": config.feature_engineering.top_k_edges,
+            }
+
         steps.append(
             (
                 "network_features",
                 MicrobiomeFeatureEngineer(
                     cv_folds=config.feature_engineering.cv_folds,
                     max_iter=config.feature_engineering.max_iter,
-                    top_k_edges=config.feature_engineering.top_k_edges,
+                    top_k_edges=feature_flags.get("top_k_edges", config.feature_engineering.top_k_edges),
+                    use_clr=feature_flags.get("use_clr", True),
+                    use_degree=feature_flags.get("use_degree", False),
+                    use_hub=feature_flags.get("use_hub", False),
+                    use_edge=feature_flags.get("use_edge", False),
                 ),
             )
         )
@@ -50,6 +66,7 @@ def build_pipeline(estimator, use_network_features: bool = True):
     steps.append(("model", _wrap_multioutput(estimator)))
 
     return Pipeline(steps)
+
 
 def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
     """
@@ -88,12 +105,13 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
         log_feature_count(f"fold_{fold + 1}.after_network_features.train.n_features", n_train, fold)
 
     # After optional RFE step
-    if "rfe" in pipeline.named_steps:
-        current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
-        stage_counts["after_rfe"] = {"train": n_train}
-        log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
+    # if "rfe" in pipeline.named_steps:
+    #    current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
+    #    stage_counts["after_rfe"] = {"train": n_train}
+    #    log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
 
     return stage_counts
+
 
 # There are different ways of splitting the data, but everything generates indcices, we will use accordingly
 def get_configured_cv_split(splitter: TrainTestSplit):
@@ -109,8 +127,10 @@ def get_configured_cv_split(splitter: TrainTestSplit):
     else:
         return splitter.repeated_stratified_zone_data_split()
 
+
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool, feature_flags: dict = None):
+
     fold_mekm = []
     fold_mdekm = []
     fold_maxekm = []
@@ -132,19 +152,18 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
 
     for fold, (train_idx, val_idx) in enumerate(cv_splits):
-
         # 1. Get fold data
         X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
 
         # Check if the use meters is switched on or off. If we are using cartesion then we need to train on x,y as cartesion cordinates
         # and not as latitude and longitude
         if use_meters:
-            y_train_coords = y_train_coords[['X_meters','Y_meters']]
+            y_train_coords = y_train_coords[["X_meters", "Y_meters"]]
         else:
-            y_train_coords = y_train_coords[['latitude','longitude']]
+            y_train_coords = y_train_coords[["latitude", "longitude"]]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features)
+        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features, feature_flags=feature_flags)
 
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
@@ -186,9 +205,8 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         fold_5km.append(metrics["in_radius_5km_pct"])
         fold_10km.append(metrics["in_radius_10km_pct"])
 
+        print(f"Fold {fold + 1} Mean Distance Error: {metrics['mean_error_km']:.2f} km")
 
-        print(f"Fold {fold + 1} Mean Distance Error: {metrics["mean_error_km"]:.2f} km")
-    
     # Calculate the mean of mean error in km per fold, mean of median, and mean of max error
     # Aggregate
     avg_mekm = float(np.mean(fold_mekm))
@@ -214,24 +232,24 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         "cv_in_radius_10km_pct": avg_10km,
     }
 
-    return avg_mekm , summary_metrics
+    return avg_mekm, summary_metrics
 
 
 # Use all the models mentioned and evaluate each one individually on the train and validation dataset.
 # This is the main part of the machine learning architecture, becuase this ranks the models and is called in
 # in the run multistage selections
 def _rank_models(splitter: TrainTestSplit, model_defs: list, use_network_features: bool, top_k: int = 5):
-    
+
     # Store the results for each model
     results = []
-    
+
     for model_def in model_defs:
         model_name = model_def["name"]
         estimator = model_def["estimator"]
 
         # Start a separate run for each model (MLflow logging handled by caller in run_experiments.py)
         print(f"\nEvaluating {model_name} (network_features={use_network_features})")
-        
+
         # Evaluate
         avg_mekm, summary_metrics = evaluate_model_cv(splitter, estimator, use_network_features=use_network_features)
 
@@ -335,35 +353,37 @@ def run_multistage_selection(df, top_k: int = 2):
     for r in top_stage1:
         print(f"{r['name']}: {r['avg_mekm']:.4f} km")
 
-    #print("\nSTAGE 2: Re-evaluate with top K models (feature engineering)")
-    #top_stage2, stage2_results = _rank_models(splitter, top_stage1, use_network_features=True, top_k=1)
-#
-    #best_model_def = top_stage2[0]
-    #print("\nStage 2 Best Model:")
-    #print(f"{best_model_def['name']}: {best_model_def['avg_mae']:.4f} km")
-#
-    #tuned_pipeline = _tune_top_model(splitter, best_model_def)
+    # print("\nSTAGE 2: Re-evaluate with top K models (feature engineering)")
+    # top_stage2, stage2_results = _rank_models(splitter, top_stage1, use_network_features=True, top_k=1)
 
-    #X_test, y_test_zone, y_test_coords = splitter.get_test_data()
-    #test_preds = tuned_pipeline.predict(X_test)
-    #test_metrics = evaluate_coordinates(
-    #    y_true_lat=y_test_coords["latitude"].values,
-    #    y_true_lon=y_test_coords["longitude"].values,
-    #    y_pred_lat=test_preds[:, 0],
-    #    y_pred_lon=test_preds[:, 1],
-    #    zones_true=y_test_zone.values,
-    #)
+
 #
-    #print("\nSTAGE 3 Final Test Evaluation (tuned model):")
-    #for metric, value in test_metrics.items():
-    #    print(metric, value)
+# best_model_def = top_stage2[0]
+# print("\nStage 2 Best Model:")
+# print(f"{best_model_def['name']}: {best_model_def['avg_mae']:.4f} km")
 #
-    #return {
-    #    "stage1_results": stage1_results,
-    #    "stage2_results": stage2_results,
-    #    "test_metrics": test_metrics,
-    #    "best_model": best_model_def,
-    #}
+# tuned_pipeline = _tune_top_model(splitter, best_model_def)
+
+# X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+# test_preds = tuned_pipeline.predict(X_test)
+# test_metrics = evaluate_coordinates(
+#    y_true_lat=y_test_coords["latitude"].values,
+#    y_true_lon=y_test_coords["longitude"].values,
+#    y_pred_lat=test_preds[:, 0],
+#    y_pred_lon=test_preds[:, 1],
+#    zones_true=y_test_zone.values,
+# )
+#
+# print("\nSTAGE 3 Final Test Evaluation (tuned model):")
+# for metric, value in test_metrics.items():
+#    print(metric, value)
+#
+# return {
+#    "stage1_results": stage1_results,
+#    "stage2_results": stage2_results,
+#    "test_metrics": test_metrics,
+#    "best_model": best_model_def,
+# }
 
 
 if __name__ == "__main__":
