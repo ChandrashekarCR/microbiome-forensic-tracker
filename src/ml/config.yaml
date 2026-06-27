@@ -16,7 +16,7 @@ mlflow:
 # Pipeline excecution
 pipeline_excecution:
   allowed_families: ["tree"]
-  cv_strategy: "repeated_kfold" # Options: "loo" (Leave-One-Out), "repeated_kfold", "stratified"
+  cv_strategy: "repeated_kfold" # Options: "loo" (Leave-One-Out), "repeated_kfold", "stratified", "group_kfold"
   use_cartesian_meters: true 
 
 
