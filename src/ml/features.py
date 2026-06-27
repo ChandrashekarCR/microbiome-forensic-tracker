@@ -6,7 +6,8 @@ import pandas as pd
 from skbio.stats.composition import clr
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.covariance import GraphicalLassoCV
-
+import warnings
+warnings.filterwarnings("ignore", message="invalid value encountered in subtract")
 
 class ZeroColumnFilter(BaseEstimator, TransformerMixin):
     """
@@ -46,7 +47,9 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
     Fit the GraphicalLasso only to the training data.
     """
 
-    def __init__(self, cv_folds: int = 5, max_iter: int = 2000, n_jobs: int = -1, top_k_edges: int = 20):
+    def __init__(self, cv_folds: int = 5, max_iter: int = 2000, n_jobs: int = -1, top_k_edges: int = 20,
+                 use_clr: bool = True, use_degree: bool = False, use_hub: bool = False, use_edge: bool = False):
+        
         self.cv_folds = cv_folds
         self.max_iter = max_iter
         self.n_jobs = n_jobs
@@ -54,7 +57,10 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         self.glasso = GraphicalLassoCV(cv=self.cv_folds, n_jobs=self.n_jobs, max_iter=self.max_iter)
         self.precision_matrix = None  # Sparse Inverse Covariance matrix
         self.adjacency_matrix = None  # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
-        self.keystone_taxa_ = []
+        self.use_clr = use_clr
+        self.use_degree = use_degree
+        self.use_hub = use_hub
+        self.use_edge = use_edge        
 
     def multiplicative_replacement(self, X: np.ndarray, delta: float = 1e-6) -> pd.DataFrame:
         """
@@ -78,6 +84,35 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         X = np.clip(X, delta, 1.0 - delta)
 
         return X
+
+    def get_top_edges_by_absolute_weight(self, precision_matrix, taxa_names, top_k=20):
+        """
+        Get top K edges by absolute weight (captures both positive and negative interactions).
+        """
+        # Get all edges (upper triangular, excluding diagonal)
+        rows, cols = np.triu_indices_from(precision_matrix, k=1)
+        edge_weights = precision_matrix[rows, cols]
+
+        # Get indices sorted by absolute value (descending)
+        sorted_indices = np.argsort(np.abs(edge_weights))[::-1]  # Descending
+
+        # Take top K
+        top_k_indices = sorted_indices[:top_k]
+
+        # Extract edge information
+        top_edges = []
+        for idx in top_k_indices:
+            u, v = rows[idx], cols[idx]
+            weight = edge_weights[idx]
+            top_edges.append({
+                'taxon_u': taxa_names[u],
+                'taxon_v': taxa_names[v],
+                'weight': weight,
+                'abs_weight': np.abs(weight),
+                'interaction_type': 'positive' if weight > 0 else 'negative'
+            })
+
+        return top_edges
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         """
@@ -127,37 +162,43 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         X_nonzero = self.multiplicative_replacement(X_raw)
         X_clr_data = clr(X_nonzero)
 
+        if np.any(~np.isfinite(X_clr_data)):
+            X_clr_data = np.nan_to_num(X_clr_data, nan=0.0, posinf=0.0, neginf=0.0)
+
         features = {}
 
         # a) Raw CLR features
-        for i, taxon in enumerate(self.taxa_names_):
-            features[f"clr_{taxon}"] = X_clr_data[:, i]
+        if self.use_clr:
+            for i, taxon in enumerate(self.taxa_names_):
+                features[f"clr_{taxon}"] = X_clr_data[:, i]
 
         # b) Degree-weighted abundances (amplify ecologically connected taxa)
-        for i, taxon in enumerate(self.taxa_names_):
-            deg = self.degree_centrality.get(i, 0)
-            features[f"deg_weighted_{taxon}"] = X_clr_data[:, i] * deg
+        if self.use_degree:
+            for i, taxon in enumerate(self.taxa_names_):
+                deg = self.degree_centrality.get(i, 0)
+                features[f"deg_weighted_{taxon}"] = X_clr_data[:, i] * deg
 
         # c) Hub scores (betweenness-weighted)
-        for i, taxon in enumerate(self.taxa_names_):
-            btw = self.betweenness.get(i, 0)
-            features[f"hub_weighted_{taxon}"] = X_clr_data[:, i] * btw
+        if self.use_hub:
+            for i, taxon in enumerate(self.taxa_names_):
+                btw = self.betweenness.get(i, 0)
+                features[f"hub_weighted_{taxon}"] = X_clr_data[:, i] * btw
 
         # d) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
-        edges = np.argwhere(np.triu(self.adjacency_matrix, k=1) > 0)
+        if self.use_edge:
+            top_edges = self.get_top_edges_by_absolute_weight(self.precision_matrix,self.taxa_names_,self.top_k_edges)
 
-        for u, v in edges:
-            taxon_u = self.taxa_names_[u]
-            taxon_v = self.taxa_names_[v]
-            edge_name = f"edge_{taxon_u}_AND_{taxon_v}"
+            for edge in top_edges:
+                u = self.taxa_names_.index(edge['taxon_u'])
+                v = self.taxa_names_.index(edge['taxon_v'])
+                edge_name = f"edge_{edge['taxon_u']}_AND_{edge['taxon_v']}"
 
-            # The active strength of this edge in each sample:
-            # global_weight * abundance_u * abundance_v
-            global_weight = self.precision_matrix[u, v]
-            edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:, v]
-
-            features[edge_name] = edge_activations
+                # The active strength of this edge in each sample:
+                # global_weight * abundance_u * abundance_v
+                global_weight = self.precision_matrix[u,v]
+                edge_activations = global_weight * X_clr_data[:, u] * X_clr_data[:,v]
+                features[edge_name] = edge_activations
 
         return pd.DataFrame(features, index=X.index)
 

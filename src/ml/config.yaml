@@ -7,7 +7,7 @@ data_splitting:
   test_size: 0.2
   random_state: 42
   n_splits: 3
-  n_repeats: 5
+  n_repeats: 2
 
 mlflow:
   experiment_name: "Microbiome_Geolocation"

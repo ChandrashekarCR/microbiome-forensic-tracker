@@ -10,7 +10,6 @@ import time
 import mlflow
 import mlflow.sklearn
 import numpy as np
-from omegaconf import OmegaConf
 
 from ml.config import config
 from ml.mlflow_utils import start_run, log_model_metrics, log_model_params
@@ -102,7 +101,7 @@ def run_stage1_taxonomy_baseline():
             avg_mekm, summary_metrics = evaluate_model_cv(
                 splitter, 
                 xgb_def["estimator"], 
-                use_network_features=False
+                use_network_features=False,feature_flags=None
             )
             
             # Log evaluation metrics
@@ -150,131 +149,162 @@ def run_stage2_feature_engineering(taxonomy_level: str):
         n_splits=config.data_splitting.n_splits,
         test_size=config.data_splitting.test_size,
     )
-    
-    stage2_results = {}
-    
-    # Test 1: Network feature variants
-    print("\nTesting Network Feature Variants...")
+
+    # Get XGBoost model
     xgb_models = [m for m in model_registry.get_baseline_models() if m['model_type'] == "XGBoost"]
+    if not xgb_models:
+        raise ValueError("XGBoost model not found in registry")
     xgb_def = xgb_models[0]
     
-    for fe_name, use_clr, use_degree, use_hub in FE_VARIANTS:
-        print(f"\n  >>> Variant: {fe_name}")
+    stage2_results = {}
+
+    # Generate ALL combinations of feature flags
+    # This creates 16 combinations (2^4)
+    feature_combinations = [
+        # (use_clr, use_degree, use_hub, use_edge)
+        (True, False, False, False),   # CLR only
+        (False, True, False, False),   # Degree only
+        (False, False, True, False),   # Hub only
+        (False, False, False, True),   # Edge only
+        (True, True, False, False),    # CLR + Degree
+        (True, False, True, False),    # CLR + Hub
+        (True, False, False, True),    # CLR + Edge
+        (False, True, True, False),    # Degree + Hub
+        (False, True, False, True),    # Degree + Edge
+        (False, False, True, True),    # Hub + Edge
+        (True, True, True, False),     # CLR + Degree + Hub
+        (True, True, False, True),     # CLR + Degree + Edge
+        (True, False, True, True),     # CLR + Hub + Edge
+        (False, True, True, True),     # Degree + Hub + Edge
+        (True, True, True, True),      # ALL features
+    ]
+    
+    # Test 1: Network feature variants
+    for use_clr,use_degree,use_hub,use_edge in feature_combinations:
+        # Generate a descriptive name
+        fe_name_parts = []
+        if use_clr: fe_name_parts.append("CLR")
+        if use_degree: fe_name_parts.append("Deg")
+        if use_hub: fe_name_parts.append("Hub")
+        if use_edge: fe_name_parts.append("Edge")
+        fe_name = "_".join(fe_name_parts) if fe_name_parts else "None"
         
-        run_name = f"stage2_network_{fe_name}_{taxonomy_level}_{int(time.time())}"
+        # Feature count estimate (for logging)
+        n_features_estimate = 0
+        if use_clr:
+            n_features_estimate += df.shape[1] - 3  # all taxa
+        if use_degree:
+            n_features_estimate += df.shape[1] - 3
+        if use_hub:
+            n_features_estimate += df.shape[1] - 3
+        if use_edge:
+            n_features_estimate += config.feature_engineering.top_k_edges
+    
+        
+        print(f"\n  >>> Variant: {fe_name}")
+        print(f"      Flags: CLR={use_clr}, Deg={use_degree}, Hub={use_hub}, Edge={use_edge}")
+        print(f"      Estimated features: {n_features_estimate}")
+        
+        run_name = f"stage2_fe_{fe_name}_{taxonomy_level}_{int(time.time())}"
+        
         with start_run(run_name=run_name):
+            # === TAGS ===
             mlflow.set_tag("stage", "stage2_feature_engineering")
             mlflow.set_tag("taxonomy_level", taxonomy_level)
             mlflow.set_tag("fe_variant", fe_name)
-            mlflow.set_tag("fe_type", "network_features")
+            mlflow.set_tag("fe_type", "feature_combination")
+            mlflow.set_tag("model_type", "XGBoost")
+            
+            # === FEATURE FLAG TAGS ===
             mlflow.set_tag("use_clr", str(use_clr))
             mlflow.set_tag("use_degree", str(use_degree))
             mlflow.set_tag("use_hub", str(use_hub))
-            mlflow.set_tag("use_rfe", "False")
+            mlflow.set_tag("use_edge", str(use_edge))
             
-            mlflow.log_param("fe_variant", fe_name)
-            mlflow.log_param("model_type", "XGBoost")
+            # === PARAMETERS ===
+            mlflow.log_params({
+                "fe_variant": fe_name,
+                "use_clr": use_clr,
+                "use_degree": use_degree,
+                "use_hub": use_hub,
+                "use_edge": use_edge,
+                "top_k_edges": config.feature_engineering.top_k_edges,
+                "estimated_features": n_features_estimate,
+                "model_type": "XGBoost",
+                "taxonomy_level": taxonomy_level,
+                "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
+                "use_meters": config.pipeline_excecution.get("use_cartesian_meters"),
+            })
             
-            # TODO: For now, we log the intent. In a later iteration, you would extend
-            # MicrobiomeFeatureEngineer to accept feature_subset parameters.
-            # For this demo, we evaluate with use_network_features=True (all features enabled).
+            # Log XGBoost parameters
+            log_model_params(xgb_def['estimator'])
             
-            print(f"(Future: would use_clr={use_clr}, use_degree={use_degree}, use_hub={use_hub})")
-            
-            # Evaluate with network features enabled (full set)
+            # === EVALUATE ===
+            feature_config = {
+                "use_clr": use_clr,
+                "use_degree": use_degree,
+                "use_hub": use_hub,
+                "use_edge": use_edge,
+                "top_k_edges": config.feature_engineering.top_k_edges,
+            }
+
             avg_mekm, summary_metrics = evaluate_model_cv(
-                splitter,
-                xgb_def["estimator"],
-                use_network_features=True
+                splitter=splitter,
+                estimator=xgb_def["estimator"],
+                use_network_features=True,
+                feature_flags=feature_config,
             )
             
+            # Log metrics
             log_model_metrics(metrics=summary_metrics)
             
-            stage2_results[f"network_{fe_name}"] = {
-                "fe_type": "network_features",
+            # Store result
+            stage2_results[fe_name] = {
+                "fe_type": "feature_combination",
                 "fe_variant": fe_name,
+                "use_clr": use_clr,
+                "use_degree": use_degree,
+                "use_hub": use_hub,
+                "use_edge": use_edge,
                 "avg_mekm": avg_mekm,
                 "run_id": mlflow.active_run().info.run_id
             }
             
-            print(f"Mean error: {avg_mekm:.4f} km")
+            print(f"      Mean error: {avg_mekm:.4f} km")
     
-    # Test 2: RFE variant (sketch; full RFE implementation would go here)
-#    print("\n  Testing RFE (Recursive Feature Elimination)...")
-#    run_name = f"stage2_rfe_{taxonomy_level}_{int(time.time())}"
-#    with start_run(run_name=run_name):
-#        mlflow.set_tag("stage", "stage2_feature_engineering")
-#        mlflow.set_tag("taxonomy_level", taxonomy_level)
-#        mlflow.set_tag("fe_type", "rfe")
-#        mlflow.set_tag("use_rfe", "True")
-#        
-#        mlflow.log_param("model_type", "XGBoost")
-#        mlflow.log_param("fe_type", "rfe")
-#        
-#        # TODO: Wrap RFE logic here when ready (see RecursiveFeatureElimination class in features.py)
-#        print("      (Placeholder: RFE implementation to be added)")
-#        
-#        avg_mekm, summary_metrics = evaluate_model_cv(
-#            splitter,
-#            xgb_def["estimator"],
-#            use_network_features=False  # RFE replaces network features
-#        )
-#        
-#        log_model_metrics(metrics=summary_metrics)
-#        
-#        stage2_results["rfe"] = {
-#            "fe_type": "rfe",
-#            "fe_variant": "rfe",
-#            "avg_mekm": avg_mekm,
-#            "run_id": mlflow.active_run().info.run_id
-#        }
-#        
-#        print(f"Mean error: {avg_mekm:.4f} km")
-#    
-#    # Test 3: Network + RFE combo
-#    print("\n  Testing NETWORK + RFE (combined)...")
-#    run_name = f"stage2_network_rfe_{taxonomy_level}_{int(time.time())}"
-#    with start_run(run_name=run_name):
-#        mlflow.set_tag("stage", "stage2_feature_engineering")
-#        mlflow.set_tag("taxonomy_level", taxonomy_level)
-#        mlflow.set_tag("fe_type", "network_rfe")
-#        mlflow.set_tag("use_network_features", "True")
-#        mlflow.set_tag("use_rfe", "True")
-#        
-#        mlflow.log_param("model_type", "XGBoost")
-#        mlflow.log_param("fe_type", "network_rfe")
-#        
-#        print("      (Placeholder: combined network + RFE to be added)")
-#        
-#        avg_mekm, summary_metrics = evaluate_model_cv(
-#            splitter,
-#            xgb_def["estimator"],
-#            use_network_features=True  # Both enabled
-#        )
-#        
-#        log_model_metrics(metrics=summary_metrics)
-#        
-#        stage2_results["network_rfe"] = {
-#            "fe_type": "network_rfe",
-#            "fe_variant": "network_rfe",
-#            "avg_mekm": avg_mekm,
-#            "run_id": mlflow.active_run().info.run_id
-#        }
-#        
-#        print(f"      Mean error: {avg_mekm:.4f} km")
+    # === PRINT SUMMARY ===
+    print("\n" + "=" * 80)
+    print("STAGE 2 SUMMARY - ALL FEATURE COMBINATIONS")
+    print("=" * 80)
     
-    # Print summary
-    print("Stage 2 Summary:")
     sorted_results = sorted(stage2_results.items(), key=lambda x: x[1]['avg_mekm'])
+    
+    # Create a formatted table
+    print(f"\n{'Rank':<6} {'Variant':<25} {'CLR':<6} {'Deg':<6} {'Hub':<6} {'Edge':<6} {'Error (km)':<12} {'Run ID':<10}")
+    print("-" * 90)
+    
     for i, (variant, res) in enumerate(sorted_results, 1):
-        print(f"{i}. {variant:25} → {res['avg_mekm']:8.4f} km")
+        clr = "✓" if res['use_clr'] else "✗"
+        deg = "✓" if res['use_degree'] else "✗"
+        hub = "✓" if res['use_hub'] else "✗"
+        edge = "✓" if res['use_edge'] else "✗"
+        run_id_short = res['run_id'][:8] if 'run_id' in res else "N/A"
+        print(f"{i:<6} {variant:<25} {clr:<6} {deg:<6} {hub:<6} {edge:<6} {res['avg_mekm']:<12.4f} {run_id_short}")
     
-    best_fe = sorted_results[0]
-    print(f"\n✓ BEST FEATURE ENGINEERING: {best_fe[0]}")
-    print("-"*80)
+    # Find best variant
+    best_variant = sorted_results[0][0]
+    best_error = sorted_results[0][1]['avg_mekm']
     
-    return best_fe[0], stage2_results
-
+    print("\n" + "=" * 80)
+    print(f"✓ BEST FEATURE ENGINEERING: {best_variant}")
+    print(f"  Mean error: {best_error:.4f} km")
+    print(f"  Flags: CLR={sorted_results[0][1]['use_clr']}, "
+          f"Deg={sorted_results[0][1]['use_degree']}, "
+          f"Hub={sorted_results[0][1]['use_hub']}, "
+          f"Edge={sorted_results[0][1]['use_edge']}")
+    print("=" * 80)
+    
+    return best_variant, stage2_results
 
 # ============================================================================
 # STAGE 3: Full Multistage Pipeline + Hyperparameter Tuning
@@ -369,13 +399,13 @@ def main():
     
     try:
         # Stage 1: Determine best taxonomy level
-        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
+        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
         
         # Stage 2: Determine best feature engineering approach
-        #best_fe, stage2_results = run_stage2_feature_engineering(best_taxonomy)
-        #
-        ## Stage 3: Full pipeline with hyperparameter tuning
-        #run_stage3_final_tuning(best_taxonomy, best_fe)
+        best_fe, stage2_results = run_stage2_feature_engineering('genus')
+        
+        # Stage 3 remains optional/disabled unless you explicitly enable it later
+        # run_stage3_final_tuning(best_taxonomy, best_fe)
         
         
     except Exception as e:
