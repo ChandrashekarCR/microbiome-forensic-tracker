@@ -25,7 +25,7 @@ def _wrap_multioutput(estimator):
     return MultiOutputRegressor(estimator)
 
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True):
+def build_pipeline(estimator, use_network_features: bool = True, feature_flags:dict = None):
     """
     Build a reusable pipeline with optional network feature engineering.
     """
@@ -36,13 +36,27 @@ def build_pipeline(estimator, use_network_features: bool = True):
 
     # Feature Engineering toggle switch
     if use_network_features:
+        # Default flags if not provieded
+        if feature_flags is None:
+            feature_flags = {
+                "use_clr": True,
+                "use_degree": False,
+                "use_hub": False,
+                "use_edge": False,
+                "top_k_edges": config.feature_engineering.top_k_edges
+            }
+
         steps.append(
             (
                 "network_features",
                 MicrobiomeFeatureEngineer(
                     cv_folds=config.feature_engineering.cv_folds,
                     max_iter=config.feature_engineering.max_iter,
-                    top_k_edges=config.feature_engineering.top_k_edges,
+                    top_k_edges=feature_flags.get('top_k_edges', config.feature_engineering.top_k_edges),
+                    use_clr=feature_flags.get('use_clr', True),
+                    use_degree=feature_flags.get('use_degree', False),
+                    use_hub=feature_flags.get('use_hub', False),
+                    use_edge=feature_flags.get('use_edge', False)
                 ),
             )
         )
@@ -88,10 +102,10 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
         log_feature_count(f"fold_{fold + 1}.after_network_features.train.n_features", n_train, fold)
 
     # After optional RFE step
-    if "rfe" in pipeline.named_steps:
-        current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
-        stage_counts["after_rfe"] = {"train": n_train}
-        log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
+    #if "rfe" in pipeline.named_steps:
+    #    current_train, n_train = count_after_step(current_train, "rfe", pipeline.named_steps["rfe"])
+    #    stage_counts["after_rfe"] = {"train": n_train}
+    #    log_feature_count(f"fold_{fold + 1}.after_rfe.train.n_features", n_train, fold)
 
     return stage_counts
 
@@ -110,7 +124,8 @@ def get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.repeated_stratified_zone_data_split()
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool):
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool, feature_flags:dict = None):
+    
     fold_mekm = []
     fold_mdekm = []
     fold_maxekm = []
@@ -144,7 +159,7 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
             y_train_coords = y_train_coords[['latitude','longitude']]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features)
+        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features,feature_flags=feature_flags)
 
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
@@ -187,7 +202,7 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
         fold_10km.append(metrics["in_radius_10km_pct"])
 
 
-        print(f"Fold {fold + 1} Mean Distance Error: {metrics["mean_error_km"]:.2f} km")
+        print(f"Fold {fold + 1} Mean Distance Error: {metrics['mean_error_km']:.2f} km")
     
     # Calculate the mean of mean error in km per fold, mean of median, and mean of max error
     # Aggregate
