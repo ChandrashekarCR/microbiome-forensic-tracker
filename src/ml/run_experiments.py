@@ -83,6 +83,7 @@ def run_stage1_taxonomy_baseline():
             mlflow.set_tag("taxonomy_level", level)
             mlflow.set_tag("model_type", "XGBoost")
             mlflow.set_tag("use_network_features", "False")
+            mlflow.set_tag("use_k_best","False")
 
             # Log config parameters (compact; avoid huge dict)
             mlflow.log_param("taxonomy_table", table)
@@ -96,7 +97,7 @@ def run_stage1_taxonomy_baseline():
 
             # Evaluate the model across CV folds
             print(f"Evaluating {xgb_def['name']} with {config.data_splitting.n_splits} splits...")
-            avg_mekm, summary_metrics = evaluate_model_cv(splitter, xgb_def["estimator"], use_network_features=False, feature_flags=None)
+            avg_mekm, summary_metrics = evaluate_model_cv(splitter, xgb_def["estimator"], use_network_features=False, use_k_best=False, feature_flags=None)
 
             # Log evaluation metrics
             log_model_metrics(metrics=summary_metrics)
@@ -238,6 +239,7 @@ def run_stage2_feature_engineering(taxonomy_level: str):
                 splitter=splitter,
                 estimator=xgb_def["estimator"],
                 use_network_features=True,
+                use_k_best=True,
                 feature_flags=feature_config,
             )
 
@@ -388,10 +390,10 @@ def main():
 
     try:
         # Stage 1: Determine best taxonomy level
-        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
+        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
 
         # Stage 2: Determine best feature engineering approach
-        # best_fe, stage2_results = run_stage2_feature_engineering(best_taxonomy)
+        best_fe, stage2_results = run_stage2_feature_engineering("genus")
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)

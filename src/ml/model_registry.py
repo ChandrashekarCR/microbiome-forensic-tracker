@@ -1,4 +1,3 @@
-from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
@@ -16,7 +15,6 @@ class ModelRegistry:
     MODEL_MAPPING = {
         "XGBoost": XGBRegressor,
         "RandomForest": RandomForestRegressor,
-        "LightGBM": LGBMRegressor,
         "RidgeRegression": Ridge,
         "NeuralNetwork": MLPRegressor,
     }

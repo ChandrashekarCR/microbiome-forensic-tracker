@@ -10,7 +10,7 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
+from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter, KBestFeatureSelection
 from ml.mlflow_utils import log_feature_count
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
@@ -27,7 +27,7 @@ def _wrap_multioutput(estimator):
 
 
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True, feature_flags: dict = None):
+def build_pipeline(estimator, use_network_features: bool = True, use_k_best: bool = False, feature_flags: dict = None):
     """
     Build a reusable pipeline with optional network feature engineering.
     """
@@ -35,6 +35,16 @@ def build_pipeline(estimator, use_network_features: bool = True, feature_flags: 
 
     # Prevalence filter toggle switch
     steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalence)))
+
+    if use_k_best:
+        steps.append(
+            (
+                "k_best_select",
+                KBestFeatureSelection(
+                    k=config.feature_engineering.k_best_features
+                )
+            )
+        )
 
     # Feature Engineering toggle switch
     if use_network_features:
@@ -131,7 +141,7 @@ def get_configured_cv_split(splitter: TrainTestSplit):
 
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool, feature_flags: dict = None):
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool = False, use_k_best: bool = False, feature_flags: dict = None):
 
     fold_mekm = []
     fold_mdekm = []
@@ -165,7 +175,7 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
             y_train_coords = y_train_coords[["latitude", "longitude"]]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features, feature_flags=feature_flags)
+        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features, use_k_best=use_k_best, feature_flags=feature_flags)
 
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
