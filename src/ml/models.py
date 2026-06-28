@@ -1,6 +1,6 @@
 import pandas as pd
 from pyproj import Transformer
-from sklearn.model_selection import LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
+from sklearn.model_selection import GroupKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
 
 from malmo_samples import db_reader
 from ml.config import config
@@ -38,7 +38,6 @@ class TrainTestSplit:
 
         # Pass in everything and let the user decided on which he wants to train on. Accordingly the evaution metrics are set.
         y_coords_all = df[["X_meters", "Y_meters", "latitude", "longitude"]]
-        # y_coords_all = df[["latitude", "longitude"]]
 
         self.n_splits = n_splits
 
@@ -84,6 +83,13 @@ class TrainTestSplit:
         """
         loocv = LeaveOneOut()
         return list(loocv.split(self.X_cv))
+
+    def groupkfold_zone_split(self) -> list:
+        """
+        Hold out entire zone at a time. This will be true spatila generalization
+        """
+        gkf = GroupKFold(n_splits=self.n_splits)
+        return list(gkf.split(self.X_cv,self.y_cv_zone,groups=self.y_cv_zone))
 
     def get_fold_data(self, train_idx: int, val_idx: int) -> tuple:
         """

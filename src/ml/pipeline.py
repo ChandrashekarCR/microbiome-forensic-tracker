@@ -10,7 +10,7 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
+from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter, KBestFeatureSelection
 from ml.mlflow_utils import log_feature_count
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
@@ -27,7 +27,7 @@ def _wrap_multioutput(estimator):
 
 
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True, feature_flags: dict = None):
+def build_pipeline(estimator, use_network_features: bool = True, use_k_best: bool = False, feature_flags: dict = None):
     """
     Build a reusable pipeline with optional network feature engineering.
     """
@@ -35,6 +35,16 @@ def build_pipeline(estimator, use_network_features: bool = True, feature_flags: 
 
     # Prevalence filter toggle switch
     steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalence)))
+
+    if use_k_best:
+        steps.append(
+            (
+                "k_best_select",
+                KBestFeatureSelection(
+                    k=config.feature_engineering.k_best_features
+                )
+            )
+        )
 
     # Feature Engineering toggle switch
     if use_network_features:
@@ -68,7 +78,7 @@ def build_pipeline(estimator, use_network_features: bool = True, feature_flags: 
     return Pipeline(steps)
 
 
-def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFrame, pipeline: Pipeline):
+def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, pipeline: Pipeline):
     """
     Log feature counts before/after each preprocessing stage for train and validation data.
     Counts are recorded after applying each fitted transform in the pipeline.
@@ -124,12 +134,14 @@ def get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.leave_one_out_split()
     elif strategy == "repeated_kfold":
         return splitter.repeated_zone_data_split()
+    elif strategy == "group_kfold":
+        return splitter.groupkfold_zone_split()
     else:
         return splitter.repeated_stratified_zone_data_split()
 
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool, feature_flags: dict = None):
+def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features: bool = False, use_k_best: bool = False, feature_flags: dict = None):
 
     fold_mekm = []
     fold_mdekm = []
@@ -163,13 +175,13 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator, use_network_features:
             y_train_coords = y_train_coords[["latitude", "longitude"]]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features, feature_flags=feature_flags)
+        pipeline = build_pipeline(clone(estimator), use_network_features=use_network_features, use_k_best=use_k_best, feature_flags=feature_flags)
 
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
 
         # Log feature counts for this fold using the fitted preprocessing steps
-        stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
+        stage_counts = log_fold_feature_counts(fold, X_train, pipeline)
         for stage_name, counts in stage_counts.items():
             feature_count_history.setdefault(stage_name, {"train": [], "val": []})
             feature_count_history[stage_name]["train"].append(counts["train"])
