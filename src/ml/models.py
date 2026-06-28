@@ -89,7 +89,7 @@ class TrainTestSplit:
         Hold out entire zone at a time. This will be true spatila generalization
         """
         gkf = GroupKFold(n_splits=self.n_splits)
-        return list(gkf.split(self.X_cv,self.y_cv_zone,groups=self.y_cv_zone))
+        return list(gkf.split(self.X_cv, self.y_cv_zone, groups=self.y_cv_zone))
 
     def get_fold_data(self, train_idx: int, val_idx: int) -> tuple:
         """
