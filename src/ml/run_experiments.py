@@ -37,18 +37,35 @@ FE_VARIANTS = [
     ("hub_only", False, False, True),
 ]
 
+# STAGE 1: 
 
-# ============================================================================
-# STAGE 1: Taxonomy Baseline
-# ============================================================================
-def run_stage1_taxonomy_baseline():
+
+# STAGE 2: Taxonomy Baseline
+
+def run_stage2_taxonomy_baseline(model_type: str = "XGBoost"):
     """
     Experiment 1: Determine which taxonomy level provides best geolocation signal.
     Uses ONLY XGBoost baseline (no feature engineering, no hyperparameter tuning).
     """
-    print("STAGE 1: Taxonomy Baseline (XGBoost only, no feature engineering, no hyperparameter tuning)")
+    print(f"STAGE 1: Taxonomy Baseline {model_type} (no feature engineering, no hyperparameter tuning)")
 
     stage1_results = {}
+
+    # Get the baseline models from the model registry
+    all_models = [m for m in model_registry.get_baseline_models()]
+
+    if model_type:
+        selected_model = next((m for m in all_models if m["model_type"] == model_type), None)
+        if selected_model is None:
+            available = [m["model_type"] for m in all_models]
+            raise ValueError(f"Model '{model_type}' not enabled. Available: {available}")
+    else:
+        selected_model = all_models[0]  # Use first enabled model
+        model_type = selected_model["model_type"]
+    
+    model_family = selected_model["family"]
+    
+    print(f"Using model:{model_type}, family: {model_family}")
 
     for level, table in TAXONOMY_TABLES.items():
         print(f"\nRunning taxonomy level: {level} (table: {table})")
@@ -67,43 +84,41 @@ def run_stage1_taxonomy_baseline():
             test_size=config.data_splitting.test_size,
         )
 
-        # Get the XGBoost baseline model
-        xgb_models = [m for m in model_registry.get_baseline_models() if m["model_type"] == "XGBoost"]
-        if not xgb_models:
-            print(f"WARNING: XGBoost not found in baseline models. Skipping {level}.")
-            continue
-
-        xgb_def = xgb_models[0]
-
         # Create MLflow run
-        run_name = f"stage1_baseline_{level}_{int(time.time())}"
+        run_name = f"stage1_{model_type}_{level}_{int(time.time())}"
         with start_run(run_name=run_name):
-            # Set experiment tags
+            # === TAGS ===
             mlflow.set_tag("stage", "stage1_taxonomy_baseline")
             mlflow.set_tag("taxonomy_level", level)
-            mlflow.set_tag("model_type", "XGBoost")
+            mlflow.set_tag("model_type", model_type)  # e.g., "RandomForest"
+            mlflow.set_tag("model_family", model_family)  # e.g., "tree"
             mlflow.set_tag("use_network_features", "False")
-
-            # Log config parameters (compact; avoid huge dict)
-            mlflow.log_param("taxonomy_table", table)
-            mlflow.log_param("n_samples", len(df))
-            mlflow.log_param("n_taxa_features", df.shape[1] - 3)  # exclude metadata
-            mlflow.log_param("cv_strategy", config.pipeline_excecution.get("cv_strategy"))
-            mlflow.log_param("use_meters", config.pipeline_excecution.get("use_cartesian_meters"))
+            mlflow.set_tag("use_k_best", "False")
+            mlflow.set_tag("use_rfe", "False")
+            
+            # === PARAMETERS ===
+            mlflow.log_params({
+                "taxonomy_table": table,
+                "model_type": model_type,
+                "model_family": model_family,
+                "n_samples": len(df),
+                "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
+                "use_meters": config.pipeline_excecution.get("use_cartesian_meters"),
+            })
 
             # Log XGBoost model hyperparameters
-            log_model_params(xgb_def["estimator"])
+            log_model_params(selected_model["estimator"])
 
             # Evaluate the model across CV folds
-            print(f"Evaluating {xgb_def['name']} with {config.data_splitting.n_splits} splits...")
-            avg_mekm, summary_metrics = evaluate_model_cv(splitter, xgb_def["estimator"], use_network_features=False, feature_flags=None)
+            print(f"Evaluating {selected_model['model_type']} with {config.data_splitting.n_splits} splits...")
+            avg_mekm, summary_metrics = evaluate_model_cv(splitter, selected_model["estimator"], use_network_features=False, use_k_best=False, feature_flags=None)
 
             # Log evaluation metrics
             log_model_metrics(metrics=summary_metrics)
 
             # Store result
             stage1_results[level] = {
-                "model_name": xgb_def["name"],
+                "model_name": selected_model["model_type"],
                 "avg_mekm": avg_mekm,
                 "metrics": summary_metrics,
                 "run_id": mlflow.active_run().info.run_id,
@@ -238,6 +253,7 @@ def run_stage2_feature_engineering(taxonomy_level: str):
                 splitter=splitter,
                 estimator=xgb_def["estimator"],
                 use_network_features=True,
+                use_k_best=True,
                 feature_flags=feature_config,
             )
 
@@ -388,10 +404,10 @@ def main():
 
     try:
         # Stage 1: Determine best taxonomy level
-        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
+        best_taxonomy, stage1_results = run_stage2_taxonomy_baseline()
 
         # Stage 2: Determine best feature engineering approach
-        # best_fe, stage2_results = run_stage2_feature_engineering(best_taxonomy)
+        #best_fe, stage2_results = run_stage2_feature_engineering("genus")
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)

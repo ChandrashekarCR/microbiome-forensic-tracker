@@ -85,7 +85,7 @@ def evaluate_projected_coordinates(x_true, y_true, x_pred, y_pred, zones_true=No
     # 1. Distances in meters
     distances_m = euclidean_distance(x_true, y_true, x_pred, y_pred)
     # Convert the distance into km
-    distances = distances_m / 10000.0
+    distances = distances_m / 1000.0
 
     # 2. Basic error metrics (meters and km)
     metrics = {
