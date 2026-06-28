@@ -37,10 +37,11 @@ FE_VARIANTS = [
     ("hub_only", False, False, True),
 ]
 
-# STAGE 1: 
+# STAGE 1:
 
 
 # STAGE 2: Taxonomy Baseline
+
 
 def run_stage2_taxonomy_baseline(model_type: str = "XGBoost"):
     """
@@ -52,7 +53,9 @@ def run_stage2_taxonomy_baseline(model_type: str = "XGBoost"):
     stage1_results = {}
 
     # Get the baseline models from the model registry
-    all_models = [m for m in model_registry.get_baseline_models()]
+    all_models = []
+    for m in model_registry.get_baseline_models():
+        all_models.append(m)
 
     if model_type:
         selected_model = next((m for m in all_models if m["model_type"] == model_type), None)
@@ -62,9 +65,9 @@ def run_stage2_taxonomy_baseline(model_type: str = "XGBoost"):
     else:
         selected_model = all_models[0]  # Use first enabled model
         model_type = selected_model["model_type"]
-    
+
     model_family = selected_model["family"]
-    
+
     print(f"Using model:{model_type}, family: {model_family}")
 
     for level, table in TAXONOMY_TABLES.items():
@@ -95,23 +98,27 @@ def run_stage2_taxonomy_baseline(model_type: str = "XGBoost"):
             mlflow.set_tag("use_network_features", "False")
             mlflow.set_tag("use_k_best", "False")
             mlflow.set_tag("use_rfe", "False")
-            
+
             # === PARAMETERS ===
-            mlflow.log_params({
-                "taxonomy_table": table,
-                "model_type": model_type,
-                "model_family": model_family,
-                "n_samples": len(df),
-                "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
-                "use_meters": config.pipeline_excecution.get("use_cartesian_meters"),
-            })
+            mlflow.log_params(
+                {
+                    "taxonomy_table": table,
+                    "model_type": model_type,
+                    "model_family": model_family,
+                    "n_samples": len(df),
+                    "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
+                    "use_meters": config.pipeline_excecution.get("use_cartesian_meters"),
+                }
+            )
 
             # Log XGBoost model hyperparameters
             log_model_params(selected_model["estimator"])
 
             # Evaluate the model across CV folds
             print(f"Evaluating {selected_model['model_type']} with {config.data_splitting.n_splits} splits...")
-            avg_mekm, summary_metrics = evaluate_model_cv(splitter, selected_model["estimator"], use_network_features=False, use_k_best=False, feature_flags=None)
+            avg_mekm, summary_metrics = evaluate_model_cv(
+                splitter, selected_model["estimator"], use_network_features=False, use_k_best=False, feature_flags=None
+            )
 
             # Log evaluation metrics
             log_model_metrics(metrics=summary_metrics)
@@ -407,7 +414,7 @@ def main():
         best_taxonomy, stage1_results = run_stage2_taxonomy_baseline()
 
         # Stage 2: Determine best feature engineering approach
-        #best_fe, stage2_results = run_stage2_feature_engineering("genus")
+        # best_fe, stage2_results = run_stage2_feature_engineering("genus")
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)

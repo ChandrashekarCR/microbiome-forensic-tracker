@@ -10,7 +10,7 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter, KBestFeatureSelection
+from ml.features import KBestFeatureSelection, MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.mlflow_utils import log_feature_count
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
@@ -37,14 +37,7 @@ def build_pipeline(estimator, use_network_features: bool = True, use_k_best: boo
     steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalence)))
 
     if use_k_best:
-        steps.append(
-            (
-                "k_best_select",
-                KBestFeatureSelection(
-                    k=config.feature_engineering.k_best_features
-                )
-            )
-        )
+        steps.append(("k_best_select", KBestFeatureSelection(k=config.feature_engineering.k_best_features)))
 
     # Feature Engineering toggle switch
     if use_network_features:
