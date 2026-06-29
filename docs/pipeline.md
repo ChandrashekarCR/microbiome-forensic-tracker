@@ -1,155 +1,245 @@
 # Microbiome Forensic Tracker
-## Bioinformatics Workflow Documentation
+## Metagenomic Bioinformatics Workflow Documentation
 
-## Overview
-
-The **Microbiome Forensic Tracker** workflow is a modular metagenomic analysis pipeline designed to process raw sequencing reads and generate microbial profiles and sequence-based representations for downstream forensic and geolocation analysis.
-
-The pipeline is implemented using **Snakemake**, enabling:
-
-- reproducible execution
-- modular rule-based processing
-- scalable execution on HPC clusters
-- isolated software environments
-- automatic dependency management
-
-The workflow processes raw sequencing data through quality control, preprocessing, host removal, taxonomic profiling, and sequence embedding generation.
+Version: 1.0  
+Author: ChandrashekarCR  
 
 ---
 
-# Workflow Architecture
+# 1. Overview
 
-The pipeline consists of three major analysis branches:
+The **Microbiome Forensic Tracker** is a scalable metagenomic analysis workflow designed for microbial community profiling and DNA sequence representation generation.
 
-1. **Taxonomic Profiling Branch**
-   - Identifies microbial organisms present in a sample
-   - Generates abundance tables suitable for machine learning
+The workflow processes raw paired-end sequencing reads and produces:
 
-2. **Sequence Embedding Branch**
-   - Converts assembled DNA sequences into numerical representations
-   - Enables deep-learning based downstream analysis
+- quality-controlled sequencing data
+- host-filtered microbial reads
+- error-corrected reads
+- taxonomic abundance profiles
+- assembled metagenomic contigs
+- DNA language model embeddings
+
+The generated outputs are designed for downstream:
+
+- microbiome comparison
+- forensic environmental interpretation
+- machine learning based geographic prediction
+- microbial signature analysis
 
 
----
+The workflow is implemented using:
 
-# Directory Structure
+- **Snakemake** for workflow orchestration
+- **SLURM** for HPC scheduling
+- **Apptainer containers** for reproducible software execution
+- **Conda/Mamba** for environment management
 
-The workflow follows a modular Snakemake structure.
-
-Example:
-
-```
-workflow/
-├── rules
-│   ├── assembly.smk
-│   ├── bert.smk
-│   ├── classification.smk
-│   ├── common.smk
-│   ├── postprocessing.smk
-│   ├── preprocessing.smk
-│   └── qc.smk
-└── Snakefile
-
-src/smk_helper/
-├── dnaberts_embeddings.py
-├── generate_sample_sheet.py
-├── helper_scripts.py
-├── __init__.py
-├── resource_usage.py
-├── select_partition.py
-└── standardize_bracken.py
-```
 
 ---
 
-# Pipeline Stages
+# 2. Project Information
 
-## 1. Raw Sequencing Input
 
-### Input
+| Field | Value |
+|-|-|
+| Project | malmo_metagenomics_pipeline |
+| Version | 1.0 |
+| Author | ChandrashekarCR |
+| Platform | LUNARC HPC |
+| Scheduler | SLURM |
 
-The workflow accepts paired-end metagenomic sequencing reads:
+---
+
+# 4. Input Data
+
+## Raw Sequencing Data
+
+The pipeline expects paired-end Illumina reads:
 
 ```
 sample_R1.fastq.gz
 sample_R2.fastq.gz
 ```
 
-These represent the raw sequencing output generated from a sequencing platform.
+Configuration:
+
+```yaml
+samples:
+
+  sample_sheet: config/samples.tsv
+
+  pattern_r1: "_R1.fastq.gz"
+
+  pattern_r2: "_R2.fastq.gz"
+
+  read_length: 150
+
+```
+
+The workflow supports up to:
+
+```
+max_samples: 330
+```
 
 ---
 
-# 2. Quality Control
+# 5. Software Stack
 
-## Purpose
+The pipeline runs all major bioinformatics tools through Apptainer containers.
 
-The quality control stage evaluates sequencing quality before downstream processing.
+| Tool            | Purpose                       |
+| --------------- | ----------------------------- |
+| FastQC          | Sequencing quality assessment |
+| fastp           | Read filtering and trimming   |
+| Adapter Removal | Adapter cleaning              |
+| Bowtie2         | Host genome removal           |
+| Samtools        | Alignment processing          |
+| BBTools         | Error correction              |
+| MEGAHIT         | Metagenomic assembly          |
+| Kraken2         | Taxonomic classification      |
+| Bracken         | Abundance estimation          |
+| MultiQC         | QC aggregation                |
 
-Typical metrics:
+Container examples:
 
-* per-base sequence quality
-* GC distribution
-* adapter contamination
-* read length distribution
+```
+bin/fastqc.sif
 
-## Tools
+bin/fastp.sif
 
-| Tool               | Purpose                    |
-| ------------------ | -------------------------- |
-| FastQC             | Initial quality assessment |
-| MultiQC (optional) | Aggregated QC reporting    |
+bin/kraken2.sif
+
+bin/megahit.sif
+```
+
+---
+
+# 6. Processing Steps
+
+# 6.1 Raw Quality Control
+
+Tool:
+
+```
+FastQC
+```
+
+Purpose:
+
+* evaluate sequencing quality
+* detect adapter contamination
+* identify poor quality cycles
 
 Output:
 
 ```
-results/qc/
-    sample_fastqc.html
-    sample_fastqc.zip
+results/qc/raw/
 ```
 
 ---
 
-# 3. Read Trimming and Filtering
+# 6.2 Read Cleaning
 
-## Purpose
+Tool:
 
-Remove:
+```
+fastp
+```
+
+Configuration:
+
+```yaml
+fastp:
+
+ qualified_quality_phred: 30
+
+ trim_poly_g: true
+
+ dont_eval_duplication: true
+```
+
+Operations:
+
+* quality trimming
+* poly-G removal
+* low-quality filtering
+
+Output:
+
+```
+clean_R1.fastq.gz
+clean_R2.fastq.gz
+```
+
+---
+
+# 6.3 Adapter Removal
+
+Tool:
+
+```
+adapter_removal
+```
+
+Parameters:
+
+```yaml
+trimns: true
+
+trimqualities: true
+```
+
+Removes:
 
 * sequencing adapters
-* low-quality bases
-* short reads
-* unreliable sequences
-
-
-Output:
-
-```
-clean_reads/
-
-sample_R1.clean.fastq.gz
-sample_R2.clean.fastq.gz
-```
+* ambiguous bases
+* poor quality tails
 
 ---
 
-# 4. Host DNA Removal
+# 6.4 Human DNA Removal
 
-## Purpose
+Purpose:
 
-Environmental and forensic samples may contain host DNA.
+Remove host contamination before microbial analysis.
 
-The workflow removes unwanted host-derived reads before microbial analysis.
-
-Example:
+Tool:
 
 ```
-Human reference genome
-          |
-          v
-Alignment/filtering
-          |
-          v
-Microbial reads retained
+Bowtie2
+```
+
+Reference:
+
+```
+Human hg38 genome
+```
+
+Configuration:
+
+```yaml
+bowtie2:
+
+ sensitivity: very-sensitive
+```
+
+Workflow:
+
+```
+Reads
+
+ |
+
+ v
+
+Human genome alignment
+
+ |
+
+ v
+
+Unmapped microbial reads
 ```
 
 Output:
@@ -160,80 +250,77 @@ microbial_reads.fastq.gz
 
 ---
 
-# 5. Error Correction
+# 6.5 Error Correction
 
-## Purpose
+Tool:
 
-Correct sequencing errors before classification and assembly.
+BBTools:
 
-Benefits:
+* Tadpole
+* BBDuk
 
-* improves taxonomic assignment
-* improves assembly quality
-* reduces false classifications
+Purpose:
 
-Output:
+Improve downstream:
 
+* assembly quality
+* classification accuracy
+
+Configuration:
+
+```yaml
+memory_gb: 20
+
+k_size: 25
+
+ecc: true
+
+reassemble: true
+
+conservative: true
 ```
-corrected_reads.fastq.gz
-```
+
+Features:
+
+* k-mer based correction
+* sequencing error removal
+* conservative correction mode
 
 ---
 
-# Taxonomic Profiling Workflow
+# 7. Taxonomic Profiling Pipeline
 
-## 6. Kraken2 Classification
+# 7.1 Kraken2 Classification
 
-## Purpose
+Kraken2 performs k-mer based microbial classification.
 
-Kraken2 performs k-mer based taxonomic classification.
-
-Input:
+Database:
 
 ```
-corrected_reads.fastq.gz
+core_nt Database
+```
+
+Configuration:
+
+```yaml
+threads: 12
 ```
 
 Output:
 
 ```
 sample.kraken
+
 sample.report
 ```
 
-Generated information:
-
-* classified reads
-* taxonomic assignments
-* confidence scores
-
-Example configuration:
-
-```yaml
-kraken2:
-
- database: /path/to/database
-
- confidence: 0.1
-
- threads: 16
-```
-
 ---
 
-# 7. Bracken Abundance Estimation
+# 7.2 Bracken Abundance Estimation
 
-## Purpose
+Purpose:
 
-Kraken2 assigns reads but abundance estimation can be improved using Bracken.
-
-Bracken re-estimates species abundance by redistributing reads among taxonomic nodes.
-
-Input:
-
-```
-sample.kraken
-```
+Kraken2 assigns reads, while Bracken estimates abundance.
 
 Output:
 
@@ -241,96 +328,107 @@ Output:
 sample.bracken
 ```
 
-Example:
+Taxonomic ranks:
 
 ```yaml
-bracken:
-
- read_length: 150
-
- threshold: 10
+species
+genus
+family
+order
+class
+phylum
 ```
 
 ---
 
-# 8. Taxonomic Table Generation
+# 7.3 Bracken Standardization
 
-The workflow converts individual Bracken outputs into machine-learning compatible matrices.
-
-Example:
-
-| Sample | Species A | Species B | Species C |
-| ------ | --------- | --------- | --------- |
-| S1     | 0.20      | 0.05      | 0.01      |
-| S2     | 0.15      | 0.10      | 0.02      |
+Raw Bracken outputs are converted into a consistent format.
 
 Output:
 
 ```
-merged_abundance_table.tsv
+standardized_bracken.tsv
 ```
-
-This table is used for:
-
-* microbiome comparison
-* classification
-* geolocation prediction
-* forensic interpretation
 
 ---
 
-# Sequence Embedding Workflow
+# 7.4 Merge Samples
 
-## 9. Metagenomic Assembly
+Multiple samples are combined:
 
-## Purpose
+Example:
 
-Reads are assembled into longer DNA sequences (contigs).
+| Sample | Species A | Species B |
+| ------ | --------- | --------- |
+| S1     | 0.23      | 0.01      |
+| S2     | 0.10      | 0.08      |
+
+Output:
+
+```
+merged_taxonomic_profile.tsv
+```
+
+This table is used as input for:
+
+* ML models
+* classification
+* geolocation prediction
+
+---
+
+# 8. Metagenomic Assembly
+
+Tool:
+
+```
+MEGAHIT
+```
+
+Purpose:
+
+Assemble microbial reads into longer contigs.
+
+Configuration:
+
+```yaml
+min_contig_len: 500
+
+k_list:
+21,31,41,51,61,71,81,91,101,121,141
+
+min_count: 2
+```
+
+Assembly strategy:
+
+* multiple k-mer sizes
+* remove rare k-mers
+* improve complex metagenome assembly
+
+Output:
+
+```
+contigs.fa
+```
+
+---
+
+# 9. DNA Sequence Embeddings
+
+Tool:
+
+DNA-BERT-S
+
+Purpose:
+
+Convert DNA sequences into numerical embeddings.
 
 Input:
 
 ```
-corrected_reads.fastq.gz
-```
-
-Output:
-
-```
-contigs.fasta
-```
-
-Assembly improves:
-
-* sequence context
-* feature extraction
-* downstream representation learning
-
----
-
-# 10. DNA Sequence Embeddings
-
-## Purpose
-
-DNA sequences are converted into numerical vectors using DNA language models.
-
-Example:
-
-```
-DNA sequence
-
-ATGCGTAGCT...
-
-        |
-
-        v
-
-Embedding model
-
-        |
-
-        v
-
-[0.23, -0.11, 0.54, ...]
+assembled contigs
 ```
 
 Output:
@@ -339,242 +437,281 @@ Output:
 embeddings.npy
 ```
 
-These embeddings can be used for:
+Configuration:
 
-* machine learning models
-* clustering
+```yaml
+batch_size: 32
+
+max_length: 512
+
+overlap: 0.5
+
+device: cuda
+```
+
+These embeddings enable:
+
 * similarity search
-* geographic prediction
+* deep learning models
+* representation learning
 
 ---
 
-# Configuration
+# 10. Execution Profiles
 
-The workflow uses YAML configuration files.
+The workflow provides multiple execution modes.
 
-## config.yaml
+---
 
-Controls:
+# 10.1 Single Run Profile
 
-* input files
-* database locations
-* parameters
-* resources
+Purpose:
 
-Example:
+Backend integration.
 
-```yaml
-samples:
-  - sample1
-  - sample2
+Used with:
 
+* FastAPI
+* Celery
+* Redis queue
 
-kraken_database:
+Architecture:
 
- /data/kraken_db
+```
+API Request
 
+      |
 
-threads:
+      v
 
- 16
+Celery Worker
+
+      |
+
+      v
+
+Snakemake Job
+
+      |
+
+      v
+
+Results
 ```
 
+Use case:
+
+Single forensic sample analysis.
+
 ---
 
-# HPC Execution
+# 10.2 Small Scale Profile
 
-The workflow supports SLURM clusters.
+Purpose:
 
-Example:
+Development and testing.
 
-```yaml
-__default__:
+Typical workload:
 
- partition: compute
-
- time: "08:00:00"
-
- mem: 32G
-
- cpus: 4
-
-
-kraken2:
-
- mem: 128G
-
- cpus: 16
+```
+5-10 samples
 ```
 
----
-
-# Running the Workflow
-
-## Local execution
+Execution:
 
 ```bash
 snakemake \
---snakefile workflow/Snakefile \
---configfile config/config.yaml
+--profile profiles/small_scale
 ```
 
-## Dry Run
+Optimized for:
 
-Before execution:
+* rapid testing
+* debugging
+* parameter validation
+
+---
+
+# 10.3 Production Profile
+
+Purpose:
+
+Large batch processing.
+
+Target:
+
+```
+330 samples
+```
+
+Execution:
+
+```bash
+snakemake \
+--profile profiles/production
+```
+
+Optimized for:
+
+* maximum throughput
+* parallel SLURM execution
+* efficient resource usage
+
+---
+
+# 11. HPC Resource Allocation
+
+Cluster:
+
+```
+LUNARC
+```
+
+Scheduler:
+
+```
+SLURM
+```
+
+Partitions:
+
+| Partition | Purpose            |
+| --------- | ------------------ |
+| lu48      | CPU intensive jobs |
+| gpua40    | GPU embedding jobs |
+| aurora    | high memory jobs   |
+
+---
+
+# 12. Resource Requirements
+
+Examples:
+
+## Kraken2
+
+High memory task:
+
+```
+RAM: 460 GB
+
+CPU: 12
+```
+
+Reason:
+
+Core NT database:
+
+```
+~310 GB
+```
+
+---
+
+## MEGAHIT
+
+```yaml
+CPU: 32
+
+Memory: 200 GB
+```
+
+Reason:
+
+Large metagenomic assemblies.
+
+---
+
+## DNA-BERT
+
+GPU accelerated:
+
+```yaml
+GPU: 1
+
+CPU:12
+
+Memory:32GB
+```
+
+---
+
+# 13. Reproducibility
+
+The workflow guarantees reproducibility through:
+
+## Containers
+
+```
+Apptainer
+```
+
+## Conda
+
+```yaml
+use-conda: true
+conda-frontend: mamba
+```
+
+## Version Controlled Configuration
+
+```
+config.yaml
+
+profiles/
+
+workflow/
+```
+
+---
+
+# 14. Running the Pipeline
+
+Dry run:
 
 ```bash
 snakemake -n
 ```
 
-## HPC Execution
+Production:
 
 ```bash
 snakemake \
---profile slurm \
--j 100
+--profile profiles/production
 ```
 
----
-
-# Output Summary
-
-| Component     | Output                |
-| ------------- | --------------------- |
-| QC            | FastQC reports        |
-| Preprocessing | Clean FASTQ files     |
-| Host removal  | Microbial reads       |
-| Kraken2       | Taxonomic assignments |
-| Bracken       | Abundance estimates   |
-| Assembly      | Contigs               |
-| Embeddings    | DNA vectors           |
-
----
-
-# Reproducibility
-
-The workflow uses:
-
-* Snakemake rules
-* Conda environments
-* Version-controlled configuration
-* Explicit input/output tracking
-
-Each rule runs in an isolated environment:
-
-Example:
-
-```
-workflow/envs/
-
-fastqc.yaml
-
-fastp.yaml
-
-kraken.yaml
-
-bracken.yaml
-```
-
----
-
-# Extending the Pipeline
-
-New tools can be added by:
-
-1. Creating a new Snakemake rule
-
-2. Adding a Conda environment
-
-3. Updating configuration
-
-4. Connecting outputs to downstream rules
-
-Example:
-
-```
-new_tool_rule
-
-        |
-
-        v
-
-new_output.tsv
-
-        |
-
-        v
-
-machine_learning_stage
-```
-
----
-
-# Troubleshooting
-
-## Memory Error
-
-Increase resources:
-
-```yaml
-mem: 128G
-```
-
----
-
-## Missing Database
-
-Check:
-
-```yaml
-kraken_database:
-    /correct/path
-```
-
----
-
-## Environment Failure
-
-Recreate:
+Testing:
 
 ```bash
-conda env create \
--f workflow/envs/tool.yaml
+snakemake \
+--profile profiles/small_scale
 ```
 
 ---
 
-# Future Development
+# 15. Outputs
 
-Planned extensions:
-
-* automated forensic report generation
-* geographic prediction models
-* neural embedding models
-* interactive visualization dashboard
-* cloud execution support
+| Stage        | Output                 |
+| ------------ | ---------------------- |
+| QC           | FastQC reports         |
+| Cleaning     | Filtered FASTQ         |
+| Host removal | Microbial reads        |
+| Correction   | Corrected reads        |
+| Kraken2      | Classification reports |
+| Bracken      | Abundance tables       |
+| Assembly     | Contigs                |
+| DNA-BERT     | Embeddings             |
 
 ---
 
-# References
+# 16. Future Extensions
 
-Snakemake:
-[https://snakemake.readthedocs.io/](https://snakemake.readthedocs.io/)
+Planned:
 
-Kraken2:
-[https://github.com/DerrickWood/kraken2](https://github.com/DerrickWood/kraken2)
+* AI generated forensic reports
+* microbiome geolocation prediction
+* automated sample interpretation
+* cloud deployment
+* real-time API processing
 
-Bracken:
-[https://github.com/jenniferlu717/Bracken](https://github.com/jenniferlu717/Bracken)
+---
 
-Fastp:
-[https://github.com/OpenGene/fastp](https://github.com/OpenGene/fastp)
-
-FastQC:
-[https://www.bioinformatics.babraham.ac.uk/projects/fastqc/](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
-
-```
-
-I would **not** claim exact filenames like `qc.smk`, `kraken.smk`, etc. in the final repository unless those files actually exist; replace those placeholders after checking your `workflow/` directory. The structure above matches how production Snakemake metagenomics workflows are typically organized. :contentReference[oaicite:1]{index=1}
-```
-
-[1]: https://pmc.ncbi.nlm.nih.gov/articles/PMC10591440/?utm_source=chatgpt.com "aMeta: an accurate and memory-efficient ancient metagenomic profiling workflow - PMC"

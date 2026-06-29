@@ -23,7 +23,7 @@ pipeline_excecution:
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
   XGBoost:
-    enabled: true
+    enabled: false
     family: "tree"
     params:
       n_estimators: 100
@@ -33,7 +33,7 @@ stage_1:
       objective: "reg:squarederror"
 
   RandomForest:
-    enabled: false
+    enabled: true
     family: "tree"
     params:
       n_estimators: 200
@@ -49,13 +49,20 @@ stage_1:
     params:
       alpha: 1.0
       random_state: 42
-
-  NeuralNetwork:
-    enabled: false
-    family: "nn"
+  
+  ElasticNet:
+    enabled: true
+    family: "linear"
     params:
-      hidden_layer_sizes: [64, 32]
-      max_iter: 500
+      alpha: 1.0
+      l1_ratio: 0.5
+  
+  ExtraTreesRegressor:
+    enabled: true  
+    family: "tree"
+    params:
+      n_estimators: 200
+      max_features: "sqrt"
       random_state: 42
 
   
