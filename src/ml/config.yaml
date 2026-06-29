@@ -1,7 +1,7 @@
 # config.yaml
 database:
   path: "/home/chandru/binp51/databases/malmo.db"
-  table: "malmo_species"
+  table: "malmo_phylum"
 
 data_splitting:
   test_size: 0.2
@@ -23,7 +23,7 @@ pipeline_excecution:
 # Stage 1: Baseline Models with Metadata & Switches
 stage_1:
   XGBoost:
-    enabled: false
+    enabled: true
     family: "tree"
     params:
       n_estimators: 100
@@ -44,7 +44,7 @@ stage_1:
       n_jobs: -1
 
   RidgeRegression:
-    enabled: false
+    enabled: true
     family: "linear"
     params:
       alpha: 1.0
