@@ -1,6 +1,5 @@
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Ridge
-from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
+from sklearn.linear_model import Ridge, ElasticNet
 from xgboost import XGBRegressor
 
 from ml.config import config
@@ -16,7 +15,8 @@ class ModelRegistry:
         "XGBoost": XGBRegressor,
         "RandomForest": RandomForestRegressor,
         "RidgeRegression": Ridge,
-        "NeuralNetwork": MLPRegressor,
+        "ElasticNet": ElasticNet,
+        "ExtraTreesRegressor": ExtraTreesRegressor
     }
 
     @staticmethod
@@ -67,12 +67,28 @@ class ModelRegistry:
 models = ModelRegistry()
 
 if __name__ == "__main__":
-    # Example 1: Pull ALL enabled baseline models
-    print("--- All Enabled Baselines ---")
+    
+    # Test 1: Load all enabled models
+    print("All enabled models:")
     for m in models.get_baseline_models():
-        print(f"Loaded {m['name']} belonging to family: {m['family']}")
+        print(f"  {m['name']} (family: {m['family']})")
 
-    # Example 2: Pull ONLY linear models for a quick experiment
-    print("\n--- Only Linear Models ---")
-    for m in models.get_baseline_models(allowed_families=["linear"]):
-        print(f"Loaded {m['name']}")
+    # Test 2: Load specific family
+    print("\nOnly tree models:")
+    for m in models.get_baseline_models(allowed_families=["tree"]):
+        print(f"  {m['name']}")
+
+    # Test 3: Instantiate a model and check it works
+    #from sklearn.datasets import make_regression
+#
+    #X, y = make_regression(n_samples=100, n_features=5, noise=0.1)
+    #models_list = models.get_baseline_models()
+#
+    #for m in models_list:
+    #    try:
+    #        estimator = m['estimator']
+    #        estimator.fit(X, y)
+    #        pred = estimator.predict(X[:5])
+    #        print(f"{m['model_type']} works! Prediction: {pred[:2]}")
+    #    except Exception as e:
+    #        print(f"{m['model_type']} failed: {e}")
