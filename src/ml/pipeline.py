@@ -2,9 +2,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from omegaconf import ListConfig
 from sklearn.base import clone
-from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
 
@@ -12,8 +10,7 @@ from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
 from ml.features import KBestFeatureSelection, MicrobiomeFeatureEngineer, LinearModelScaler, ZeroColumnFilter
 from ml.mlflow_utils import log_feature_count
-from ml.model_registry import models as model_registry
-from ml.models import TrainTestSplit, load_and_prep_data
+from ml.models import TrainTestSplit
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="sklearn.covariance")
 
@@ -103,26 +100,40 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
         transformed = np.asarray(transformed)
         return transformed, transformed.shape[1]
 
-    # Sanitize and record raw input counts (train and val)
+    # Log raw input counts
     stage_counts["raw"] = {"train": X_train.shape[1], "val": X_val.shape[1]}
     log_feature_count(f"fold_{fold + 1}.raw.train.n_features", X_train.shape[1], fold)
     log_feature_count(f"fold_{fold + 1}.raw.val.n_features", X_val.shape[1], fold)
 
-    # Iterate the pipeline steps in their defined order (stop before final model)
+    # Track transformed data through pipeline
     current_train = X_train.copy()
     current_val = X_val.copy()
+    
+    # Store step names for tracking
+    previous_step_name = "raw"
+    
     for step_name, step_obj in pipeline.steps:
         if step_name == "model":
             break
         if not hasattr(step_obj, "transform"):
             continue
 
+        # Transform data
         current_train, n_train = count_after_step(current_train, step_obj)
         current_val, n_val = count_after_step(current_val, step_obj)
-        key = f"after_{step_name}"
-        stage_counts[key] = {"train": n_train, "val": n_val}
-        log_feature_count(f"fold_{fold + 1}.{key}.train.n_features", n_train, fold)
-        log_feature_count(f"fold_{fold + 1}.{key}.val.n_features", n_val, fold)
+        
+        # Create a clean stage name
+        stage_key = f"after_{step_name}"
+        stage_counts[stage_key] = {"train": n_train, "val": n_val}
+        
+        # Log to MLflow with fold information
+        log_feature_count(f"fold_{fold + 1}.{stage_key}.train.n_features", n_train, fold)
+        log_feature_count(f"fold_{fold + 1}.{stage_key}.val.n_features", n_val, fold)
+        
+        # Print progress for debugging
+        #print(f"  Stage '{step_name}': Train={n_train}, Val={n_val} (Δ: {n_train - stage_counts[previous_step_name]['train']})")
+        
+        previous_step_name = stage_key
 
     return stage_counts
 
@@ -159,12 +170,8 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator,
     fold_5km = []
     fold_10km = []
 
-    feature_count_history = {
-        "raw": {"train": [], "val": []},
-        "after_zero_filter": {"train": [], "val": []},
-        "after_network_features": {"train": [], "val": []},
-        "after_rfe": {"train": [], "val": []},
-    }
+    # Dictionary to track all feature counts across folds
+    all_feature_counts = {}
 
     cv_splits = get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
@@ -193,10 +200,13 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator,
 
         # Log feature counts for this fold using the fitted preprocessing steps
         stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
-        for stage_name, counts in stage_counts.items():
-            feature_count_history.setdefault(stage_name, {"train": [], "val": []})
-            feature_count_history[stage_name]["train"].append(counts.get("train", 0))
-            feature_count_history[stage_name]["val"].append(counts.get("val", 0))
+        
+        # Store in master dictionary
+        for stage_name,counts in stage_counts.items():
+            if stage_name not in all_feature_counts:
+                all_feature_counts[stage_name] = {"train":[],"val":[]}
+            all_feature_counts[stage_name]["train"].append(counts.get("train",0))
+            all_feature_counts[stage_name]["val"].append(counts.get("val",0)) 
 
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val)

@@ -15,7 +15,7 @@ from ml.config import config
 from ml.mlflow_utils import log_model_metrics, log_model_params, start_run
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
-from ml.pipeline import _rank_models, evaluate_model_cv
+from ml.pipeline import evaluate_model_cv
 
 TAXONOMY_TABLES = {
     "phylum": "malmo_phylum",
@@ -276,17 +276,17 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
         (False, True, False, False),  # Degree only
         (False, False, True, False),  # Hub only
         (False, False, False, True),  # Edge only
-        #        (True, True, False, False),    # CLR + Degree
-        #        (True, False, True, False),    # CLR + Hub
-        #        (True, False, False, True),    # CLR + Edge
-        #        (False, True, True, False),    # Degree + Hub
-        #        (False, True, False, True),    # Degree + Edge
-        #        (False, False, True, True),    # Hub + Edge
-        #        (True, True, True, False),     # CLR + Degree + Hub
-        #        (True, True, False, True),     # CLR + Degree + Edge
-        #        (True, False, True, True),     # CLR + Hub + Edge
-        #        (False, True, True, True),     # Degree + Hub + Edge
-        #        (True, True, True, True),      # ALL features
+        (True, True, False, False),    # CLR + Degree
+        (True, False, True, False),    # CLR + Hub
+        (True, False, False, True),    # CLR + Edge
+        (False, True, True, False),    # Degree + Hub
+        (False, True, False, True),    # Degree + Edge
+        (False, False, True, True),    # Hub + Edge
+        (True, True, True, False),     # CLR + Degree + Hub
+        (True, True, False, True),     # CLR + Degree + Edge
+        (True, False, True, True),     # CLR + Hub + Edge
+        (False, True, True, True),     # Degree + Hub + Edge
+        (True, True, True, True),      # ALL features
     ]
 
     # Test 1: Network feature variants
@@ -303,7 +303,7 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
             fe_name_parts.append("Edge")
         fe_name = "_".join(fe_name_parts) if fe_name_parts else "None"
 
-        print(f"\nVariant: {fe_name}")
+        print(f"Variant: {fe_name}")
         print(f"Flags: CLR={use_clr}, Deg={use_degree}, Hub={use_hub}, Edge={use_edge}")
 
         run_name = f"stage3_fe_{fe_name}_{int(time.time())}"
@@ -365,49 +365,24 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
                 "run_id": mlflow.active_run().info.run_id,
             }
 
-            print(f"      Mean error: {avg_mekm:.4f} km")
-
-    # === PRINT SUMMARY ===
-    print("\n" + "=" * 80)
-    print("STAGE 2 SUMMARY - ALL FEATURE COMBINATIONS")
-    print("=" * 80)
+            print(f"Mean error: {avg_mekm:.4f} km")
 
     sorted_results = sorted(stage3_results.items(), key=lambda x: x[1]["avg_mekm"])
-
-    # Create a formatted table
-    print(f"\n{'Rank':<6} {'Variant':<25} {'CLR':<6} {'Deg':<6} {'Hub':<6} {'Edge':<6} {'Error (km)':<12} {'Run ID':<10}")
-    print("-" * 90)
-
-    for i, (variant, res) in enumerate(sorted_results, 1):
-        clr = "✓" if res["use_clr"] else "✗"
-        deg = "✓" if res["use_degree"] else "✗"
-        hub = "✓" if res["use_hub"] else "✗"
-        edge = "✓" if res["use_edge"] else "✗"
-        run_id_short = res["run_id"][:8] if "run_id" in res else "N/A"
-        print(f"{i:<6} {variant:<25} {clr:<6} {deg:<6} {hub:<6} {edge:<6} {res['avg_mekm']:<12.4f} {run_id_short}")
 
     # Find best variant
     best_variant = sorted_results[0][0]
     best_error = sorted_results[0][1]["avg_mekm"]
 
-    print("\n" + "=" * 80)
-    print(f"✓ BEST FEATURE ENGINEERING: {best_variant}")
-    print(f"  Mean error: {best_error:.4f} km")
-    print(
-        f"  Flags: CLR={sorted_results[0][1]['use_clr']}, "
-        f"Deg={sorted_results[0][1]['use_degree']}, "
-        f"Hub={sorted_results[0][1]['use_hub']}, "
-        f"Edge={sorted_results[0][1]['use_edge']}"
-    )
-    print("=" * 80)
+    print(f"Best Feature Engineering: {best_variant}")
+    print(f"Mean error: {best_error:.4f} km")
 
     return best_variant, stage3_results
 
 
 # ============================================================================
-# STAGE 3: Full Multistage Pipeline + Hyperparameter Tuning
+# STAGE 4: Full Multistage Pipeline + Hyperparameter Tuning
 # ============================================================================
-def run_stage3_final_tuning(taxonomy_level: str, fe_variant: str):
+def run_stage4_final_tuning(taxonomy_level: str, fe_variant: str):
     """
     Experiment 3: Full pipeline with all models + feature engineering + hyperparameter tuning.
     Selects and saves the best model.
@@ -426,40 +401,6 @@ def run_stage3_final_tuning(taxonomy_level: str, fe_variant: str):
         n_splits=config.data_splitting.n_splits,
         test_size=config.data_splitting.test_size,
     )
-
-    # Stage 1: Baseline models
-    print("\nRunning STAGE 3.1: Baseline model ranking...")
-    stage1_models = model_registry.get_baseline_models()
-
-    run_name = f"stage3_baseline_{taxonomy_level}_{int(time.time())}"
-    with start_run(run_name=run_name):
-        mlflow.set_tag("stage", "stage3_full_pipeline")
-        mlflow.set_tag("substage", "baseline")
-        mlflow.set_tag("taxonomy_level", taxonomy_level)
-        mlflow.set_tag("fe_variant", fe_variant)
-
-        top_stage1, _ = _rank_models(splitter, stage1_models, use_network_features=False, top_k=3)
-
-        for i, model_res in enumerate(top_stage1, 1):
-            print(f"  {i}. {model_res['name']}: {model_res['avg_mekm']:.4f} km")
-
-    best_model = top_stage1[0]
-    print(f"\n✓ BEST BASELINE MODEL: {best_model['name']}")
-
-    # Stage 2: With feature engineering (optional; commented in your original code)
-    print("\nSTAGE 3.2: Re-evaluate with feature engineering...")
-    run_name = f"stage3_fe_{taxonomy_level}_{int(time.time())}"
-    with start_run(run_name=run_name):
-        mlflow.set_tag("stage", "stage3_full_pipeline")
-        mlflow.set_tag("substage", "feature_engineering")
-        mlflow.set_tag("taxonomy_level", taxonomy_level)
-        mlflow.set_tag("fe_variant", fe_variant)
-        mlflow.set_tag("use_network_features", "True")
-
-        # TODO: Uncomment and run if ready
-        # top_stage2, _ = _rank_models(splitter, [best_model], use_network_features=True, top_k=1)
-
-        print("  (Placeholder: re-evaluate top baseline models with feature engineering)")
 
     # Stage 3: Hyperparameter tuning
     print("\nSTAGE 3.3: Hyperparameter tuning (top model)...")
@@ -497,13 +438,13 @@ def main():
 
     try:
         # Stage 1: Determine best taxonomy level
-        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline()
+        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
 
         # Stage 2: Determine best feature engineering approach
         #stage2_results = run_stage2_fe_kbest("species", "RandomForest")
 
         # Stage 3: Determine the best combination of network features
-        stage3_results = run_stage3_fe_network("species","RandomForest")
+        best_variant, stage3_results = run_stage3_fe_network("species","RandomForest")
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)
