@@ -40,6 +40,7 @@ FE_VARIANTS = [
 
 # STAGE 1: Taxonomy Baseline
 
+
 def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
     """
     Experiment 1: Determine which taxonomy level provides best geolocation signal.
@@ -63,7 +64,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
         selected_model = all_models[0]  # Use first enabled model
         model_type = selected_model["model_type"]
 
-    model_family = selected_model["family"] # tree or linear
+    model_family = selected_model["family"]  # tree or linear
 
     print(f"Using model:{model_type}, family: {model_family}")
 
@@ -114,9 +115,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
             # Evaluate the model across CV folds
             print(f"Evaluating {selected_model['model_type']} with {config.data_splitting.n_splits} splits...")
             avg_mekm, summary_metrics = evaluate_model_cv(
-                splitter, selected_model["estimator"], 
-                use_network_features=False, use_k_best=False, 
-                feature_flags=None, model_family=model_family
+                splitter, selected_model["estimator"], use_network_features=False, use_k_best=False, feature_flags=None, model_family=model_family
             )
 
             # Log evaluation metrics
@@ -147,6 +146,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
 
 # STAGE 2: Feature Engineering Variants - Use K-best features
 
+
 def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
     """
     Experiment 2: Given the best taxonomy level, test feature engineering variants.
@@ -168,7 +168,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
         selected_model = all_models[0]  # Use first enabled model
         model_type = selected_model["model_type"]
 
-    model_family = selected_model["family"] # tree or linear
+    model_family = selected_model["family"]  # tree or linear
 
     print(f"Using model:{model_type}, family: {model_family}")
 
@@ -184,7 +184,6 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
 
     stage2_results = {}
 
-
     run_name = f"stage2_fe_kbest_{model_type}_{int(time.time())}"
 
     with start_run(run_name=run_name):
@@ -192,7 +191,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
         mlflow.set_tag("stage", "stage2_fe_kbest")
         mlflow.set_tag("taxonomy_level", taxonomy_level)
         mlflow.set_tag("model_type", model_type)
-        mlflow.set_tag("use_k_best","True")
+        mlflow.set_tag("use_k_best", "True")
 
         # === PARAMETERS ===
         mlflow.log_params(
@@ -206,7 +205,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
         )
         # Log XGBoost parameters
         log_model_params(selected_model["estimator"])
-        
+
         # === EVALUATE ===
         avg_mekm, summary_metrics = evaluate_model_cv(
             splitter=splitter,
@@ -214,21 +213,18 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
             use_network_features=False,
             use_k_best=True,
             feature_flags=None,
-            model_family = model_family
+            model_family=model_family,
         )
-       
+
         # Log metrics
         log_model_metrics(metrics=summary_metrics)
-        
+
         # Store result
-        stage2_results["kbest"] = {
-            "avg_mekm": avg_mekm,
-            "run_id": mlflow.active_run().info.run_id,
-            "metrics": summary_metrics
-        }
+        stage2_results["kbest"] = {"avg_mekm": avg_mekm, "run_id": mlflow.active_run().info.run_id, "metrics": summary_metrics}
         print(f"Mean error: {avg_mekm:.4f} km")
 
     return stage2_results
+
 
 def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest"):
     """
@@ -236,7 +232,6 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
     Evaluate the best network features.
     """
     print(f"STAGE 3: Feature Engineering - Network Features taxonomy: {taxonomy_level}, no hyperparameter tuning, model: {model_type}")
-
 
     # Get the baseline models from the model registry
     all_models = []
@@ -252,7 +247,7 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
         selected_model = all_models[0]  # Use first enabled model
         model_type = selected_model["model_type"]
 
-    model_family = selected_model["family"] # tree or linear
+    model_family = selected_model["family"]  # tree or linear
 
     print(f"Using model:{model_type}, family: {model_family}")
 
@@ -276,17 +271,17 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
         (False, True, False, False),  # Degree only
         (False, False, True, False),  # Hub only
         (False, False, False, True),  # Edge only
-        (True, True, False, False),    # CLR + Degree
-        (True, False, True, False),    # CLR + Hub
-        (True, False, False, True),    # CLR + Edge
-        (False, True, True, False),    # Degree + Hub
-        (False, True, False, True),    # Degree + Edge
-        (False, False, True, True),    # Hub + Edge
-        (True, True, True, False),     # CLR + Degree + Hub
-        (True, True, False, True),     # CLR + Degree + Edge
-        (True, False, True, True),     # CLR + Hub + Edge
-        (False, True, True, True),     # Degree + Hub + Edge
-        (True, True, True, True),      # ALL features
+        (True, True, False, False),  # CLR + Degree
+        (True, False, True, False),  # CLR + Hub
+        (True, False, False, True),  # CLR + Edge
+        (False, True, True, False),  # Degree + Hub
+        (False, True, False, True),  # Degree + Edge
+        (False, False, True, True),  # Hub + Edge
+        (True, True, True, False),  # CLR + Degree + Hub
+        (True, True, False, True),  # CLR + Degree + Edge
+        (True, False, True, True),  # CLR + Hub + Edge
+        (False, True, True, True),  # Degree + Hub + Edge
+        (True, True, True, True),  # ALL features
     ]
 
     # Test 1: Network feature variants
@@ -396,7 +391,7 @@ def run_stage4_final_tuning(taxonomy_level: str, fe_variant: str):
     config.database.table = TAXONOMY_TABLES[taxonomy_level]
     df = load_and_prep_data()
 
-    splitter = TrainTestSplit(
+    _splitter = TrainTestSplit(
         df,
         n_splits=config.data_splitting.n_splits,
         test_size=config.data_splitting.test_size,
@@ -438,13 +433,13 @@ def main():
 
     try:
         # Stage 1: Determine best taxonomy level
-        #best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
+        # best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
 
         # Stage 2: Determine best feature engineering approach
-        #stage2_results = run_stage2_fe_kbest("species", "RandomForest")
+        # stage2_results = run_stage2_fe_kbest("species", "RandomForest")
 
         # Stage 3: Determine the best combination of network features
-        best_variant, stage3_results = run_stage3_fe_network("species","RandomForest")
+        best_variant, stage3_results = run_stage3_fe_network("species", "RandomForest")
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)
