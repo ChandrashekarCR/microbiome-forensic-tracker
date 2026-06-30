@@ -26,20 +26,10 @@ TAXONOMY_TABLES = {
     "species": "malmo_species",
 }
 
-# Feature engineering variants: define which network features to enable
-# Each variant is (name, clr, degree, hub)
-FE_VARIANTS = [
-    ("clr_only", True, False, False),
-    ("clr_degree", True, True, False),
-    ("clr_hub", True, False, True),
-    ("clr_degree_hub", True, True, True),
-    ("degree_only", False, True, False),
-    ("hub_only", False, False, True),
-]
-
 
 # STAGE 1: Taxonomy Baseline
-
+# In this stage, we are intrested in which of the following models from our config file and
+# which of the following taxonomy levels give the best result, i.e least mean_error_km
 
 def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
     """
@@ -226,7 +216,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
     return stage2_results
 
 
-def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest"):
+def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest", use_kbest: bool = False):
     """
     Experiment 3: Given the best taxonomy level, best model, best k features, test feature engineering.
     Evaluate the best network features.
@@ -301,14 +291,15 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
         print(f"Variant: {fe_name}")
         print(f"Flags: CLR={use_clr}, Deg={use_degree}, Hub={use_hub}, Edge={use_edge}")
 
-        run_name = f"stage3_fe_{fe_name}_{int(time.time())}"
+        run_name = f"stage3_fe_{model_type}_{fe_name}_{int(time.time())}"
 
         with start_run(run_name=run_name):
             # === TAGS ===
-            mlflow.set_tag("stage", "stage2_feature_engineering")
+            mlflow.set_tag("stage", "stage3_fe_network")
             mlflow.set_tag("taxonomy_level", taxonomy_level)
             mlflow.set_tag("fe_variant", fe_name)
             mlflow.set_tag("model_type", model_type)
+            mlflow.set_tag("use_kbest",use_kbest)
 
             # === FEATURE FLAG TAGS ===
             mlflow.set_tag("use_clr", str(use_clr))
@@ -341,7 +332,7 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest")
                 splitter=splitter,
                 estimator=selected_model["estimator"],
                 use_network_features=True,
-                use_k_best=True,
+                use_k_best=use_kbest,
                 feature_flags=feature_config,
             )
 
@@ -439,7 +430,7 @@ def main():
         # stage2_results = run_stage2_fe_kbest("species", "RandomForest")
 
         # Stage 3: Determine the best combination of network features
-        best_variant, stage3_results = run_stage3_fe_network("species", "RandomForest")
+        best_variant, stage3_results = run_stage3_fe_network("phylum", "RandomForest",use_kbest=False)
 
         # Stage 3 remains optional/disabled unless you explicitly enable it later
         # run_stage3_final_tuning(best_taxonomy, best_fe)
