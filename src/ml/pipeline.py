@@ -12,6 +12,7 @@ from ml.features import KBestFeatureSelection, LinearModelScaler, MicrobiomeFeat
 from ml.mlflow_utils import log_feature_count
 from ml.models import TrainTestSplit
 
+
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="sklearn.covariance")
 
 
@@ -63,8 +64,8 @@ def build_pipeline(estimator, use_network_features: bool = True, use_k_best: boo
                 ),
             )
         )
-
-        steps.append(("k_best_select_after_network", KBestFeatureSelection(k=config.feature_engineering.k_best_features)))
+        if use_k_best:
+            steps.append(("k_best_select_after_network", KBestFeatureSelection(k=config.feature_engineering.k_best_features)))
 
         # Scaling only linear models
         if model_family == "linear":
@@ -263,3 +264,4 @@ def evaluate_model_cv(
     }
 
     return avg_mekm, summary_metrics
+
