@@ -1,5 +1,5 @@
-from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
-from sklearn.linear_model import Ridge, ElasticNet
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
+from sklearn.linear_model import ElasticNet, Ridge
 from xgboost import XGBRegressor
 
 from ml.config import config
@@ -16,7 +16,7 @@ class ModelRegistry:
         "RandomForest": RandomForestRegressor,
         "RidgeRegression": Ridge,
         "ElasticNet": ElasticNet,
-        "ExtraTreesRegressor": ExtraTreesRegressor
+        "ExtraTreesRegressor": ExtraTreesRegressor,
     }
 
     @staticmethod
@@ -67,7 +67,6 @@ class ModelRegistry:
 models = ModelRegistry()
 
 if __name__ == "__main__":
-    
     # Test 1: Load all enabled models
     print("All enabled models:")
     for m in models.get_baseline_models():
@@ -79,16 +78,16 @@ if __name__ == "__main__":
         print(f"  {m['name']}")
 
     # Test 3: Instantiate a model and check it works
-    #from sklearn.datasets import make_regression
+    # from sklearn.datasets import make_regression
 #
-    #X, y = make_regression(n_samples=100, n_features=5, noise=0.1)
-    #models_list = models.get_baseline_models()
+# X, y = make_regression(n_samples=100, n_features=5, noise=0.1)
+# models_list = models.get_baseline_models()
 #
-    #for m in models_list:
-    #    try:
-    #        estimator = m['estimator']
-    #        estimator.fit(X, y)
-    #        pred = estimator.predict(X[:5])
-    #        print(f"{m['model_type']} works! Prediction: {pred[:2]}")
-    #    except Exception as e:
-    #        print(f"{m['model_type']} failed: {e}")
+# for m in models_list:
+#    try:
+#        estimator = m['estimator']
+#        estimator.fit(X, y)
+#        pred = estimator.predict(X[:5])
+#        print(f"{m['model_type']} works! Prediction: {pred[:2]}")
+#    except Exception as e:
+#        print(f"{m['model_type']} failed: {e}")

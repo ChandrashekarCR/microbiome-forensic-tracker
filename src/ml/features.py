@@ -315,33 +315,34 @@ class KBestFeatureSelection(BaseEstimator, TransformerMixin):
 
         return X_transformed
 
+
 class LinearModelScaler(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.scaler = None
         self.feature_names_in_ = None
         self.n_features_in_ = None
 
-    def fit(self, X: pd.DataFrame, y: pd.Series = None):  
+    def fit(self, X: pd.DataFrame, y: pd.Series = None):
         # Store feature names
         if isinstance(X, pd.DataFrame):
             self.feature_names_in_ = X.columns.tolist()
             self.n_features_in_ = X.shape[1]
-        
+
         # Create and fit the scaler
         self.scaler = StandardScaler()
         self.scaler.fit(X)
-        
+
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         if self.scaler is None:
             raise ValueError("LinearModelScaler must be fitted before transform")
-        
+
         # Transform
         X_scaled = self.scaler.transform(X)
-        
+
         # Return as DataFrame with same index and columns
         if isinstance(X, pd.DataFrame):
             return pd.DataFrame(X_scaled, index=X.index, columns=X.columns)
-        
+
         return X_scaled

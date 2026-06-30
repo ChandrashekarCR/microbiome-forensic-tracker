@@ -8,7 +8,7 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import KBestFeatureSelection, MicrobiomeFeatureEngineer, LinearModelScaler, ZeroColumnFilter
+from ml.features import KBestFeatureSelection, LinearModelScaler, MicrobiomeFeatureEngineer, ZeroColumnFilter
 from ml.mlflow_utils import log_feature_count
 from ml.models import TrainTestSplit
 
@@ -24,9 +24,7 @@ def _wrap_multioutput(estimator):
 
 
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True, 
-                   use_k_best: bool = False, feature_flags: dict = None,
-                   model_family: str = "tree"):
+def build_pipeline(estimator, use_network_features: bool = True, use_k_best: bool = False, feature_flags: dict = None, model_family: str = "tree"):
     """
     Build a reusable pipeline with optional network feature engineering.
     """
@@ -66,12 +64,8 @@ def build_pipeline(estimator, use_network_features: bool = True,
             )
         )
 
-        steps.append(
-            (
-                "k_best_select_after_network", KBestFeatureSelection(k=config.feature_engineering.k_best_features)
-            )
-        )
-    
+        steps.append(("k_best_select_after_network", KBestFeatureSelection(k=config.feature_engineering.k_best_features)))
+
         # Scaling only linear models
         if model_family == "linear":
             steps.append(("scaler", LinearModelScaler()))
@@ -108,10 +102,10 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
     # Track transformed data through pipeline
     current_train = X_train.copy()
     current_val = X_val.copy()
-    
+
     # Store step names for tracking
-    previous_step_name = "raw"
-    
+    _previous_step_name = "raw"
+
     for step_name, step_obj in pipeline.steps:
         if step_name == "model":
             break
@@ -121,19 +115,19 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
         # Transform data
         current_train, n_train = count_after_step(current_train, step_obj)
         current_val, n_val = count_after_step(current_val, step_obj)
-        
+
         # Create a clean stage name
         stage_key = f"after_{step_name}"
         stage_counts[stage_key] = {"train": n_train, "val": n_val}
-        
+
         # Log to MLflow with fold information
         log_feature_count(f"fold_{fold + 1}.{stage_key}.train.n_features", n_train, fold)
         log_feature_count(f"fold_{fold + 1}.{stage_key}.val.n_features", n_val, fold)
-        
+
         # Print progress for debugging
-        #print(f"  Stage '{step_name}': Train={n_train}, Val={n_val} (Δ: {n_train - stage_counts[previous_step_name]['train']})")
-        
-        previous_step_name = stage_key
+        # print(f"  Stage '{step_name}': Train={n_train}, Val={n_val} (Δ: {n_train - stage_counts[_previous_step_name]['train']})")
+
+        _previous_step_name = stage_key
 
     return stage_counts
 
@@ -156,10 +150,14 @@ def get_configured_cv_split(splitter: TrainTestSplit):
 
 
 # Evaluate a single model with cross validation. This function is called in the _rank_models.
-def evaluate_model_cv(splitter: TrainTestSplit, estimator, 
-                    use_network_features: bool = False, 
-                    use_k_best: bool = False, feature_flags: dict = None,
-                    model_family:str = "tree"):
+def evaluate_model_cv(
+    splitter: TrainTestSplit,
+    estimator,
+    use_network_features: bool = False,
+    use_k_best: bool = False,
+    feature_flags: dict = None,
+    model_family: str = "tree",
+):
 
     fold_mekm = []
     fold_mdekm = []
@@ -189,24 +187,22 @@ def evaluate_model_cv(splitter: TrainTestSplit, estimator,
             y_train_coords = y_train_coords[["latitude", "longitude"]]
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(clone(estimator), 
-                                use_network_features=use_network_features, 
-                                use_k_best=use_k_best, 
-                                feature_flags=feature_flags,
-                                model_family=model_family)
+        pipeline = build_pipeline(
+            clone(estimator), use_network_features=use_network_features, use_k_best=use_k_best, feature_flags=feature_flags, model_family=model_family
+        )
 
         # 3. Fit the models
         pipeline.fit(X_train, y_train_coords)
 
         # Log feature counts for this fold using the fitted preprocessing steps
         stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
-        
+
         # Store in master dictionary
-        for stage_name,counts in stage_counts.items():
+        for stage_name, counts in stage_counts.items():
             if stage_name not in all_feature_counts:
-                all_feature_counts[stage_name] = {"train":[],"val":[]}
-            all_feature_counts[stage_name]["train"].append(counts.get("train",0))
-            all_feature_counts[stage_name]["val"].append(counts.get("val",0)) 
+                all_feature_counts[stage_name] = {"train": [], "val": []}
+            all_feature_counts[stage_name]["train"].append(counts.get("train", 0))
+            all_feature_counts[stage_name]["val"].append(counts.get("val", 0))
 
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val)
