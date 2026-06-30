@@ -2,8 +2,9 @@
 # per sample to generate a graph data strucutre for organisms across the lineage
 
 # Import Libraries
-import os
 import argparse
+import os
+
 import pandas as pd
 
 
@@ -170,46 +171,32 @@ class TaxGraph:
         pass
 
 
-if __name__== "__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Lineage information in graph data structure.",
-        usage="python3 graph_extractor.py --kraken_report <> --bracken_dir <> --output_dir <>"
+        usage="python3 graph_extractor.py --kraken_report <> --bracken_dir <> --output_dir <>",
     )
 
-    parser.add_argument(
-        "--kraken_report",
-        type=str,
-        required=True,
-        help="Kraken report of the sample."
-    )
+    parser.add_argument("--kraken_report", type=str, required=True, help="Kraken report of the sample.")
 
-    parser.add_argument(
-        "--bracken_dir",
-        type=str,
-        required=True,
-        help='Bracken directory that contains the raw bracken scores'
-    )
+    parser.add_argument("--bracken_dir", type=str, required=True, help="Bracken directory that contains the raw bracken scores")
 
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        help="Directory to save the nodes and edges dataframe for a sample."
-    )
+    parser.add_argument("--output_dir", type=str, help="Directory to save the nodes and edges dataframe for a sample.")
 
     args = parser.parse_args()
 
     # Read the kraken and bracken reports
-    G = TaxGraph(args.kraken_report,args.bracken_dir,min_abd=0.0001)
+    G = TaxGraph(args.kraken_report, args.bracken_dir, min_abd=0.0001)
     # Vertices and edges
-    v,e = G.lineage_from_kraken()
-    v_new,e_new = G.filter_nodes_edges_based_on_bracken_outputs(v)
+    v, e = G.lineage_from_kraken()
+    v_new, e_new = G.filter_nodes_edges_based_on_bracken_outputs(v)
 
     # Convert the new nodes and new edges into dataframe
-    node_df, edge_df = G.convert_nodes_edges_to_df(v_new,e_new)
+    node_df, edge_df = G.convert_nodes_edges_to_df(v_new, e_new)
 
     # Save the dataframes in the correct directory
-    node_df.to_csv(os.path.join(args.output_dir,"nodes.csv"),header=True,index=False)
-    edge_df.to_csv(os.path.join(args.output_dir,"edges.csv"),header=True,index=False)
+    node_df.to_csv(os.path.join(args.output_dir, "nodes.csv"), header=True, index=False)
+    edge_df.to_csv(os.path.join(args.output_dir, "edges.csv"), header=True, index=False)
 
 """
 python3 graph_extractor.py --kraken_report /home/chandru/lu2025-12-38/Students/chandru/assembly_testing/08_kraken2/zr23059_137/kraken_report.tsv 
@@ -218,6 +205,5 @@ python3 graph_extractor.py --kraken_report /home/chandru/lu2025-12-38/Students/c
 
 """
 
-#kraken_report = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/08_kraken2/zr23059_137/kraken_report.tsv"
-#bracken_dir = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/09_bracken/zr23059_137"
-
+# kraken_report = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/08_kraken2/zr23059_137/kraken_report.tsv"
+# bracken_dir = "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing/09_bracken/zr23059_137"
