@@ -9,6 +9,7 @@ from skbio.stats.composition import clr
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.covariance import GraphicalLassoCV
 from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore", message="invalid value encountered in subtract")
 
@@ -256,51 +257,53 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         plt.close()
         print(f"Network visualization saved successfully to {output_file}")
 
+
 # Helper function for computing f_regression scores for multi-ouput targets.
-def multioutput_f_regression(X,y):
+def multioutput_f_regression(X, y):
     """
-    Computes f_regression scores for multi-output targets by averaging the 
+    Computes f_regression scores for multi-output targets by averaging the
     F-statistics obtained for each target independently.
     """
     # If y is 1D, fall back to standard f_regression
     if len(y.shape) == 1 or y.shape[1] == 1:
         return f_regression(X, y)
-    
+
     # Calculate scores for each column in y
     scores_per_target = []
     p_values_per_target = []
-    
+
     for i in range(y.shape[1]):
         score, pval = f_regression(X, y[:, i] if isinstance(y, np.ndarray) else y.iloc[:, i])
         scores_per_target.append(score)
         p_values_per_target.append(pval)
-        
+
     # Average the scores across targets to pick features globally relevant to both lat/long
     avg_scores = np.mean(scores_per_target, axis=0)
-    avg_pvals = np.mean(p_values_per_target, axis=0) 
-    
+    avg_pvals = np.mean(p_values_per_target, axis=0)
+
     return avg_scores, avg_pvals
 
-class KBestFeatureSelection(BaseEstimator,TransformerMixin):
-    def __init__(self, score_func = multioutput_f_regression, k: int =3):
+
+class KBestFeatureSelection(BaseEstimator, TransformerMixin):
+    def __init__(self, score_func=multioutput_f_regression, k: int = 3):
         self.score_func = score_func
         self.k = k
-    
+
     def fit(self, X: pd.DataFrame, y: pd.DataFrame = None):
-        
+
         # 1. Initialize the internal scikit-learn selector
-        self.selector_ = SelectKBest(score_func=self.score_func,k=self.k)
+        self.selector_ = SelectKBest(score_func=self.score_func, k=self.k)
 
         # 2. Fit the selector to find the best features
-        self.selector_.fit(X,y)
+        self.selector_.fit(X, y)
 
         # 3. Cache selected features names if input is a Dataframe
         if isinstance(X, pd.DataFrame):
             mask = self.selector_.get_support()
             self.selected_features = X.columns[mask].tolist()
-        
+
         return self
-    
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
 
         # 4. Rduce the dataset to selected features
@@ -308,7 +311,38 @@ class KBestFeatureSelection(BaseEstimator,TransformerMixin):
 
         # 5. Reconstructu Dataframe with correct column names and row indices
         if isinstance(X, pd.DataFrame):
-            return pd.DataFrame(X_transformed,columns=self.selected_features)
-        
+            return pd.DataFrame(X_transformed, columns=self.selected_features)
+
         return X_transformed
-        
+
+
+class LinearModelScaler(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.scaler = None
+        self.feature_names_in_ = None
+        self.n_features_in_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None):
+        # Store feature names
+        if isinstance(X, pd.DataFrame):
+            self.feature_names_in_ = X.columns.tolist()
+            self.n_features_in_ = X.shape[1]
+
+        # Create and fit the scaler
+        self.scaler = StandardScaler()
+        self.scaler.fit(X)
+
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        if self.scaler is None:
+            raise ValueError("LinearModelScaler must be fitted before transform")
+
+        # Transform
+        X_scaled = self.scaler.transform(X)
+
+        # Return as DataFrame with same index and columns
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(X_scaled, index=X.index, columns=X.columns)
+
+        return X_scaled
