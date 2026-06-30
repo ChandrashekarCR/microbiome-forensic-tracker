@@ -52,7 +52,7 @@ rule bracken:
             RESULTS_DIR, "08_kraken2", "{sample}", "kraken_report.tsv"
         ),
     output:
-        bracken_report=os.path.join(RESULTS_DIR, "09_bracken", "{sample}", "{rank}.tsv"),
+        bracken_report=os.path.join(RESULTS_DIR, "09_bracken", "{sample}", "{rank}.tsv")
     log:
         bracken_log=os.path.join(RESULTS_DIR, "09_bracken", "{sample}.{rank}.out"),
     container:

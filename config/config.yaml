@@ -5,8 +5,8 @@ version: "1.0"
 
 # Data Directories
 data:
-  raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files" #"/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples" #/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files
-  results_dir : "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing" #"/home/chandru/binp51/results" #/home/chandru/lu2025-12-38/Students/chandru"
+  raw_dir: "/lunarc/nobackup/projects/snic2019-34-3/shared_elhaik_lab1/Projects/Microbiome/Malmo2025/fastq_files" #"/home/chandru/binp51/data/malmo_samples/01_fastq_test_samples"  
+  results_dir : "/home/chandru/lu2025-12-38/Students/chandru/assembly_testing" #"/home/chandru/binp51/results" #"/home/chandru/lu2025-12-38/Students/chandru/assembly_testing"  
 
 # Sample Configuration
 samples:
@@ -97,6 +97,9 @@ parameters:
     overlap: 0.5
     device: "cuda"
     venv_path: /home/chandru/binp51/.venv-dnaberts
+  
+  taxgraph:
+    path: "src/smk_helper/graph_extractor.py"
 
 # Taxonomic Ranks
 taxonomy:
@@ -162,6 +165,10 @@ resources:
     threads: 12
     mem_mb: 16000
     runtime_min: 60
+  
+  taxgraph:
+    mem_mb: 2000
+    runtime_min: 15
     
 
 # Pipeline Control
@@ -179,4 +186,5 @@ pipeline:
     standardize_bracken: true
     merge_bracken: true
     megahit_assembly: true
-    dnaberts_embeddings: true
+    dnaberts_embeddings: false
+    extract_taxonomy: true

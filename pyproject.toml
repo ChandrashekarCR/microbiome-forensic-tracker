@@ -80,7 +80,8 @@ ml = [
     "mlflow>=3.11.0",
     "imbalanced-learn",
     "torch>=2.0",
-    "torch_geometric"
+    "torch_geometric",
+    "omegaconf"
     ]
 
 # For local development: everything loose (pip resolves conflicts)
