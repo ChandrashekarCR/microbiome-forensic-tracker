@@ -74,7 +74,7 @@ feature_engineering:
   use_network_features: true
   cv_folds: 3
   max_iter: 500
-  top_k_edges: 20
+  top_k_edges: 200
   k_best_features: 128
 
 
