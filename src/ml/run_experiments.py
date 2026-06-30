@@ -15,7 +15,13 @@ from ml.config import config
 from ml.mlflow_utils import log_model_metrics, log_model_params, start_run
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
-from ml.pipeline import evaluate_model_cv
+from ml.pipeline import evaluate_model_cv, get_configured_cv_split, build_pipeline
+import time
+import json
+from omegaconf import ListConfig
+from sklearn.base import clone
+from sklearn.model_selection import RandomizedSearchCV
+import mlflow
 
 TAXONOMY_TABLES = {
     "phylum": "malmo_phylum",
@@ -136,7 +142,6 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
 
 # STAGE 2: Feature Engineering Variants - Use K-best features
 
-
 def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
     """
     Experiment 2: Given the best taxonomy level, test feature engineering variants.
@@ -215,7 +220,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
 
     return stage2_results
 
-
+# STAGE 3: Feature Engineering without kbest
 def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest", use_kbest: bool = False):
     """
     Experiment 3: Given the best taxonomy level, best model, best k features, test feature engineering.
@@ -365,50 +370,182 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest",
     return best_variant, stage3_results
 
 
-# ============================================================================
-# STAGE 4: Full Multistage Pipeline + Hyperparameter Tuning
-# ============================================================================
-def run_stage4_final_tuning(taxonomy_level: str, fe_variant: str):
-    """
-    Experiment 3: Full pipeline with all models + feature engineering + hyperparameter tuning.
-    Selects and saves the best model.
-    """
-    print("\n" + "=" * 80)
-    print("STAGE 3: FULL MULTISTAGE PIPELINE + HYPERPARAMETER TUNING")
-    print(f"         Taxonomy: {taxonomy_level}, FE: {fe_variant}")
-    print("=" * 80)
+# Stage 4: Full Pipeline Hyperparameter Tuning
 
-    # Load data
+def run_stage4_hyperparameter_tuning(
+    taxonomy_level: str,
+    model_type: str = "RandomForest",
+    use_network_features: bool = False,
+    use_kbest: bool = True,
+    feature_flags: dict = None,
+    n_iter: int = 20,
+):
+    """
+    Stage 4: Hyperparameter tuning with MLflow logging.
+
+    Reuses existing functions: build_pipeline, evaluate_model_cv, get_configured_cv_split.
+    Logs search results, best parameters, and final model to MLflow.
+
+    Returns
+    -------
+    final_pipeline : Pipeline
+        Fitted on the full training set.
+    best_error_km : float
+        Cross‑validated mean error in km (evaluated via evaluate_model_cv).
+    best_params : dict
+        Cleaned best hyperparameters.
+    run_id : str
+        MLflow run ID.
+    """
+    
+    # Load the data from the database
     config.database.table = TAXONOMY_TABLES[taxonomy_level]
     df = load_and_prep_data()
 
-    _splitter = TrainTestSplit(
+    # Split the data same as before
+    splitter = TrainTestSplit(
         df,
         n_splits=config.data_splitting.n_splits,
         test_size=config.data_splitting.test_size,
     )
 
-    # Stage 3: Hyperparameter tuning
-    print("\nSTAGE 3.3: Hyperparameter tuning (top model)...")
-    if config.stage_3.enabled:
-        run_name = f"stage3_tuning_{taxonomy_level}_{int(time.time())}"
-        with start_run(run_name=run_name):
-            mlflow.set_tag("stage", "stage3_full_pipeline")
-            mlflow.set_tag("substage", "hyperparameter_tuning")
-            mlflow.set_tag("taxonomy_level", taxonomy_level)
-            mlflow.set_tag("fe_variant", fe_variant)
+    # 2. Get base model and family
+    all_models = model_registry.get_baseline_models()
+    selected_model = next((m for m in all_models if m["model_type"] == model_type), None)
+    if selected_model is None:
+        raise ValueError(f"Model '{model_type}' not found in registry.")
+    model_family = selected_model["family"]
+    base_estimator = selected_model["estimator"]
 
-            # TODO: Uncomment and run if ready
-            # best_tuned_model = _tune_top_model(splitter, best_model)
-            # mlflow.sklearn.log_model(best_tuned_model, artifact_path="tuned_model")
+    # 3. Prepare hyperparameter grid
+    if model_type not in config.stage_3.grids:
+        raise ValueError(f"No hyperparameter grid for {model_type} in config.stage_3.grids")
+    param_grid = config.stage_3.grids[model_type]
+    param_distributions = {}
+    for param, values in param_grid.items():
+        if isinstance(values, ListConfig):
+            values = list(values)
+        param_distributions[f"model__estimator__{param}"] = values
 
-            print("  (Placeholder: hyperparameter tuning to be enabled)")
-    else:
-        print("  (Stage 3 disabled in config; skipping hyperparameter tuning)")
+    # 4. Get CV splits (same strategy as evaluate_model_cv)
+    cv_splits = get_configured_cv_split(splitter)
 
-    print("\n" + "-" * 80)
-    print("✓ STAGE 3 COMPLETE")
-    print("-" * 80)
+    # 5. Prepare target columns
+    use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
+    y_cols = ["X_meters", "Y_meters"] if use_meters else ["latitude", "longitude"]
+    X_cv = splitter.X_cv
+    y_cv = splitter.y_cv_coords[y_cols]
+
+    # 6. Start MLflow run
+    run_name = f"stage4_tuning_{model_type}_{taxonomy_level}_{int(time.time())}"
+    with start_run(run_name=run_name):
+        # Tags
+        mlflow.set_tag("stage", "stage4_hyperparameter_tuning")
+        mlflow.set_tag("taxonomy_level", taxonomy_level)
+        mlflow.set_tag("model_type", model_type)
+        mlflow.set_tag("use_network_features", str(use_network_features))
+        mlflow.set_tag("use_kbest", str(use_kbest))
+
+        # Log fixed parameters
+        mlflow.log_params({
+            "n_iter": n_iter,
+            "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
+            "use_meters": use_meters,
+            "k_best_features": config.feature_engineering.k_best_features,
+            "top_k_edges": config.feature_engineering.top_k_edges,
+        })
+        if feature_flags:
+            mlflow.log_params({f"fe_{k}": v for k, v in feature_flags.items()})
+
+        # 7. Build pipeline (once, for the search)
+        pipeline = build_pipeline(
+            estimator=clone(base_estimator),
+            use_network_features=use_network_features,
+            use_k_best=use_kbest,
+            feature_flags=feature_flags,
+            model_family=model_family,
+        )
+
+        # 8. Run RandomizedSearchCV
+        print(f"\nTuning {model_type} on {taxonomy_level} with {n_iter} iterations...")
+        search = RandomizedSearchCV(
+            estimator=pipeline,
+            param_distributions=param_distributions,
+            n_iter=n_iter,
+            cv=cv_splits,
+            scoring="neg_mean_squared_error",
+            random_state=config.stage_3.random_state,
+            n_jobs=8,
+            verbose=1,
+
+        )
+        search.fit(X_cv, y_cv)
+
+        # 9. Log each iteration score with a distinct step
+        cv_results = search.cv_results_
+        for i, params in enumerate(cv_results["params"]):
+            score = cv_results["mean_test_score"][i]
+            # Skip NaN scores (they will be logged as NaN anyway)
+            mlflow.log_metric(f"search_iter_{i}_neg_mse", score, step=i)
+
+        # 10. Log best parameters
+        best_params_raw = search.best_params_
+        best_params_clean = {
+            k.replace("model__estimator__", ""): v for k, v in best_params_raw.items()
+        }
+        mlflow.log_params({f"tuned_{k}": v for k, v in best_params_clean.items()})
+        mlflow.log_metric("search_best_neg_mse", search.best_score_, step=n_iter)  # use a unique step
+        
+        # 11. Re‑evaluate the tuned model using your kilometer metrics (full CV)
+        print("\nRe‑evaluating tuned model with kilometer metrics...")
+        tuned_estimator = clone(base_estimator)
+        tuned_estimator.set_params(**best_params_clean)
+
+        avg_error_km, summary_metrics = evaluate_model_cv(
+            splitter=splitter,
+            estimator=tuned_estimator,
+            use_network_features=use_network_features,
+            use_k_best=use_kbest,
+            feature_flags=feature_flags,
+            model_family=model_family,
+        )
+        # Log the km metrics
+        log_model_metrics(metrics=summary_metrics)
+        print(f"Tuned model CV mean error: {avg_error_km:.4f} km")
+
+        # 12. Fit final pipeline on the full training set
+        print("\nFitting final pipeline on full training set...")
+        final_pipeline = build_pipeline(
+            estimator=clone(tuned_estimator),
+            use_network_features=use_network_features,
+            use_k_best=use_kbest,
+            feature_flags=feature_flags,
+            model_family=model_family,
+        )
+        final_pipeline.fit(X_cv, y_cv)
+
+        # 13. Log the model artifact
+        mlflow.sklearn.log_model(final_pipeline, name="final_tuned_model")
+
+        # 14. Save minimal metadata (optional)
+        metadata = {
+            "taxonomy_level": taxonomy_level,
+            "model_type": model_type,
+            "use_network_features": use_network_features,
+            "use_kbest": use_kbest,
+            "feature_flags": feature_flags,
+            "best_params": best_params_clean,
+            "cv_mean_error_km": avg_error_km,
+            "use_meters": use_meters,
+            "run_id": mlflow.active_run().info.run_id,
+        }
+        with open("final_model_metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2, default=str)
+        mlflow.log_artifact("final_model_metadata.json")
+
+        print(f"\nStage 4 complete. Run ID: {mlflow.active_run().info.run_id}")
+        return final_pipeline, avg_error_km, best_params_clean, mlflow.active_run().info.run_id
+
 
 
 # ============================================================================
@@ -427,13 +564,23 @@ def main():
         # best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
 
         # Stage 2: Determine best feature engineering approach
-        # stage2_results = run_stage2_fe_kbest("species", "RandomForest")
+        #stage2_results = run_stage2_fe_kbest("species", "RandomForest")
 
         # Stage 3: Determine the best combination of network features
-        best_variant, stage3_results = run_stage3_fe_network("phylum", "RandomForest",use_kbest=False)
+        #best_variant, stage3_results = run_stage3_fe_network("phylum", "RandomForest",use_kbest=False)
 
-        # Stage 3 remains optional/disabled unless you explicitly enable it later
-        # run_stage3_final_tuning(best_taxonomy, best_fe)
+        # Stage 4 remains optional/disabled unless you explicitly enable it later
+        # Tune RandomForest on genus level without network features
+        best_pipe, error, params, run_id = run_stage4_hyperparameter_tuning(
+            taxonomy_level="species",
+            model_type="RandomForest",
+            use_network_features=False,
+            use_kbest=True,
+            n_iter=60
+        )
+
+        print(f"Best error: {error:.2f} km")
+        print(f"Best params: {params}")
 
     except Exception as e:
         print(f"\nError: {e}")
