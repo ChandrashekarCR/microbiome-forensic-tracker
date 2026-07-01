@@ -70,7 +70,7 @@ def update_status(db, sample_id: int, **kwargs):
     logger.info(f"[Sample {sample_id}] Status updated: {kwargs}")
 
 
-def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str):
+def import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str):
     """
     Parse the Bracken CSV output files and insert them into the Abundance SQL table.
     """
@@ -221,7 +221,7 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
         # Step7: Import the datafrom csv to sql table for malmo_backend database
         try:
             logger.info(f"[{sample_name}] Importing abundance CSVs to database")
-            _import_abundance_csv(db, str(sample_id), sample_name, results_dir)
+            import_abundance_csv(db, str(sample_id), sample_name, results_dir)
         except Exception as e:
             logger.error(f"[{sample_name}] Failed to import abundance data: {e}")
             update_status(db, sample_id, status="failed", completed_at=datetime.now(timezone.utc), log_path=str(log_file))
