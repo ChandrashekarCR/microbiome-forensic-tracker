@@ -12,6 +12,13 @@ SHELL := bash
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
+# Backend variables
+REDIS_PORT := 6379
+FASTAPI_PORT := 8000
+CELERY_CONCURRENCY := 2
+BACKEND_ENV := .venv-all  # Using your single environment
+BACKEND_PYTHON := $(BACKEND_ENV)/bin/python
+
 # URLS for bioinformatics tools as images
 FASTQC_URL := oras://community.wave.seqera.io/library/fastqc:0.12.1--104d26ddd9519960
 FASTP_URL := oras://community.wave.seqera.io/library/fastp:1.1.0--52619d3aa919a246
