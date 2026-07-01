@@ -76,3 +76,8 @@ class PredictionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Deletion Reponse
+class DeleteResponse(BaseModel):
+    ok: bool
+    message: str
