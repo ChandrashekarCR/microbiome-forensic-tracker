@@ -20,8 +20,17 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:////home/chandru/binp51/databases/malmo_backend.db")
 
     # Application Settings
-    PROJECT_ROOT: Path = Path(os.getenv("PROJECT_ROOT"))  #"/home/chandru/binp51"
+    PROJECT_ROOT = Path(
+        os.getenv(
+            "PROJECT_ROOT",
+            Path(__file__).resolve().parents[2]   # repo root in development
+        )
+    )
     UPLOAD_DIR: str = os.path.join(PROJECT_ROOT, "uploads")
+
+    # Machine learning model
+    # Need to change this to something much more simpler.
+    MODEL_PATH: str = f"{PROJECT_ROOT}/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl"
 
     class Config:
         env_file = ".env"
@@ -30,4 +39,4 @@ class Settings:
 
 # Create a singleton instance
 settings = Settings()
-print(settings.PROJECT_ROOT)
+print(settings.MODEL_PATH)
