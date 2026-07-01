@@ -4,7 +4,7 @@ Used by both FastAPI and Celery worker.
 """
 
 import os
-
+from pathlib import Path
 
 class Settings:
     """
@@ -20,7 +20,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:////home/chandru/binp51/databases/malmo_backend.db")
 
     # Application Settings
-    PROJECT_ROOT: str = "/home/chandru/binp51"
+    PROJECT_ROOT: Path = Path(os.getenv("PROJECT_ROOT"))  #"/home/chandru/binp51"
     UPLOAD_DIR: str = os.path.join(PROJECT_ROOT, "uploads")
 
     class Config:
@@ -30,3 +30,4 @@ class Settings:
 
 # Create a singleton instance
 settings = Settings()
+print(settings.PROJECT_ROOT)

@@ -50,3 +50,6 @@ __pycache__*
 # Ignore all the files in mlruns
 /src/ml/mlruns
 /src/ml/mlflow.db
+
+# Ignore the reports folder
+/report
