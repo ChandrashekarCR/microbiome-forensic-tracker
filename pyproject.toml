@@ -165,6 +165,7 @@ all = [
     "tqdm>=4.66",
     "rich>=13.0",
     "click>=8.1",
+    "pyproj>=3.6"
 ]
 
 [tool.setuptools.packages.find]
