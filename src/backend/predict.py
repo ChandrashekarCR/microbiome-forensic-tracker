@@ -13,6 +13,7 @@ from .database import get_async_session
 
 import numpy as np
 import pandas as pd
+import joblib
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,12 +47,10 @@ def load_model():
         )
 
     with open(model_path, "rb") as f:
-        model = pickle.load(f)
+        pipeline = joblib.load(f)
 
-    return model
-
-
+    return pipeline
 
 
 
-crud.fetch_abundance()
+print(load_model())
