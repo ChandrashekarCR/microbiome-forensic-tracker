@@ -42,7 +42,7 @@ RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # This function is used in every API end point. It opens a database session, gives it to the endpoint and the closes it when done.
-def _get_db():
+def get_db():
     db = SyncSessionLocal()  # Opens the malmo_db database
 
     try:
@@ -52,7 +52,7 @@ def _get_db():
         raise
 
 
-def _update_status(db, sample_id: int, **kwargs):
+def update_status(db, sample_id: int, **kwargs):
     """
     Update a samples status and optional felds in the database
 
@@ -111,7 +111,7 @@ def _import_abundance_csv(db, sample_id: str, sample_name: str, results_dir: str
         logger.info(f"[{sample_name}] Successfully imported '{rank}' abundances into DB.")
 
 
-def _generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path:
+def generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path:
     """
     Write a per-sample TSV in the format helper_scripts.py expects:
     """
@@ -144,17 +144,17 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
     FastAu returned 201 long before this starts
     """
     # Get the database
-    db = _get_db()
+    db = get_db()
     TASK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         # Step1: Mark as processing
-        _update_status(db, sample_id, status="processing", started_at=datetime.now(timezone.utc))
+        update_status(db, sample_id, status="processing", started_at=datetime.now(timezone.utc))
 
         self.update_state(state="PROGRESS", meta={"step": "preparing", "sample": sample_name})
 
         # Step2: Generate the per-sample TSV
-        sheet_path = _generate_sample_sheet(sample_name, r1_path, r2_path)
+        sheet_path = generate_sample_sheet(sample_name, r1_path, r2_path)
 
         # Step3: Build the snakemake command
         # snakemake --snakefile workflow/Snakefile \
@@ -195,7 +195,7 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
 
             logger.error(f"[{sample_name}] FAILED (rc={result.returncode})")
 
-            _update_status(
+            update_status(
                 db,
                 sample_id,
                 status="failed",
@@ -224,9 +224,9 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
             _import_abundance_csv(db, str(sample_id), sample_name, results_dir)
         except Exception as e:
             logger.error(f"[{sample_name}] Failed to import abundance data: {e}")
-            _update_status(db, sample_id, status="failed", completed_at=datetime.now(timezone.utc), log_path=str(log_file))
+            update_status(db, sample_id, status="failed", completed_at=datetime.now(timezone.utc), log_path=str(log_file))
 
-        _update_status(
+        update_status(
             db,
             sample_id,
             status="completed",
@@ -244,7 +244,7 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
     except Exception as exc:
         logger.exception(f"[{sample_name}] Task error")
         try:
-            _update_status(db, sample_id, status="failed", error_msg=str(exc)[:500])
+            update_status(db, sample_id, status="failed", error_msg=str(exc)[:500])
         except Exception:
             pass
         raise
