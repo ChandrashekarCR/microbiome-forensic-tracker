@@ -17,6 +17,8 @@ from . import crud
 from .database import create_db_tables, get_async_session
 from .schemas import SampleCreate, SampleResponse, PredictionResponse
 from .tasks import run_pipeline
+from .predict import predict_sample
+
 
 # Get the directory where main.py is located
 BACKEND_DIR = Path(__file__).parent
@@ -156,22 +158,34 @@ async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_s
     return {"ok": True, "message": f"Sample {sample_name} deleted."}
 
 
-#TODO: Write a predict API end point for prediction of latitude and longitude
+
 @app.get("/samples/{sample_name}/predict", response_model=PredictionResponse)
-async def predict_sample_location(sample_name:str, rank:str = "species", db: AsyncSession = Depends(get_async_session)):
-    """
-    Predict the geographic origin of a smaple using its microbiome informations
-    """
-    test_df = await crud.fetch_abundance(db,sample_name,rank)
-    
-    if test_df.empty:
-        raise HTTPException(status_code=400, detail="No abundance data found")
-    
-    return {
-        "sample_name": sample_name,
-        "latitude": 0.0,
-        "longitude": 0.0
-    }
+async def predict_sample_location(
+    sample_name: str,
+    rank: str = "species",
+    db: AsyncSession = Depends(get_async_session)
+):
+    try:
+        wide_df = await crud.fetch_abundance(db, sample_name, rank)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if wide_df.empty:
+        raise HTTPException(status_code=404, detail="No abundance data found")
+
+    try:
+        lat, lon = predict_sample(wide_df)
+    except Exception as e:
+        import traceback
+        # This will print the full error to your terminal
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return PredictionResponse(
+        sample_name=sample_name,
+        latitude=lat,
+        longitude=lon,
+    )
 
 # Interactive map for the user
 @app.get("/map", response_class=HTMLResponse)

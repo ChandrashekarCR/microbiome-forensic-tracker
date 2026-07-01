@@ -4,27 +4,21 @@ Then it will load the model from the trained model.
 Then it will run the model and then predict the latitude and longitude.
 """
 
-import pickle
 from pathlib import Path
-import sklearn
-from . import crud
-from .database import get_async_session
+from pyproj import Transformer
 
 
-import numpy as np
 import pandas as pd
 import joblib
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from .config import Settings
-from .models import Abundance
 
 # Valid taxonomy ranks — must match what's stored in your DB
 VALID_RANKS = {"phylum", "class", "order", "family", "genus", "species"}
 settings = Settings()
 
-def load_model():
+def get_pipeline():
     """
     Load the trained sklearn model for a given taxonomy rank.
 
@@ -53,4 +47,29 @@ def load_model():
 
 
 
-print(load_model())
+def predict_sample(wide_df: pd.DataFrame) -> tuple[float,float]:
+    """
+    Takes a wide_df as input after access the database through crud.py
+    Predicts the latitude and longitude.    
+    """
+
+    # Get the pipline
+    pipeline = get_pipeline()
+
+    # Get the exact feature columns in the pipeline
+    FEATURE_COLUMNS = pipeline.named_steps["zeros_filter"]._keep_cols_
+
+    # Align incoming data to expected columns, fill missing with 0
+    row = {col: float(wide_df[col].iloc[0]) if col in wide_df.columns else 0.0
+           for col in FEATURE_COLUMNS}
+    X = pd.DataFrame([row], columns=FEATURE_COLUMNS)
+
+    # Predict → [X_meters, Y_meters] in EPSG:3006
+    pred = pipeline.predict(X)
+    x_meters, y_meters = pred[0]
+
+    # Convert to lat/lon
+    transformer = Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True)
+    lon, lat = transformer.transform(x_meters, y_meters)
+
+    return lat, lon
