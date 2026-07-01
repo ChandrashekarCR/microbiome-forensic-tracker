@@ -145,7 +145,7 @@ async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_asy
     return sample
 
 
-@app.delete("/samples/{sample_name}/predict", response_model=PredictionResponse)
+@app.delete("/samples/{sample_name}", response_model=SampleResponse)
 async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """
     Deleate a sample by sample name
@@ -157,12 +157,21 @@ async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_s
 
 
 #TODO: Write a predict API end point for prediction of latitude and longitude
-@app.get("/samples/{sample_name}")
+@app.get("/samples/{sample_name}/predict", response_model=PredictionResponse)
 async def predict_sample_location(sample_name:str, rank:str = "species", db: AsyncSession = Depends(get_async_session)):
     """
     Predict the geographic origin of a smaple using its microbiome informations
     """
-    pass
+    test_df = await crud.fetch_abundance(db,sample_name,rank)
+    
+    if test_df.empty:
+        raise HTTPException(status_code=400, detail="No abundance data found")
+    
+    return {
+        "sample_name": sample_name,
+        "latitude": 0.0,
+        "longitude": 0.0
+    }
 
 # Interactive map for the user
 @app.get("/map", response_class=HTMLResponse)

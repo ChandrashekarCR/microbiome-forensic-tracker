@@ -39,8 +39,8 @@ class Samples(Base):
     log_path = Column(String, nullable=True)  # Path to Snakemake log file
 
     # Latitude and Longitude Prediction
-    latitude = Column(Float,nullable=True)
-    longitude = Column(Float,nullable=True)
+    #latitude = Column(Float,nullable=True)
+    #longitude = Column(Float,nullable=True)
 
 
 # Table 2: abundance

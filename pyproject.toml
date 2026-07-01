@@ -98,11 +98,13 @@ all = [
     # =========================
     # BACKEND
     # =========================
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
-    "pydantic>=2.5",
-    "pydantic-settings>=2.0",
-    "starlette>=0.36",
+    "fastapi>=0.131.0",
+    "fastapi[all]",
+    "uvicorn>=0.41.0",
+    "pydantic>=2.0",
+    "celery>=5.6.0",
+    "sqlalchemy",
+    "aiosqlite",
 
     # =========================
     # CELERY + REDIS STACK
