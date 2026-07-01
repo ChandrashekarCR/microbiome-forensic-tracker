@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import crud
 from .database import create_db_tables, get_async_session
 from .predict import predict_sample
-from .schemas import PredictionResponse, SampleCreate, SampleResponse
+from .schemas import PredictionResponse, SampleCreate, SampleResponse, DeleteResponse
 from .tasks import run_pipeline
 
 # Get the directory where main.py is located
@@ -146,7 +146,7 @@ async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_asy
     return sample
 
 
-@app.delete("/samples/{sample_name}", response_model=SampleResponse)
+@app.delete("/samples/{sample_name}", response_model=DeleteResponse)
 async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """
     Deleate a sample by sample name
