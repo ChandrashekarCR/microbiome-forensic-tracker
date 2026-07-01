@@ -5,18 +5,17 @@ Then it will run the model and then predict the latitude and longitude.
 """
 
 from pathlib import Path
-from pyproj import Transformer
 
-
-import pandas as pd
 import joblib
-
+import pandas as pd
+from pyproj import Transformer
 
 from .config import Settings
 
 # Valid taxonomy ranks — must match what's stored in your DB
 VALID_RANKS = {"phylum", "class", "order", "family", "genus", "species"}
 settings = Settings()
+
 
 def get_pipeline():
     """
@@ -36,9 +35,7 @@ def get_pipeline():
     model_path = Path(settings.MODEL_PATH)
 
     if not model_path.exists():
-        raise FileNotFoundError(
-            f"No model found at {model_path}. "
-        )
+        raise FileNotFoundError(f"No model found at {model_path}. ")
 
     with open(model_path, "rb") as f:
         pipeline = joblib.load(f)
@@ -46,11 +43,10 @@ def get_pipeline():
     return pipeline
 
 
-
-def predict_sample(wide_df: pd.DataFrame) -> tuple[float,float]:
+def predict_sample(wide_df: pd.DataFrame) -> tuple[float, float]:
     """
     Takes a wide_df as input after access the database through crud.py
-    Predicts the latitude and longitude.    
+    Predicts the latitude and longitude.
     """
 
     # Get the pipline
@@ -60,8 +56,7 @@ def predict_sample(wide_df: pd.DataFrame) -> tuple[float,float]:
     FEATURE_COLUMNS = pipeline.named_steps["zeros_filter"]._keep_cols_
 
     # Align incoming data to expected columns, fill missing with 0
-    row = {col: float(wide_df[col].iloc[0]) if col in wide_df.columns else 0.0
-           for col in FEATURE_COLUMNS}
+    row = {col: float(wide_df[col].iloc[0]) if col in wide_df.columns else 0.0 for col in FEATURE_COLUMNS}
     X = pd.DataFrame([row], columns=FEATURE_COLUMNS)
 
     # Predict → [X_meters, Y_meters] in EPSG:3006
