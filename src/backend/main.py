@@ -156,6 +156,9 @@ async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_s
     return {"ok": True, "message": f"Sample {sample_name} deleted."}
 
 
+#TODO: Write a predict API end point for prediction of latitude and longitude
+
+
 # Interactive map for the user
 @app.get("/map", response_class=HTMLResponse)
 def interactive_map():

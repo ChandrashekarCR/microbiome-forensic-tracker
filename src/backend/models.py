@@ -38,6 +38,10 @@ class Samples(Base):
     error_msg = Column(String, nullable=True)  # Error message if pipeline fails
     log_path = Column(String, nullable=True)  # Path to Snakemake log file
 
+    # Latitude and Longitude Prediction
+    latitude = Column(Float,nullable=True)
+    longitude = Column(Float,nullable=True)
+
 
 # Table 2: abundance
 # This table consists of the rsa values of the processed samples

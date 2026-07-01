@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-# SAMPLE TABLE
+# Sample Table
 """
 There are two pydantic schemas that will do the following -:
 1) SamplCreate - To represent data expected when creating an item.
@@ -41,12 +41,11 @@ class SampleResponse(BaseModel):
         from_attributes = True  # Allow reading from SQLAlchemy model
 
 
-# ABUNDANCE TABLES
+# Abundance Tables
 """
 There are two pydantic schemas that will do the following -:
 1) AbundanceReponse - To represent data to the user after a request has been made
 """
-
 
 class AbundanceResponse(BaseModel):
     sample_id: str
@@ -59,3 +58,20 @@ class AbundanceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Prediction Reponse schemas
+"""
+There are two pydantic schemas that will do the following -:
+1) PredictionCreate - What to expect in terms of json format when the prediction is to be made.
+2) PreditionResponse - To represent data to the user after the prediction request has been made.
+"""
+
+
+class PredictionResponse(BaseModel):
+    sample_name: str
+    latitude: float
+    longitude: float
+
+    class Config:
+        from_attributes = True
+    

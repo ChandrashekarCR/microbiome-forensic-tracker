@@ -4,7 +4,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Samples
+from .models import Samples, Abundance
 
 
 # Create a new sample when the user uploads the fastq samples
@@ -121,3 +121,8 @@ async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id
         sample.celery_task_id = celery_task_id
         await db.commit()
     return sample
+
+async def get_abundance_for_sample(db: AsyncSession, sample_name: str) -> list[Abundance]:
+    stmt = select(Abundance).where(Abundance.sample_name == sample_name)
+    result = await db.execute(stmt)
+    return result.scalars().all()
