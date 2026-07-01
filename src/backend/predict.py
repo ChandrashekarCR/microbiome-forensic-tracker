@@ -6,6 +6,10 @@ Then it will run the model and then predict the latitude and longitude.
 
 import pickle
 from pathlib import Path
+import sklearn
+from . import crud
+from .database import get_async_session
+
 
 import numpy as np
 import pandas as pd
@@ -35,7 +39,6 @@ def load_model():
         - model.feature_names_in_ → list of clade names it was trained on
     """
     model_path = Path(settings.MODEL_PATH)
-    print(model_path)
 
     if not model_path.exists():
         raise FileNotFoundError(
@@ -48,4 +51,7 @@ def load_model():
     return model
 
 
-load_model()
+
+
+
+crud.fetch_abundance()
