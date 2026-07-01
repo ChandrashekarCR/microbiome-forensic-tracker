@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import crud
 from .database import create_db_tables, get_async_session
-from .schemas import SampleCreate, SampleResponse
+from .schemas import SampleCreate, SampleResponse, PredictionResponse
 from .tasks import run_pipeline
 
 # Get the directory where main.py is located
@@ -145,7 +145,7 @@ async def get_sample_status(sample_name: str, db: AsyncSession = Depends(get_asy
     return sample
 
 
-@app.delete("/samples/{sample_name}")
+@app.delete("/samples/{sample_name}/predict", response_model=PredictionResponse)
 async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_session)):
     """
     Deleate a sample by sample name
@@ -157,7 +157,12 @@ async def delete_sample(sample_name: str, db: AsyncSession = Depends(get_async_s
 
 
 #TODO: Write a predict API end point for prediction of latitude and longitude
-
+@app.get("/samples/{sample_name}")
+async def predict_sample_location(sample_name:str, rank:str = "species", db: AsyncSession = Depends(get_async_session)):
+    """
+    Predict the geographic origin of a smaple using its microbiome informations
+    """
+    pass
 
 # Interactive map for the user
 @app.get("/map", response_class=HTMLResponse)
