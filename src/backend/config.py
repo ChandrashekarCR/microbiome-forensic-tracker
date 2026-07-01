@@ -39,4 +39,3 @@ class Settings:
 
 # Create a singleton instance
 settings = Settings()
-print(settings.MODEL_PATH)
