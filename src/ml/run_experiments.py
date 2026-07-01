@@ -6,22 +6,20 @@ Runs three stages of experiments:
   3. Final tuning: Full multistage pipeline with hyperparameter tuning
 """
 
+import json
 import time
 
 import mlflow
 import mlflow.sklearn
+from omegaconf import ListConfig
+from sklearn.base import clone
+from sklearn.model_selection import RandomizedSearchCV
 
 from ml.config import config
 from ml.mlflow_utils import log_model_metrics, log_model_params, start_run
 from ml.model_registry import models as model_registry
 from ml.models import TrainTestSplit, load_and_prep_data
-from ml.pipeline import evaluate_model_cv, get_configured_cv_split, build_pipeline
-import time
-import json
-from omegaconf import ListConfig
-from sklearn.base import clone
-from sklearn.model_selection import RandomizedSearchCV
-import mlflow
+from ml.pipeline import build_pipeline, evaluate_model_cv, get_configured_cv_split
 
 TAXONOMY_TABLES = {
     "phylum": "malmo_phylum",
@@ -36,6 +34,7 @@ TAXONOMY_TABLES = {
 # STAGE 1: Taxonomy Baseline
 # In this stage, we are intrested in which of the following models from our config file and
 # which of the following taxonomy levels give the best result, i.e least mean_error_km
+
 
 def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
     """
@@ -142,6 +141,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
 
 # STAGE 2: Feature Engineering Variants - Use K-best features
 
+
 def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
     """
     Experiment 2: Given the best taxonomy level, test feature engineering variants.
@@ -219,6 +219,7 @@ def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest"):
         print(f"Mean error: {avg_mekm:.4f} km")
 
     return stage2_results
+
 
 # STAGE 3: Feature Engineering without kbest
 def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest", use_kbest: bool = False):
@@ -304,7 +305,7 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest",
             mlflow.set_tag("taxonomy_level", taxonomy_level)
             mlflow.set_tag("fe_variant", fe_name)
             mlflow.set_tag("model_type", model_type)
-            mlflow.set_tag("use_kbest",use_kbest)
+            mlflow.set_tag("use_kbest", use_kbest)
 
             # === FEATURE FLAG TAGS ===
             mlflow.set_tag("use_clr", str(use_clr))
@@ -372,6 +373,7 @@ def run_stage3_fe_network(taxonomy_level: str, model_type: str = "RandomForest",
 
 # Stage 4: Full Pipeline Hyperparameter Tuning
 
+
 def run_stage4_hyperparameter_tuning(
     taxonomy_level: str,
     model_type: str = "RandomForest",
@@ -397,7 +399,7 @@ def run_stage4_hyperparameter_tuning(
     run_id : str
         MLflow run ID.
     """
-    
+
     # Load the data from the database
     config.database.table = TAXONOMY_TABLES[taxonomy_level]
     df = load_and_prep_data()
@@ -447,13 +449,15 @@ def run_stage4_hyperparameter_tuning(
         mlflow.set_tag("use_kbest", str(use_kbest))
 
         # Log fixed parameters
-        mlflow.log_params({
-            "n_iter": n_iter,
-            "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
-            "use_meters": use_meters,
-            "k_best_features": config.feature_engineering.k_best_features,
-            "top_k_edges": config.feature_engineering.top_k_edges,
-        })
+        mlflow.log_params(
+            {
+                "n_iter": n_iter,
+                "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
+                "use_meters": use_meters,
+                "k_best_features": config.feature_engineering.k_best_features,
+                "top_k_edges": config.feature_engineering.top_k_edges,
+            }
+        )
         if feature_flags:
             mlflow.log_params({f"fe_{k}": v for k, v in feature_flags.items()})
 
@@ -477,25 +481,22 @@ def run_stage4_hyperparameter_tuning(
             random_state=config.stage_3.random_state,
             n_jobs=8,
             verbose=1,
-
         )
         search.fit(X_cv, y_cv)
 
         # 9. Log each iteration score with a distinct step
         cv_results = search.cv_results_
-        for i, params in enumerate(cv_results["params"]):
+        for i, _params in enumerate(cv_results["params"]):
             score = cv_results["mean_test_score"][i]
             # Skip NaN scores (they will be logged as NaN anyway)
             mlflow.log_metric(f"search_iter_{i}_neg_mse", score, step=i)
 
         # 10. Log best parameters
         best_params_raw = search.best_params_
-        best_params_clean = {
-            k.replace("model__estimator__", ""): v for k, v in best_params_raw.items()
-        }
+        best_params_clean = {k.replace("model__estimator__", ""): v for k, v in best_params_raw.items()}
         mlflow.log_params({f"tuned_{k}": v for k, v in best_params_clean.items()})
         mlflow.log_metric("search_best_neg_mse", search.best_score_, step=n_iter)  # use a unique step
-        
+
         # 11. Re‑evaluate the tuned model using your kilometer metrics (full CV)
         print("\nRe‑evaluating tuned model with kilometer metrics...")
         tuned_estimator = clone(base_estimator)
@@ -547,7 +548,6 @@ def run_stage4_hyperparameter_tuning(
         return final_pipeline, avg_error_km, best_params_clean, mlflow.active_run().info.run_id
 
 
-
 # ============================================================================
 # Main orchestration
 # ============================================================================
@@ -564,19 +564,15 @@ def main():
         # best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
 
         # Stage 2: Determine best feature engineering approach
-        #stage2_results = run_stage2_fe_kbest("species", "RandomForest")
+        # stage2_results = run_stage2_fe_kbest("species", "RandomForest")
 
         # Stage 3: Determine the best combination of network features
-        #best_variant, stage3_results = run_stage3_fe_network("phylum", "RandomForest",use_kbest=False)
+        # best_variant, stage3_results = run_stage3_fe_network("phylum", "RandomForest",use_kbest=False)
 
         # Stage 4 remains optional/disabled unless you explicitly enable it later
         # Tune RandomForest on genus level without network features
         best_pipe, error, params, run_id = run_stage4_hyperparameter_tuning(
-            taxonomy_level="species",
-            model_type="RandomForest",
-            use_network_features=False,
-            use_kbest=True,
-            n_iter=60
+            taxonomy_level="species", model_type="RandomForest", use_network_features=False, use_kbest=True, n_iter=60
         )
 
         print(f"Best error: {error:.2f} km")

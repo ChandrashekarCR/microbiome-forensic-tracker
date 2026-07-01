@@ -1,12 +1,11 @@
 # This file contains all the functions needed to talk to the database
 # CRUD operations with async/await support
 
-from sqlalchemy import select
 import pandas as pd
-import numpy as np
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Samples, Abundance
+from .models import Abundance, Samples
 
 
 # Create a new sample when the user uploads the fastq samples
@@ -124,27 +123,20 @@ async def update_celery_task_id(db: AsyncSession, sample_id: str, celery_task_id
         await db.commit()
     return sample
 
+
 async def fetch_abundance(db: AsyncSession, sample_name: str, rank: str) -> pd.DataFrame:
-    stmt = select(Abundance).where(
-        Abundance.sample_name == sample_name,
-        Abundance.rank == rank
-    )
+    stmt = select(Abundance).where(Abundance.sample_name == sample_name, Abundance.rank == rank)
 
     result = await db.execute(stmt)
     rows = result.scalars().all()
 
     if not rows:
-        raise ValueError(
-            f"No abundance data found for sample='{sample_name}' at rank='{rank}'. "
-            f"Has the pipeline completed for this sample?"
-        )
-    
+        raise ValueError(f"No abundance data found for sample='{sample_name}' at rank='{rank}'. Has the pipeline completed for this sample?")
+
     # Build the long format of the dataframe first, because that is how it is stored in the database
-    long_df = pd.DataFrame(
-        [{"clade":r.clade, "relative_abundance": r.relative_abundance} for r in rows]
-    )
+    long_df = pd.DataFrame([{"clade": r.clade, "relative_abundance": r.relative_abundance} for r in rows])
 
     # Pivot the dataframe
-    wide_df = (long_df.set_index("clade")["relative_abundance"].to_frame().T.reset_index(drop=True))
+    wide_df = long_df.set_index("clade")["relative_abundance"].to_frame().T.reset_index(drop=True)
 
     return wide_df

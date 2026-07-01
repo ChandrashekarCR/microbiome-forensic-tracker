@@ -47,6 +47,7 @@ There are two pydantic schemas that will do the following -:
 1) AbundanceReponse - To represent data to the user after a request has been made
 """
 
+
 class AbundanceResponse(BaseModel):
     sample_id: str
     sample_name: str
@@ -58,6 +59,7 @@ class AbundanceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 # Prediction Reponse schemas
 """
@@ -74,4 +76,3 @@ class PredictionResponse(BaseModel):
 
     class Config:
         from_attributes = True
-    

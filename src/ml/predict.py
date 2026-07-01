@@ -1,10 +1,11 @@
-import mlflow.sklearn
-import pandas as pd
 import joblib
+import pandas as pd
 from pyproj import Transformer
+
 from ml.config import config
-from ml.models import load_and_prep_data, TrainTestSplit
 from ml.evaluation import evaluate_projected_coordinates
+from ml.models import TrainTestSplit, load_and_prep_data
+
 
 def predict_and_evaluate_test_set():
     """
@@ -12,7 +13,7 @@ def predict_and_evaluate_test_set():
     and report honest final metrics.
     """
     # 1. Load the saved pipeline
-    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl") 
+    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
 
     # 2. Reconstruct the exact same train/test split
     # Deterministic because random_state is fixed in config
@@ -28,7 +29,7 @@ def predict_and_evaluate_test_set():
     X_test, y_test_zone, y_test_coords = splitter.get_test_data()
 
     # 4. Predict — pipeline handles zeros_filter + k_best + RF internally
-    preds = pipeline.predict(X_test)   # shape (n_test_samples, 2) → [X_meters, Y_meters]
+    preds = pipeline.predict(X_test)  # shape (n_test_samples, 2) → [X_meters, Y_meters]
 
     # 5. Evaluate with your existing evaluation function
     metrics = evaluate_projected_coordinates(
@@ -55,18 +56,18 @@ def predict_and_evaluate_test_set():
 def predict_sample(abundances: dict) -> tuple[float, float]:
     """
     Predict lat/lon for a single new sample.
-    
+
     Parameters
     ----------
     abundances : dict
         {species_name: relative_abundance} for as many species as you have.
         Missing species default to 0.0.
-    
+
     Returns
     -------
     (latitude, longitude) as floats
     """
-    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl") 
+    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
 
     # Get expected input columns from fitted zero filter
     FEATURE_COLUMNS = pipeline.named_steps["zeros_filter"]._keep_cols_

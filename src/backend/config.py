@@ -6,6 +6,7 @@ Used by both FastAPI and Celery worker.
 import os
 from pathlib import Path
 
+
 class Settings:
     """
     Celery and database configuration.
@@ -23,7 +24,7 @@ class Settings:
     PROJECT_ROOT = Path(
         os.getenv(
             "PROJECT_ROOT",
-            Path(__file__).resolve().parents[2]   # repo root in development
+            Path(__file__).resolve().parents[2],  # repo root in development
         )
     )
     UPLOAD_DIR: str = os.path.join(PROJECT_ROOT, "uploads")
