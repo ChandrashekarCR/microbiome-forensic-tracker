@@ -33,7 +33,7 @@ software-deployment-method:
   - conda
 
 # Pass LUNARC binds to all container jobs globally
-apptainer-args: "--bind /lunarc/nobackup/projects/snic2019-34-3:/lunarc/nobackup/projects/snic2019-34-3 --bind /home/chandru:/home/chandru"
+apptainer-args: "${APPTAINER_BINDS}"   #"--bind /lunarc/nobackup/projects/snic2019-34-3:/lunarc/nobackup/projects/snic2019-34-3 --bind /home/chandru:/home/chandru"
 
 # Efficieny Reporting
 slurm-efficiency-report: true

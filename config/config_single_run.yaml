@@ -5,8 +5,8 @@ version: "1.0"
 
 # Data Directories
 data:
-  raw_dir: "/home/chandru/binp51/uploads" # "/home/chandru/binp51/uploads"
-  results_dir : "/home/chandru/binp51/results" #"/home/chandru/lu2025-12-38/Students/chandru/backend_results/"
+  raw_dir: "${UPLOAD_DIR}"       #"/home/chandru/binp51/uploads" 
+  results_dir : "${RESULTS_DIR}"  #"/home/chandru/binp51/results" 
 
 # Sample Configuration
 samples:
@@ -34,8 +34,8 @@ tools:
 
 # Reference Database
 databases:
-  human_genome: "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
-  kraken2_db: "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
+  human_genome: "${HUMAN_GENOME_DIR}/${HUMAN_GENOME_INDEX}" #"/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
+  kraken2_db: "${KRAKEN2_DB}" #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
   common_adapters: "bin/common_adapters.txt"
 
 # Analysis Parameters:
