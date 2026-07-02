@@ -18,19 +18,20 @@ from celery.utils.log import get_task_logger
 from backend.celery_app import celery_app
 from backend.database import SyncSessionLocal
 from backend.models import Abundance, Samples
+from backend.config import settings
 
 logger = get_task_logger(__name__)
 
 # Path to your project root (where Snakefile lives)
-PROJECT_ROOT = Path("/home/chandru/binp51")
-UPLOAD_DIR = PROJECT_ROOT / "uploads"  # ← MUST MATCH main.py UPLOAD_DIR
-SNAKEFILE = PROJECT_ROOT / "workflow" / "Snakefile"
-CONFIG_FILE = PROJECT_ROOT / "config" / "config_single_run.yaml"
-PROFILE = PROJECT_ROOT / "profiles" / "single_run"
-RESULTS_BASE = PROJECT_ROOT / "results"  # ← Use project results by default
-RUNTIME_DIR = PROJECT_ROOT / "config" / "runtime"
-TASK_LOGS_DIR = PROJECT_ROOT / "logs" / "celery_tasks"
-SNAKEMAKE_BIN = "snakemake"  # assumes conda env is activated when worker starts
+PROJECT_ROOT   = settings.PROJECT_ROOT
+UPLOAD_DIR     = settings.upload_dir # MUST MATCH main.py UPLOAD_DIR
+SNAKEFILE      = settings.snakefile
+CONFIG_FILE    = settings.snakemake_config
+PROFILE        = settings.snakemake_profile
+RESULTS_BASE   = settings.results_dir  # Use project results by default
+RUNTIME_DIR    = settings.runtime_dir
+TASK_LOGS_DIR  = settings.logs_dir / "celery_tasks"
+SNAKEMAKE_BIN  = settings.SNAKEMAKE_BIN
 
 # Verify critical paths exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

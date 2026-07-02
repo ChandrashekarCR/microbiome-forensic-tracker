@@ -10,11 +10,10 @@ import joblib
 import pandas as pd
 from pyproj import Transformer
 
-from .config import Settings
+from .config import settings
 
 # Valid taxonomy ranks — must match what's stored in your DB
 VALID_RANKS = {"phylum", "class", "order", "family", "genus", "species"}
-settings = Settings()
 
 
 def get_pipeline():
@@ -32,7 +31,7 @@ def get_pipeline():
         - model.predict(X) → array of shape (1, 2) = [[lat, lon]]
         - model.feature_names_in_ → list of clade names it was trained on
     """
-    model_path = Path(settings.MODEL_PATH)
+    model_path = Path(settings.model_path)
 
     if not model_path.exists():
         raise FileNotFoundError(f"No model found at {model_path}. ")

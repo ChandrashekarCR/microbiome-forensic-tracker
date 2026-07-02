@@ -18,6 +18,7 @@ from .database import create_db_tables, get_async_session
 from .predict import predict_sample
 from .schemas import DeleteResponse, PredictionResponse, SampleCreate, SampleResponse
 from .tasks import run_pipeline
+from .config import settings
 
 # Get the directory where main.py is located
 BACKEND_DIR = Path(__file__).parent
@@ -42,8 +43,7 @@ app = FastAPI(
 )
 
 # Create a directory to store the uploaded files
-PROJECT_ROOT = Path("/home/chandru/binp51")
-UPLOAD_DIR = PROJECT_ROOT / "uploads"
+UPLOAD_DIR = settings.UPLOAD_DIR
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
