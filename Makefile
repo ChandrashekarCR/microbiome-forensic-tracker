@@ -27,6 +27,7 @@ MULTIQC_URL := oras://community.wave.seqera.io/library/multiqc:1.33--e3576ddf588
 BOWTIE2_URL := oras://community.wave.seqera.io/library/bowtie2:2.5.4--2ec535d45cd82f0b
 SAMTOOLS_URL := oras://community.wave.seqera.io/library/samtools:1.23--86cd9d13645d4fff
 TADPOLE_URL := https://sourceforge.net/projects/bbmap/files/BBMap_39.70.tar.gz
+BBMPA_URL := oras://community.wave.seqera.io/library/bbmap:39.81--7c54177cbce4498f
 SPADES_URL := oras://community.wave.seqera.io/library/spades:4.2.0--3313822b80929818
 KRAKEN2_URL := oras://community.wave.seqera.io/library/kraken2:2.17.1--1738c34504f3fb18
 BRACKEN_URL := oras://community.wave.seqera.io/library/bracken:3.1--77382b4340548c89
@@ -42,6 +43,7 @@ MULTIQC_IMG := multiqc.sif
 BOWTIE2_IMG := bowtie2.sif
 SAMTOOLS_IMG := samtools.sif 
 TADPOLE_TOOL := "$(TOOL_DIR)/bbmap/tadpole.sh"
+BBMAP_TOOL := bbmap.sif 
 SPADES_TOOL := spades.sif
 KRAKEN2_TOOL := kraken2.sif
 BRACKEN_TOOL := bracken.sif
@@ -136,7 +138,7 @@ venv-all: # Complete environment
 
 download: $(FASTQC_IMG) $(FASTP_IMG) $(ADAPTER_REMOVAL_IMG) $(MULTIQC_IMG) $(BOWTIE2_IMG) \
 		 $(SAMTOOLS_IMG) $(TADPOLE_TOOL) $(SPADES_TOOL) $(KRAKEN2_TOOL) $(BRACKEN_TOOL) \
-		 $(PANDASEQ_TOOL) $(MEGAHIT_TOOL)
+		 $(PANDASEQ_TOOL) $(MEGAHIT_TOOL) $(BBMAP_TOOL)
 
 	@if [ ! -d $(TOOL_DIR) ]; then \
 		echo "Directory for downloading images does not exist. Creating...";\
@@ -241,4 +243,12 @@ $(MEGAHIT_TOOL):
 		apptainer pull "$(TOOL_DIR)/$@" "$(MEGAHIT_URL)" ;\
 	else \
 		echo "Megahit already exists.";\
+	fi
+
+$(BBMAP_TOOL):
+	@if [ ! -f "$(TOOL_DIR)/$@" ]; then \
+		echo "Downloading BBMAP tool.";\
+		apptainer pull "$(TOOL_DIR)/$@" "$(BBMPA_URL)" ;\
+	else \
+		echo "BBMAP already exists.";\
 	fi
