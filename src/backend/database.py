@@ -4,13 +4,14 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from .config import settings
 
 # Get the project root directory (where databases/ is located)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # /home/chandru/binp51
-DATABASE_DIR = PROJECT_ROOT / "databases"
-DATABASE_DIR.mkdir(exist_ok=True)  # Ensure the databases folder exists
-
-URL_DATABASE = f"sqlite+aiosqlite:///{DATABASE_DIR / 'malmo_backend.db'}"
+#PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # /home/chandru/binp51
+#DATABASE_DIR = PROJECT_ROOT / "databases"
+#DATABASE_DIR.mkdir(exist_ok=True)  # Ensure the databases folder exists
+#
+#URL_DATABASE = f"sqlite+aiosqlite:///{DATABASE_DIR / 'malmo_backend.db'}"
 
 
 class Base(DeclarativeBase):
@@ -18,7 +19,7 @@ class Base(DeclarativeBase):
 
 
 # This is the actual connection to the database
-engine = create_async_engine(URL_DATABASE)
+engine = create_async_engine(settings.database_url_async, echo=False)
 
 
 # Each request opens a session, uses the database and then closes it.
@@ -38,7 +39,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 # Synchronous approach for celery tasks
-sync_url = f"sqlite:///{DATABASE_DIR / 'malmo_backend.db'}"
+sync_url = settings.database_url_sync
 
 # This is the actual connection to the database
 sync_engine = create_engine(sync_url, connect_args={"check_same_thread": False})  # connect args is only needed for SQLite database
