@@ -10,45 +10,46 @@ Three consumers:
 Snakemake YAML paths are handled separately (see _load_snakemake_config below).
 """
 
-from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+from pathlib import Path
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Absolute path to .env - works regardless of where Celery/uvicorn is launched from
 # Need to import the env file as well when containerization
 ENV_FILE = Path(__file__).resolve().parents[2] / os.getenv("ENV_FILE", ".env.lunarc")
 
+
 # This is a pydatntic setting, paths are imported from the .env files in the root,
 # but the default is mentioned according to lunarc file system
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(ENV_FILE),      # absolute path now
+        env_file=str(ENV_FILE),  # absolute path now
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
     )
-    # Core 
+    # Core
     PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
-    # I/O paths 
-    UPLOAD_DIR: Path = Path("uploads")          # relative -> resolved below
+    # I/O paths
+    UPLOAD_DIR: Path = Path("uploads")  # relative -> resolved below
     RESULTS_DIR: Path = Path("results")
     LOGS_DIR: Path = Path("logs")
     RUNTIME_DIR: Path = Path("config/runtime")
 
-    # Databases 
+    # Databases
     BACKEND_DB_PATH: Path = Path("databases/malmo_backend.db")
     ML_DB_PATH: Path = Path("databases/malmo.db")
 
-    # ML model 
+    # ML model
     MODEL_PATH: Path = Path("src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
 
-    # Celery / Redis 
+    # Celery / Redis
     CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/0"
 
-    # Snakemake 
+    # Snakemake
     SNAKEMAKE_PROFILE: str = "profiles/single_run/"
     SNAKEMAKE_CONFIG: str = "config/config_single_run.yaml"
     SNAKEMAKE_BIN: str = "snakemake"
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
     HUMAN_GENOME_DIR: str = "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref"
     HUMAN_GENOME_INDEX: str = "hg38_index"
 
-    # Derived paths (always absolute, computed from PROJECT_ROOT) 
+    # Derived paths (always absolute, computed from PROJECT_ROOT)
     # These are properties so they update automatically when PROJECT_ROOT changes.
 
     @property
@@ -108,7 +109,7 @@ class Settings(BaseSettings):
     def snakemake_config(self) -> Path:
         return self.PROJECT_ROOT / self.SNAKEMAKE_CONFIG
 
-    # SQLAlchemy URLs (derived from db paths) 
+    # SQLAlchemy URLs (derived from db paths)
     @property
     def database_url_async(self) -> str:
         return f"sqlite+aiosqlite:///{self.backend_db_path}"
@@ -119,11 +120,9 @@ class Settings(BaseSettings):
 
     def ensure_directories(self) -> None:
         """Call once at startup to create all required directories."""
-        for d in (self.upload_dir, self.logs_dir, self.runtime_dir,
-                  self.backend_db_path.parent):
+        for d in (self.upload_dir, self.logs_dir, self.runtime_dir, self.backend_db_path.parent):
             d.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()
 settings.ensure_directories()
-

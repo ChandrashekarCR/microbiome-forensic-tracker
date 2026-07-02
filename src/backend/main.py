@@ -14,11 +14,11 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import crud
+from .config import settings
 from .database import create_db_tables, get_async_session
 from .predict import predict_sample
 from .schemas import DeleteResponse, PredictionResponse, SampleCreate, SampleResponse
 from .tasks import run_pipeline
-from .config import settings
 
 # Get the directory where main.py is located
 BACKEND_DIR = Path(__file__).parent
