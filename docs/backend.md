@@ -471,6 +471,35 @@ Run:
 
 # Cloud Migration
 
+In order to migrate to cloud, we first need to containerize the repository into docker images.
+First we need to install docker.
+
+## Docker Installation
+
+On Ubuntu version 16 and later this can be done.
+```bash
+# Check the version you are on currently
+lsb_release -a
+#No LSB modules are available.
+#Distributor ID:	Ubuntu
+#Description:	Ubuntu 22.04.5 LTS
+#Release:	22.04
+#Codename:	jammy
+
+# Next update your pacakges
+sudo apt-get update
+
+# Install docker
+sudo apt install docker.io
+
+# Enable docker to be running when the system is booted
+sudo systemctl enable docker
+
+# Finally check the status of docker
+sudp systemctl status docker
+
+```
+
 This architecture maps naturally to cloud services.
 
 Example:
