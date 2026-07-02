@@ -7,31 +7,29 @@ to JSON, pushed to Redis, and this function executes in the Celery worker.
 """
 
 import csv
-import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
 from celery.utils.log import get_task_logger
 
 from backend.celery_app import celery_app
+from backend.config import settings
 from backend.database import SyncSessionLocal
 from backend.models import Abundance, Samples
-from backend.config import settings
 
 logger = get_task_logger(__name__)
 
 # Path to your project root (where Snakefile lives)
-PROJECT_ROOT   = settings.PROJECT_ROOT
-UPLOAD_DIR     = settings.upload_dir # MUST MATCH main.py UPLOAD_DIR
-SNAKEFILE      = settings.snakefile
-CONFIG_FILE    = settings.snakemake_config
-PROFILE        = settings.snakemake_profile
-RESULTS_BASE   = settings.results_dir  # Use project results by default
-RUNTIME_DIR    = settings.runtime_dir
-TASK_LOGS_DIR  = settings.logs_dir / "celery_tasks"
-SNAKEMAKE_BIN  = settings.SNAKEMAKE_BIN
+PROJECT_ROOT = settings.PROJECT_ROOT
+UPLOAD_DIR = settings.upload_dir  # MUST MATCH main.py UPLOAD_DIR
+SNAKEFILE = settings.snakefile
+CONFIG_FILE = settings.snakemake_config
+PROFILE = settings.snakemake_profile
+RESULTS_BASE = settings.results_dir  # Use project results by default
+RUNTIME_DIR = settings.runtime_dir
+TASK_LOGS_DIR = settings.logs_dir / "celery_tasks"
+SNAKEMAKE_BIN = settings.SNAKEMAKE_BIN
 
 # Verify critical paths exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
