@@ -23,7 +23,6 @@ from smk_helper.standardize_bracken import standardize_bracken, concat_tables
 from smk_helper.select_partition import select_best_partition
 
 ROOT_DIR = Path.cwd()
-GRAPH_EXTRACTOR = ROOT_DIR / config["parameters"]["taxgraph"]["path"]
 
 # Tool image directories
 TOOLS = {k: f"{ROOT_DIR}/{v}" for k, v in config["tools"].items()}
