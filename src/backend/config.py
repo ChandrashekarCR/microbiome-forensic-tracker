@@ -21,15 +21,9 @@ class Settings:
         )
     )
 
-    UPLOAD_DIR: Path = PROJECT_ROOT / os.getenv(
-        "UPLOAD_DIR",
-        "uploads"
-    )
+    UPLOAD_DIR: Path = PROJECT_ROOT / os.getenv("UPLOAD_DIR", "uploads")
 
-    RESULTS_DIR: Path = PROJECT_ROOT / os.getenv(
-        "RESULTS_DIR",
-        "results"
-    )
+    RESULTS_DIR: Path = PROJECT_ROOT / os.getenv("RESULTS_DIR", "results")
 
     # Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{PROJECT_ROOT}/databases/malmo_backend.db")
@@ -37,9 +31,6 @@ class Settings:
     # Celery Configuration
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/0")
-
-
-    
 
     # Machine learning model
     # Need to change this to something much more simpler.
