@@ -31,6 +31,7 @@ tools:
   kraken2: "bin/kraken2.sif"
   bracken: "bin/bracken.sif"
   megahit: "bin/megahit.sif"
+  bbmap: "bin/bbamp.sif"
 
 # Reference Database
 databases:

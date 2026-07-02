@@ -212,9 +212,10 @@ rule error_correction:
         tmp_r2=os.path.join(
             RESULTS_DIR, "05_error_correction", "{sample}_tmp_R2.fastq.gz"
         ),
-        tadpole=TOOLS["tadpole"],
-        repair=TOOLS["repair"],
-        bbduk=TOOLS["bbduk"],
+        bbmap_sif=TOOLS["bbmap"],
+        repair=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} repair.sh",
+        tadpole=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} tadpole.sh",
+        bbduk=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} bbduk.sh",
         output_dir=lambda w, output: os.path.dirname(output.r1),
         memory_gb=config["parameters"]["error_correction"]["memory_gb"],
         k_size=config["parameters"]["error_correction"]["k_size"],

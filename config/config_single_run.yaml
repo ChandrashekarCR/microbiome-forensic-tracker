@@ -24,13 +24,11 @@ tools:
   multiqc: "bin/multiqc.sif"
   bowtie2: "bin/bowtie2.sif"
   samtools: "bin/samtools.sif"
-  repair: "bin/bbmap/repair.sh"
-  tadpole: "bin/bbmap/tadpole.sh"
-  bbduk: "bin/bbmap/bbduk.sh"
   spades: "bin/spades.sif"
   kraken2: "bin/kraken2.sif"
   bracken: "bin/bracken.sif"
   megahit: "bin/megahit.sif"
+  bbmap: "bin/bbmap.sif"
 
 # Reference Database
 databases:
