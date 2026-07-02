@@ -310,7 +310,11 @@ The backend currently runs as three independent services.
 ## Terminal 1: Redis
 
 ```bash
+# Load module (LUNARC-specific)
+module load GCCcore/13.3.0
 module load Redis/7.4.1
+
+source .venv-all/bin/activate
 
 redis-server \
     --port 6379 \
@@ -336,7 +340,13 @@ PONG
 Activate environment:
 
 ```bash
-conda activate snakemake
+# Load the environment
+source .venv-all/bin/activate 
+
+# All the paths configurations for the backend and snakefile for backend
+# are in the .env.lunarc foler
+set -a; source .env.lunarc; set +a
+
 ```
 
 Start worker:
@@ -366,7 +376,7 @@ celery@node ready
 Activate backend environment:
 
 ```bash
-source .venv-backend/bin/activate
+source .venv-all/bin/activate
 ```
 
 Start API:
@@ -382,6 +392,29 @@ API:
 
 ```
 http://localhost:8000/docs
+```
+
+## Stopping Services
+
+**Graceful shutdown:**
+
+```bash
+# Terminal 1 (Redis)
+Ctrl+C
+
+# Terminal 2 (Celery)
+Ctrl+C
+
+# Terminal 3 (FastAPI)
+Ctrl+C
+```
+
+**Force kill (if stuck):**
+
+```bash
+pkill -f "redis-server"
+pkill -f "celery worker"
+pkill -f "uvicorn"
 ```
 
 ---

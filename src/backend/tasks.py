@@ -208,16 +208,9 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
         # Step6: Success
         logger.info(f"[{sample_name}] Pipeline completed!")
 
-        # Compute the results directory (mirrors what Snakefile does)
-        results_dir = os.path.join(
-            str(CONFIG_FILE).replace("config_single_run.yaml", ""),
-            "..",  # We'll read it properly
-        )
-        # The actual results dir is: config's results_dir + sample_name
-        # Read it from the config to stay in sync
-        with open(CONFIG_FILE) as cf:
-            cfg = yaml.safe_load(cf)
-        results_dir = os.path.join(cfg["data"]["results_dir"], sample_name)
+        # Use settings directly — already resolved from .env, no YAML re-reading needed
+        results_dir = str(settings.results_dir / sample_name)
+        logger.info(f"[{sample_name}] Results directory: {results_dir}")
 
         # Step7: Import the datafrom csv to sql table for malmo_backend database
         try:
