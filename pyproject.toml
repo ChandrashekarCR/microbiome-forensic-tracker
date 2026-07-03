@@ -117,6 +117,9 @@ all = [
     "sqlalchemy>=2.0",
     "sqlmodel>=0.0.20",
     "aiosqlite>=0.20",
+    "asyncpg==0.31.0",
+    "psycopg2-binary==2.9.12",
+
 
     # =========================
     # SNAKEMAKE ECOSYSTEM

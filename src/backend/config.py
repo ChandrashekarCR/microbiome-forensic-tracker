@@ -40,7 +40,10 @@ class Settings(BaseSettings):
 
     # Databases
     BACKEND_DB_PATH: Path = Path("databases/malmo_backend.db")
-    ML_DB_PATH: Path = Path("databases/malmo.db")
+    #ML_DB_PATH: Path = Path("databases/malmo.db")
+
+    # Database connection string (optional, overrides SQLite paths)
+    BACKEND_DB_URL: str | None = None
 
     # ML model
     MODEL_PATH: Path = Path("src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
@@ -112,10 +115,18 @@ class Settings(BaseSettings):
     # SQLAlchemy URLs (derived from db paths)
     @property
     def database_url_async(self) -> str:
+        if self.BACKEND_DB_URL:
+            # Convert postgresql:// → postgresql+asyncpg:// for async usage
+            if self.BACKEND_DB_URL.startswith("postgresql"):
+                return self.BACKEND_DB_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return self.BACKEND_DB_URL
         return f"sqlite+aiosqlite:///{self.backend_db_path}"
-
+    
     @property
     def database_url_sync(self) -> str:
+        if self.BACKEND_DB_URL:
+            # Use plain postgresql:// → psycopg2 (default)
+            return self.BACKEND_DB_URL
         return f"sqlite:///{self.backend_db_path}"
 
     def ensure_directories(self) -> None:

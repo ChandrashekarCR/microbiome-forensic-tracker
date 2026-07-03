@@ -18,8 +18,13 @@ class Base(DeclarativeBase):
     pass
 
 
-# This is the actual connection to the database
-engine = create_async_engine(settings.database_url_async, echo=False)
+# This is the actual connection to the database - A fall back option if the postgres route does not work
+async_url = settings.database_url_async
+is_async_sqlite = async_url.startswith("sqlite")
+if is_async_sqlite:
+    engine = create_async_engine(async_url, echo=False,connect_args={"check_same_thread":False})
+else:
+    engine = create_async_engine(async_url,echo=False)
 
 
 # Each request opens a session, uses the database and then closes it.
@@ -39,10 +44,13 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 # Synchronous approach for celery tasks
-sync_url = settings.database_url_sync
-
 # This is the actual connection to the database
-sync_engine = create_engine(sync_url, connect_args={"check_same_thread": False})  # connect args is only needed for SQLite database
+sync_url = settings.database_url_sync
+is_sqlite = sync_url.startswith("sqlite")
+if is_sqlite:
+    sync_engine = create_engine(sync_url, connect_args={"check_same_thread": False}) # connect args is only needed for SQLite database
+else:
+    sync_engine = create_engine(sync_url)
 
 # Each request opens a session, uses the database and then closes it.
 SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
