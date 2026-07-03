@@ -2,18 +2,18 @@
 
 ## Overview
 
-The microbiome-forensic-tracker consists of a metagenomics platform consists of a **Snakemake-based bioinformatics pipeline** exposed through a **FastAPI backend**.
+The microbiome-forensic-tracker consists of a metagenomics platform consisting of a **Snakemake-based bioinformatics pipeline** exposed through a **FastAPI backend**.
 
 The Snakemake workflow is designed to run on HPC infrastructure (LUNARC) using **SLURM**. However, directly executing a long-running Snakemake workflow inside a normal HTTP request is not reliable because HTTP requests are designed for short-lived operations.
 
 A typical API request may timeout after approximately **30–60 seconds** depending on the client, proxy, or server configuration. Metagenomic processing can take several minutes to hours because it involves:
 
-* Quality control
-* Adapter removal
-* Host read filtering
-* Kraken2 classification
-* Bracken abundance estimation
-* Result processing
+- Quality control
+- Adapter removal
+- Host read filtering
+- Kraken2 classification
+- Bracken abundance estimation
+- Result processing
 
 Therefore, the backend uses an asynchronous job architecture:
 
@@ -49,9 +49,9 @@ FastAPI Response
 
 ---
 
-# Why Celery and Redis are Required
+## Why Celery and Redis are Required
 
-## Problem
+### Problem
 
 A naive implementation would execute Snakemake directly inside FastAPI:
 
@@ -61,7 +61,6 @@ def run_pipeline():
     subprocess.run(
         ["snakemake", "--profile", "production"]
     )
-
     return {"status": "done"}
 ```
 
@@ -77,15 +76,13 @@ For metagenomic workflows, this is not suitable.
 
 ---
 
-# Redis: Message Broker
+## Redis: Message Broker
 
 Redis acts as a lightweight message queue.
 
-Its responsibility is not running the pipeline.
+Its responsibility is **not** running the pipeline. It stores task messages waiting to be processed.
 
-It stores task messages waiting to be processed.
-
-Example:
+**Example:**
 
 A user uploads a FASTQ file:
 
@@ -109,7 +106,6 @@ Redis now contains:
 
 ```
 Queue:
-
 [
   run_snakemake(sample_001)
 ]
@@ -128,7 +124,7 @@ The user does not wait.
 
 ---
 
-# Celery: Task Worker
+## Celery: Task Worker
 
 Celery is the background task processor.
 
@@ -138,9 +134,7 @@ Celery workers continuously monitor Redis:
 Celery Worker
 
 while True:
-
     check Redis
-
     if task exists:
         execute task
 ```
@@ -167,59 +161,21 @@ The worker executes the expensive computation outside FastAPI.
 
 ---
 
-# Service Responsibilities
+## Service Responsibilities
 
-## FastAPI
-
-Responsible for:
-
-* receiving uploads
-* validating requests
-* submitting jobs
-* checking job status
-* returning results
-
-FastAPI should remain lightweight.
+| Component | Responsibility |
+|-----------|----------------|
+| FastAPI | User interface and API layer |
+| Redis | Task queue and communication |
+| Celery | Background execution |
+| Snakemake | Bioinformatics workflow |
+| SLURM | Compute scheduling |
 
 ---
 
-## Redis
+## Example Execution Flow
 
-Responsible for:
-
-* storing queued tasks
-* communicating between services
-* storing task state
-
-Redis does not execute computation.
-
----
-
-## Celery Worker
-
-Responsible for:
-
-* consuming queued tasks
-* running Snakemake
-* monitoring execution
-* updating task state
-
----
-
-## Snakemake
-
-Responsible for:
-
-* workflow management
-* dependency handling
-* resource allocation
-* submitting jobs to SLURM
-
----
-
-# Example Execution Flow
-
-## 1. User uploads FASTQ
+### 1. User uploads FASTQ
 
 Request:
 
@@ -233,11 +189,7 @@ FastAPI receives:
 sample.fastq.gz
 ```
 
----
-
-## 2. FastAPI creates Celery task
-
-Example:
+### 2. FastAPI creates Celery task
 
 ```python
 task = run_pipeline.delay(
@@ -252,28 +204,16 @@ Celery returns:
 job_id = "a8f91d"
 ```
 
----
-
-## 3. Redis stores task
+### 3. Redis stores task
 
 ```
 Redis Queue
-
-a8f91d:
-    run_pipeline(sample001)
+a8f91d: run_pipeline(sample001)
 ```
 
----
+### 4. Worker executes task
 
-## 4. Worker executes task
-
-Celery worker receives:
-
-```
-run_pipeline(sample001)
-```
-
-and runs:
+Celery worker receives `run_pipeline(sample001)` and runs:
 
 ```bash
 snakemake \
@@ -281,11 +221,7 @@ snakemake \
     --config sample=sample001
 ```
 
----
-
-## 5. Snakemake submits SLURM jobs
-
-Example:
+### 5. Snakemake submits SLURM jobs
 
 ```
 Snakemake
@@ -303,114 +239,460 @@ SLURM manages compute resources.
 
 ---
 
-# Current Deployment
+# PostgreSQL Migration from SQLite for LUNARC
 
-The backend currently runs as three independent services.
+## Why PostgreSQL?
 
-## Terminal 1: Redis
+- Multi-user access
+- Network accessible
+- Better concurrency
+- Production-ready
+- Required for cloud migration (Azure PostgreSQL)
+
+## PostgreSQL Concepts Explained
+
+### What is PostgreSQL?
+
+PostgreSQL is a **relational database management system (RDBMS)** that runs as a separate server process. Unlike SQLite (which is just a file), PostgreSQL:
+
+- Runs as a background service (daemon)
+- Listens for network connections (port 5432 by default)
+- Requires authentication (username/password)
+- Supports multiple concurrent users
+
+### What Each Command Does
+
+| Command | What it does |
+|---------|--------------|
+| `initdb` | Creates an empty PostgreSQL system (data directory with system files) |
+| `pg_ctl start` | Starts the PostgreSQL server process |
+| `pg_ctl stop` | Stops the PostgreSQL server process |
+| `pg_ctl status` | Checks if PostgreSQL is running |
+| `createuser` | Creates a user account (like a login) for the database |
+| `createdb` | Creates a database container (where your tables live) |
+| `psql` | Interactive terminal to connect and run SQL commands |
+
+### The Structure
+
+```
+PostgreSQL Server (running process)
+│
+├── Database 1 (malmo_backend_db)
+│   ├── Table: samples
+│   ├── Table: abundance
+│   └── ...
+│
+├── Database 2 (other_db)
+│   └── ...
+│
+├── User: chandru_malmo_backend (has password)
+└── User: other_user
+```
+
+Your code (SQLAlchemy) creates the tables inside the database using your `models.py` definitions.
+
+---
+
+## Step-by-Step: Setting Up PostgreSQL on LUNARC
+
+### 1. Load PostgreSQL Module
 
 ```bash
-# Load module (LUNARC-specific)
+module load GCCcore/14.3.0
+module load PostgreSQL/17.5
+
+# Verify installation
+which postgres
+which psql
+psql --version
+```
+
+### 2. Create PostgreSQL Data Directory
+
+```bash
+# Create a directory for PostgreSQL data (inside your project)
+mkdir -p ~/binp51/postgres/data
+mkdir -p ~/binp51/postgres/logs
+mkdir -p ~/binp51/postgres/run
+
+cd ~/binp51/postgres
+```
+
+### 3. Initialize the Database
+
+```bash
+# This creates the PostgreSQL system files in the data directory
+initdb -D data/
+```
+
+**What this does:** Creates the file structure and default configuration files for PostgreSQL. It's a one-time setup step.
+
+### 4. Start the PostgreSQL Server
+
+```bash
+# Start the server (runs in background)
+pg_ctl -D data/ -l logs/logfile.log start
+
+# Check if it's running
+pg_ctl -D data/ status
+```
+
+**Expected output:**
+```
+pg_ctl: server is running (PID: 12345)
+```
+
+### 5. Create a Database User (with Password)
+
+```bash
+# Create a user with password prompt
+createuser chandru_malmo_backend -P
+```
+
+You'll be prompted:
+```
+Enter password for new role: malmo_backend_microdentify
+Enter it again: malmo_backend_microdentify
+```
+
+**Why a password?** PostgreSQL requires authentication. This password protects your data from unauthorized access on the shared system.
+
+### 6. Create the Database
+
+```bash
+# Create database owned by the user
+createdb -O chandru_malmo_backend malmo_backend_db
+```
+
+### 7. Grant Permissions
+
+```bash
+# Ensure the user has full access to the database
+psql -d malmo_backend_db -c "GRANT ALL PRIVILEGES ON DATABASE malmo_backend_db TO chandru_malmo_backend;"
+```
+
+### 8. Test the Connection
+
+```bash
+# Connect to the database
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost
+```
+
+Enter the password when prompted. You should see:
+
+```
+psql (17.5)
+Type "help" for help.
+
+malmo_backend_db=>
+```
+
+Type `\q` to quit.
+
+### 9. Update `.env.lunarc`
+
+Add or update this line in your `.env.lunarc`:
+
+```bash
+BACKEND_DB_URL=postgresql://chandru_malmo_backend:malmo_backend_microdentify@localhost:5432/malmo_backend_db
+```
+
+---
+
+## PostgreSQL Management Commands
+
+### Starting and Stopping
+
+```bash
+# Start the server
+pg_ctl -D ~/binp51/postgres/data/ -l ~/binp51/postgres/logs/logfile.log start
+
+# Stop the server
+pg_ctl -D ~/binp51/postgres/data/ stop
+
+# Restart the server
+pg_ctl -D ~/binp51/postgres/data/ restart
+
+# Check status
+pg_ctl -D ~/binp51/postgres/data/ status
+```
+
+### Connecting to PostgreSQL
+
+```bash
+# Connect to your database
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost
+```
+
+### Essential SQL Commands Inside psql
+
+```sql
+-- List all databases
+\l
+
+-- List all tables
+\dt
+
+-- Describe a table structure
+\d samples
+
+-- Quit psql
+\q
+```
+
+### Querying the Database
+
+```sql
+-- See all samples
+SELECT * FROM samples;
+
+-- See all abundance records
+SELECT * FROM abundance;
+
+-- Filter samples by name
+SELECT * FROM samples WHERE sample_name = 'your_sample_name';
+
+-- See abundance for a specific sample
+SELECT * FROM abundance WHERE sample_name = 'your_sample_name';
+
+-- See samples with their abundance counts
+SELECT 
+    s.sample_name, 
+    s.status, 
+    COUNT(a.id) as abundance_count
+FROM samples s
+LEFT JOIN abundance a ON s.id = a.sample_id
+GROUP BY s.sample_name, s.status;
+
+-- Check if a sample has abundance data
+SELECT 
+    s.sample_name,
+    s.status,
+    CASE 
+        WHEN COUNT(a.id) > 0 THEN 'Has abundance data'
+        ELSE 'No abundance data yet'
+    END as abundance_status
+FROM samples s
+LEFT JOIN abundance a ON s.id = a.sample_id
+WHERE s.sample_name = 'your_sample_name'
+GROUP BY s.sample_name, s.status;
+```
+
+---
+
+## How to Check if Everything is Working
+
+### 1. Check PostgreSQL is Running
+
+```bash
+pg_ctl -D ~/binp51/postgres/data/ status
+```
+
+### 2. Check Database Connection
+
+```bash
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost -c "SELECT 1;"
+```
+
+### 3. Check Tables Were Created
+
+```bash
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost -c "\dt"
+```
+
+If tables exist, you'll see:
+
+```
+              List of relations
+ Schema |   Name    | Type  |  Owner
+--------+-----------+-------+----------
+ public | abundance | table | ...
+ public | samples   | table | ...
+```
+
+### 4. After Uploading a Sample
+
+```bash
+# Check the sample was inserted
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost -c "SELECT * FROM samples ORDER BY submitted_at DESC LIMIT 5;"
+
+# Check if abundance data was added (after pipeline completes)
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost -c "SELECT * FROM abundance WHERE sample_name = 'your_sample_name';"
+```
+
+---
+
+## Resetting/Deleting Tables (Keep Database)
+
+### Option 1: Drop All Tables (Keep Database)
+
+```bash
+# Connect to your database
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost
+
+# Inside psql, run:
+DROP TABLE IF EXISTS abundance CASCADE;
+DROP TABLE IF EXISTS samples CASCADE;
+
+# Then quit
+\q
+```
+
+Your application will recreate the tables on next startup via `create_db_tables()`.
+
+### Option 2: Truncate Tables (Keep Structure, Delete Data)
+
+```sql
+-- Delete all data but keep table structure
+TRUNCATE TABLE abundance;
+TRUNCATE TABLE samples;
+```
+
+### Option 3: Delete All Tables (Including System)
+
+```bash
+# Connect to your database
+psql -d malmo_backend_db -U chandru_malmo_backend -h localhost
+
+# Drop all tables
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO chandru_malmo_backend;
+GRANT ALL ON SCHEMA public TO public;
+```
+
+### Option 4: Delete Entire Database (Complete Reset)
+
+```bash
+# Delete the database
+dropdb malmo_backend_db
+
+# Recreate it
+createdb -O chandru_malmo_backend malmo_backend_db
+```
+
+---
+
+## Troubleshooting
+
+### PostgreSQL Won't Start
+
+```bash
+# Check the logs
+cat ~/binp51/postgres/logs/logfile.log
+
+# Check if another PostgreSQL is running
+ps aux | grep postgres
+
+# Remove lock file if it exists
+rm -f ~/binp51/postgres/data/postmaster.pid
+
+# Try starting again
+pg_ctl -D ~/binp51/postgres/data/ -l ~/binp51/postgres/logs/logfile.log start
+```
+
+### Connection Refused
+
+```bash
+# Check if PostgreSQL is running
+pg_ctl -D ~/binp51/postgres/data/ status
+
+# Check if port 5432 is in use
+lsof -i :5432
+
+# If a different PostgreSQL is running, stop it first or use a different port
+# To use a different port (e.g., 5433):
+pg_ctl -D ~/binp51/postgres/data/ -l logs/logfile.log start -o "-p 5433"
+```
+
+### Authentication Failed
+
+```bash
+# Reset the user password
+psql -d postgres -c "ALTER USER chandru_malmo_backend WITH PASSWORD 'new_password';"
+```
+
+### MissingGreenlet Error
+
+This happens when Celery tries to use an async database driver. Ensure:
+1. `BACKEND_DB_URL` in `.env.lunarc` is `postgresql://` (without `+asyncpg`)
+2. Your `database.py` creates separate engines with the appropriate driver
+3. Celery worker is restarted after changes
+
+### Database User Doesn't Exist
+
+```bash
+# Delete the user
+dropuser --if-exists chandru_malmo_backend
+
+# Recreate the user
+createuser chandru_malmo_backend -P
+
+# Recreate the database
+dropdb malmo_backend_db
+createdb -O chandru_malmo_backend malmo_backend_db
+```
+
+---
+
+## Current Deployment (LUNARC)
+
+The backend runs as three independent services.
+
+### Terminal 1: Redis
+
+```bash
+# Load module
 module load GCCcore/13.3.0
 module load Redis/7.4.1
 
+# Activate environment
 source .venv-all/bin/activate
 
-redis-server \
-    --port 6379 \
-    --tcp-keepalive 60
+# Start Redis
+redis-server --port 6379 --tcp-keepalive 60
 ```
 
 Verify:
 
 ```bash
 redis-cli ping
+# Expected: PONG
 ```
 
-Expected:
-
-```
-PONG
-```
-
----
-
-## Terminal 2: Celery Worker
-
-Activate environment:
+### Terminal 2: Celery Worker
 
 ```bash
-# Load the environment
-source .venv-all/bin/activate 
+# Activate environment
+source .venv-all/bin/activate
 
-# All the paths configurations for the backend and snakefile for backend
-# are in the .env.lunarc foler
+# Load environment
 set -a; source .env.lunarc; set +a
 
+# Start worker
+celery -A src.backend.celery_app:celery_app worker --loglevel=info --concurrency=2
 ```
 
-Start worker:
+### Terminal 3: FastAPI
 
 ```bash
-celery \
-    -A src.backend.celery_app:celery_app \
-    worker \
-    --loglevel=info \
-    --concurrency=2
-```
-
-Worker output:
-
-```
-[tasks]
-
-src.backend.tasks.run_snakemake_pipeline
-
-celery@node ready
-```
-
----
-
-## Terminal 3: FastAPI
-
-Activate backend environment:
-
-```bash
+# Activate environment
 source .venv-all/bin/activate
+
+# Start API
+uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Start API:
-
-```bash
-uvicorn \
-    src.backend.main:app \
-    --host 0.0.0.0 \
-    --port 8000
-```
-
-API:
-
-```
-http://localhost:8000/docs
-```
-
-## Stopping Services
+### Stopping Services
 
 **Graceful shutdown:**
-
 ```bash
-# Terminal 1 (Redis)
-Ctrl+C
-
-# Terminal 2 (Celery)
-Ctrl+C
-
-# Terminal 3 (FastAPI)
-Ctrl+C
+# Redis: Ctrl+C
+# Celery: Ctrl+C
+# FastAPI: Ctrl+C
 ```
 
-**Force kill (if stuck):**
-
+**Force kill:**
 ```bash
 pkill -f "redis-server"
 pkill -f "celery worker"
@@ -419,119 +701,42 @@ pkill -f "uvicorn"
 
 ---
 
-# Future Improvement: Startup Script
+## Quick Reference: PostgreSQL Setup Checklist
 
-Instead of starting three terminals manually, the services can be launched using a single script.
-
-Example:
-
-`start_backend.sh`
-
-```bash
-#!/bin/bash
-
-echo "Starting Redis..."
-
-redis-server \
-    --port 6379 \
-    --daemonize yes
-
-
-echo "Starting Celery worker..."
-
-celery \
-    -A src.backend.celery_app:celery_app \
-    worker \
-    --loglevel=info \
-    --concurrency=2 \
-    > logs/celery.log 2>&1 &
-
-
-echo "Starting FastAPI..."
-
-uvicorn \
-    src.backend.main:app \
-    --host 0.0.0.0 \
-    --port 8000
-```
-
-Make executable:
-
-```bash
-chmod +x start_backend.sh
-```
-
-Run:
-
-```bash
-./start_backend.sh
-```
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1 | `module load PostgreSQL/17.5` | Load PostgreSQL |
+| 2 | `mkdir -p postgres/{data,logs,run}` | Create directories |
+| 3 | `initdb -D data/` | Initialize PostgreSQL system |
+| 4 | `pg_ctl -D data/ -l logs/logfile.log start` | Start the server |
+| 5 | `createuser chandru_malmo_backend -P` | Create user with password |
+| 6 | `createdb -O chandru_malmo_backend malmo_backend_db` | Create database |
+| 7 | `psql -d malmo_backend_db -c "GRANT ALL PRIVILEGES ON DATABASE malmo_backend_db TO chandru_malmo_backend;"` | Grant permissions |
+| 8 | `psql -d malmo_backend_db -U chandru_malmo_backend -h localhost` | Test connection |
+| 9 | Update `.env.lunarc` with `BACKEND_DB_URL=...` | Configure application |
 
 ---
 
-# Cloud Migration
+## Important Notes
 
-In order to migrate to cloud, we first need to containerize the repository into docker images.
-First we need to install docker.
-
-## Docker Installation
-
-On Ubuntu version 16 and later this can be done.
-```bash
-# Check the version you are on currently
-lsb_release -a
-#No LSB modules are available.
-#Distributor ID:	Ubuntu
-#Description:	Ubuntu 22.04.5 LTS
-#Release:	22.04
-#Codename:	jammy
-
-# Next update your pacakges
-sudo apt-get update
-
-# Install docker
-sudo apt install docker.io
-
-# Enable docker to be running when the system is booted
-sudo systemctl enable docker
-
-# Finally check the status of docker
-sudp systemctl status docker
-
-```
-
-This architecture maps naturally to cloud services.
-
-Example:
-
-```
-FastAPI
- |
-Cloud Redis
- |
-Celery Worker Container
- |
-Snakemake Container
- |
-Cloud Compute / HPC
-```
-
-The asynchronous design remains unchanged.
-
-Only the execution environment changes.
+1. **You MUST start PostgreSQL before running your application.** The application cannot create the database server itself.
+2. **Tables are created automatically** by your `create_db_tables()` function when the app starts.
+3. **The connection string tells your app where to find PostgreSQL**, but PostgreSQL must be running independently.
+4. **The `.env.lunarc` file should NOT be committed to Git** – it contains passwords. Add it to `.gitignore`.
+5. **Your code (SQLAlchemy) creates the tables** – you don't need to manually define them in SQL.
 
 ---
 
-# Summary
+## Summary
 
 The backend separates responsibilities:
 
-| Component | Purpose                      |
-| --------- | ---------------------------- |
-| FastAPI   | User interface and API layer |
-| Redis     | Task queue and communication |
-| Celery    | Background execution         |
-| Snakemake | Bioinformatics workflow      |
-| SLURM     | Compute scheduling           |
+| Component | Purpose |
+|-----------|---------|
+| FastAPI | User interface and API layer |
+| Redis | Task queue and communication |
+| Celery | Background execution |
+| Snakemake | Bioinformatics workflow |
+| SLURM | Compute scheduling |
 
 Celery and Redis act as the bridge between an interactive web application and a long-running HPC workflow.
