@@ -90,10 +90,10 @@ class Settings(BaseSettings):
         p = self.BACKEND_DB_PATH
         return p if p.is_absolute() else self.PROJECT_ROOT / p
 
-    @property
-    def ml_db_path(self) -> Path:
-        p = self.ML_DB_PATH
-        return p if p.is_absolute() else self.PROJECT_ROOT / p
+    #@property
+    #def ml_db_path(self) -> Path:
+    #    p = self.ML_DB_PATH
+    #    return p if p.is_absolute() else self.PROJECT_ROOT / p
 
     @property
     def model_path(self) -> Path:
@@ -125,8 +125,13 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         if self.BACKEND_DB_URL:
-            # Use plain postgresql:// → psycopg2 (default)
-            return self.BACKEND_DB_URL
+            url = self.BACKEND_DB_URL
+            # Ensure sync driver for SQLAlchemy
+            if url.startswith("postgresql://"):
+                return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            if url.startswith("postgresql+asyncpg://"):
+                return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+            return url
         return f"sqlite:///{self.backend_db_path}"
 
     def ensure_directories(self) -> None:
