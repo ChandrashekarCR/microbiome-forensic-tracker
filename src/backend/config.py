@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Databases
     BACKEND_DB_PATH: Path = Path("databases/malmo_backend.db")
-    #ML_DB_PATH: Path = Path("databases/malmo.db")
+    # ML_DB_PATH: Path = Path("databases/malmo.db")
 
     # Database connection string (optional, overrides SQLite paths)
     BACKEND_DB_URL: str | None = None
@@ -121,7 +121,7 @@ class Settings(BaseSettings):
                 return self.BACKEND_DB_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
             return self.BACKEND_DB_URL
         return f"sqlite+aiosqlite:///{self.backend_db_path}"
-    
+
     @property
     def database_url_sync(self) -> str:
         if self.BACKEND_DB_URL:
