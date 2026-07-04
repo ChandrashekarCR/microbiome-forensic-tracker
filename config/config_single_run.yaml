@@ -102,27 +102,27 @@ taxonomy:
 # Resource allocation for each rule
 resources:
   fastqc:
-    mem_mb: 1000         
+    mem_mb: 500         
     runtime_min: 30      
     threads: 2           
   
   fastp:
-    mem_mb: 500          
+    mem_mb: 6000          
     runtime_min: 30      
     threads: 4           
   
   adapter_removal:
-    mem_mb: 1000         
+    mem_mb: 500         
     runtime_min: 30      
     threads: 3           
 
   bowtie2:
-    mem_mb: 12000        
+    mem_mb: 4000        
     runtime_min: 45      
     threads: 8           
   
   error_correction:
-    mem_mb: 16000        
+    mem_mb: 8000        
     runtime_min: 30      
     threads: 1           
 
@@ -131,12 +131,12 @@ resources:
     runtime_min: 15      
   
   kraken2:
-    mem_mb: 460000        # core-nt DB=310GB + index + buffers + OS ~= 400-420GB; 460GB = safe headroom
+    mem_mb: 350000        # core-nt DB=310GB + index + buffers + OS ~= 400-420GB; 460GB = safe headroom
     runtime_min: 120      # 2 hours - kraken2 on large samples can take 60-90 min
-    threads: 12          
+    threads: 8          
   
   bracken:
-    mem_mb: 2000         
+    mem_mb: 1000         
     runtime_min: 15      
 
   megahit:
