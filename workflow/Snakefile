@@ -25,8 +25,11 @@ from smk_helper.select_partition import select_best_partition
 ROOT_DIR = Path.cwd()
 
 # Tool image directories
-TOOLS = {k: f"{ROOT_DIR}/{v}" for k, v in config["tools"].items()}
-
+TOOLS_DIR = os.path.expandvars(os.environ["SNAKEMAKE_TOOLS"])
+TOOLS = {
+    k: str(Path(TOOLS_DIR) / v)
+    for k, v in config["tools"].items()
+}
 # Dynamic sample sheet path via config
 DEFAULT_SAMPLE_SHEET = config["samples"]["sample_sheet"]
 
@@ -63,7 +66,7 @@ RANKS = config["taxonomy"]["ranks"]
 # Host Genome (Human - hG38)
 HOST_GENOME = os.path.expandvars(config["databases"]["human_genome"])
 # Common Adapters
-COMMON_ADAPTERS = f"{ROOT_DIR}/{config['databases']['common_adapters']}"
+COMMON_ADAPTERS = str(Path(TOOLS_DIR) / config["databases"]["common_adapters"])
 # Kraken2 and Bracken Database (core-nt - 307G)
 KRAKEN2_DB = os.path.expandvars(config["databases"]["kraken2_db"])
 BRACKEN_DB = KRAKEN2_DB
