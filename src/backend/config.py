@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     SNAKEMAKE_PROFILE: str = "profiles/single_run/"
     SNAKEMAKE_CONFIG: str = "config/config_single_run.yaml"
     SNAKEMAKE_BIN: str = "snakemake"
+    SNAKEMAKE_TOOLS: str = "bin/"
 
     # Reference databases (large, HPC/cloud paths)
     KRAKEN2_DB: str = "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database"
@@ -111,6 +112,11 @@ class Settings(BaseSettings):
     @property
     def snakemake_config(self) -> Path:
         return self.PROJECT_ROOT / self.SNAKEMAKE_CONFIG
+    
+    @property
+    def snakemake_tools(self) -> Path:
+        p = self.SNAKEMAKE_TOOLS
+        return p if p.is_absolute() else self.PROJECT_ROOT / p
 
     # SQLAlchemy URLs (derived from db paths)
     @property

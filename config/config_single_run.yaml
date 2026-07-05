@@ -18,23 +18,23 @@ samples:
 
 # Tool paths (Container images)
 tools:
-  fastqc: "bin/fastqc.sif"
-  fastp: "bin/fastp.sif"
-  adapter_removal: "bin/adapter_removal.sif"
-  multiqc: "bin/multiqc.sif"
-  bowtie2: "bin/bowtie2.sif"
-  samtools: "bin/samtools.sif"
-  spades: "bin/spades.sif"
-  kraken2: "bin/kraken2.sif"
-  bracken: "bin/bracken.sif"
-  megahit: "bin/megahit.sif"
-  bbmap: "bin/bbmap.sif"
+  fastqc: "fastqc.sif"
+  fastp: "fastp.sif"
+  adapter_removal: "adapter_removal.sif"
+  multiqc: "multiqc.sif"
+  bowtie2: "bowtie2.sif"
+  samtools: "samtools.sif"
+  spades: "spades.sif"
+  kraken2: "kraken2.sif"
+  bracken: "bracken.sif"
+  megahit: "megahit.sif"
+  bbmap: "bbmap.sif"
 
 # Reference Database
 databases:
   human_genome: "${HUMAN_GENOME_DIR}/${HUMAN_GENOME_INDEX}" #"/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/hg38_index"
   kraken2_db: "${KRAKEN2_DB}" #"/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/"
-  common_adapters: "bin/common_adapters.txt"
+  common_adapters: "common_adapters.txt"
 
 # Analysis Parameters:
 parameters:
