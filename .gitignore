@@ -56,3 +56,6 @@ __pycache__*
 
 # Ignore postgres
 postgres/
+
+# Ignore azure env files
+.env.azure*

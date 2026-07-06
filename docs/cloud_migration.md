@@ -64,7 +64,7 @@ echo "Subscription: $SUBSCRIPTION_ID"
 
 ```bash
 az group create \
-  --name microdentify-rg \
+  --name microbiome-rg \
   --location swedencentral
 ```
 
@@ -72,10 +72,10 @@ az group create \
 
 ```bash
 az group show \
-  --name microdentify-rg \
+  --name microbiome-rg \
   --query "{name:name, location:location, state:properties.provisioningState}" \
   --output table
-# Expected: name=microdentify-rg, state=Succeeded
+# Expected: name=microbiome-rg, state=Succeeded
 
 # Show all available resource groups
 az group list -o table
@@ -85,7 +85,7 @@ az group list -o table
 
 ```bash
 # WARNING: This deletes EVERYTHING inside it
-az group delete --name microdentify-rg --yes --no-wait
+az group delete --name microbiome-rg --yes --no-wait
 ```
 
 ### Register the subscription (optional)
@@ -133,8 +133,8 @@ You may need to register for that service if needed and faced with the same issu
 
 ```bash
 az storage account create \
-  --name microdentifystorage \
-  --resource-group microdentify-rg \
+  --name ednamicrobiomestorage \
+  --resource-group microbiome-rg \
   --location swedencentral \
   --sku Standard_LRS \
   --kind StorageV2
@@ -157,7 +157,7 @@ az storage account create \
 ### List everything in your Resource Group
 ```bash
 az resource list \
-    --resource-group microdentify-rg \
+    --resource-group microbiome-rg \
     --output table
 
 # This shows every resource in the resource group, regardless of type.
@@ -166,15 +166,20 @@ az resource list \
 ### List only Storage Accounts
 ```bash
 az storage account list \
-    --resource-group microdentify-rg \
+    --resource-group microbiome-rg \
     --output table
 
 ### Get connection string — SAVE THIS
 
 STORAGE_CONN=$(az storage account show-connection-string \
-  --name microdentifystorage \
-  --resource-group microdentify-rg \
+  --name ednamicrobiomestorage \
+  --resource-group microbiome-rg \
   --output tsv)
+
+STORAGE_KEY=$(az storage account keys list \
+  --resource-group microbiome-rg \
+  --account-name ednamicrobiomestorage \
+  --query "[0].value" -o tsv)
 
 echo "STORAGE_CONNECTION_STRING=$STORAGE_CONN"
 # Copy this entire line into a safe place (password manager, notes)
@@ -199,39 +204,18 @@ az storage container create \
   --name results \
   --connection-string "$STORAGE_CONN"
 
-# Snakemake code (workflow, profiles, config)
+# Logs generated
 az storage container create \
-  --name code \
+  --name logs \
   --connection-string "$STORAGE_CONN"
 
+# Snakemake tools (Bioinformatics tools go here)
+az storage container create \
+  --name tools \
+  --connection-string "$STORAGE_CONN"
 
-Blob Storage container: code
-────────────────────────────
-code/
-├── bin/
-│   ├── fastqc.sif
-│   ├── fastp.sif
-│   ├── kraken2.sif
-│   ├── bbmap.sif
-│   ├── bowtie2.sif
-│   ├── samtools.sif
-│   ├── bracken.sif
-│   ├── multiqc.sif
-│   ├── megahit.sif
-│   ├── spades.sif
-│   ├── common_adapters.txt
-│   └── bbmap/
-│       ├── repair.sh
-│       ├── tadpole.sh
-│       └── bbduk.sh
-├── workflow/
-│   ├── Snakefile
-│   └── rules/
-├── profiles/
-│   ├── single_run/
-│   └── azure_batch/
-└── config/
-    └── config_single_run.yaml
+# Generate a SAS token for the entire storage will help in file migrations and handling
+az storage account generate-sas --account-name ednamicrobiomestorage --account-key "$STORAGE_ACCOUNT_KEY" --expiry 2026-07-07 --permissions rwdlacup --services b --resource-types sco --https-only --output tsv
 
 
 ```
@@ -258,6 +242,13 @@ az storage account delete \
   --name microdentifystorage \
   --resource-group microdentify-rg \
   --yes
+
+# Delete only certain things inside a container
+az storage blob delete-batch \
+  --source databases \
+  --connection-string "$STORAGE_CONN" \
+  --pattern "hg38_ref/hg38_ref/*"
+
 ```
 
 ---
@@ -286,24 +277,34 @@ azcopy --version
 
 Next on local you need to set this up so that you can transfer files without having to login
 ```bash
-az storage account keys list -g microdentify-rg -n microdentifystorage --query "[0].value" -o tsv
+az storage account keys list -g microbiome-rg -n ednamicrobiomestorage --query "[0].value" -o tsv
 ```
 Then we need to generate a SAS token which we can use to transfer files without having to login.
 SAS tokens are like a temporary key you can use to transfer things by bypassing the login. Alwys set a short time for these SAS tokens and create when needed.
 
 ```bash
-az storage container generate-sas --name tools --account-name microdentifystorage --account-key <paste it here> --premissions rwdl --expiry 2026-07-06 --https-only --output tsv
+az storage container generate-sas --name tools --account-name ednamicrobiomestorage --account-key <paste it here> --permissions rwdl --expiry 2026-07-07 --https-only --output tsv
 ```
 Then head bach to LUNRAC
 ```bash
+# Bioinformatics tools upload
+azcopy copy "/home/chandru/binp51/bin/*" "https://ednamicrobiomestorage.blob.core.windows.net/tools?<SAS_TOKEN>" --recursive --put-md5
 
-azcopy copy "/home/chandru/binp51/bin" "https://microdentifystorage.blob.core.windows.net/tools?<SAS_TOKEN>" --recursive --put-md5
+# Human genome index database upload
+azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/*" \
+  "https://ednamicrobiomestorage.blob.core.windows.net/databases/hg38_ref?<SAS_TOKEN>" \
+  --recursive --put-md5
+
+# Copy the entire karken2 database
+azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/*" \
+  "https://ednamicrobiomestorage.blob.core.windows.net/databases/core_nt_Database?<SAS_TOKEN>" \
+  --recursive --put-md5
 
 ```
 
-### This section is for transferring files if you can use azure on LUNARC.
+### This section is for transferring files if you can use azure on LUNARC or general files transfers without azcopy.
 
-### Upload .sif files
+### Upload tools (bionformatics)
 
 ```bash
 # Set your connection string
@@ -317,35 +318,6 @@ az storage blob upload-batch \
   --pattern "*.sif"
 
 
-```
-
-### Upload Snakemake code
-
-```bash
-# Upload workflow rules
-az storage blob upload-batch \
-  --source /home/chandru/binp51/workflow/ \
-  --destination code/workflow \
-  --connection-string "$STORAGE_CONN"
-
-# Upload profiles
-az storage blob upload-batch \
-  --source /home/chandru/binp51/profiles/ \
-  --destination code/profiles \
-  --connection-string "$STORAGE_CONN"
-
-# Upload config files
-az storage blob upload-batch \
-  --source /home/chandru/binp51/config/ \
-  --destination code/config \
-  --connection-string "$STORAGE_CONN"
-
-# Upload bin/ adapters and scripts (not .sif — already done)
-az storage blob upload \
-  --file /home/chandru/binp51/bin/common_adapters.txt \
-  --container-name tools \
-  --name common_adapters.txt \
-  --connection-string "$STORAGE_CONN"
 ```
 
 ### Upload databases (WARNING: Kraken2 is 310GB — start this and leave it overnight)
@@ -394,8 +366,8 @@ az storage blob list \
 
 ```bash
 az acr create \
-  --resource-group microdentify-rg \
-  --name microdentifyacr \
+  --resource-group microbiome-rg \
+  --name microbiomeacr \
   --sku Standard \
   --admin-enabled true
 ```
@@ -404,17 +376,17 @@ az acr create \
 
 ```bash
 ACR_SERVER=$(az acr show \
-  --name microdentifyacr \
+  --name microbiomeacr \
   --query "loginServer" \
   --output tsv)
 
 ACR_USERNAME=$(az acr credential show \
-  --name microdentifyacr \
+  --name microbiomeacr \
   --query "username" \
   --output tsv)
 
 ACR_PASSWORD=$(az acr credential show \
-  --name microdentifyacr \
+  --name microbiomeacr \
   --query "passwords[0].value" \
   --output tsv)
 
@@ -427,7 +399,7 @@ echo "ACR_PASSWORD=$ACR_PASSWORD"
 
 ```bash
 # Login to registry
-az acr login --name microdentifyacr
+az acr login --name microbiomeacr
 
 # If the above step fails this is because you need docker to be able to talk to the container service and currently you as a user have not given that permission
 # Do the following and then try the above command
@@ -436,21 +408,21 @@ sudo su -
 sudo su <your user name>
 
 # To log out of your container registry
-docker logout microdentifyacr.azurecr.io
+docker logout microbiomeacr.azurecr.io
 
 # Tag your image
-docker tag microbiome:latest microdentifyacr.azurecr.io/microdentify:latest
+docker tag microbiome:latest microbiomeacr.azurecr.io/microbiome:latest
 
 # Push
-docker push microdentifyacr.azurecr.io/microdentify:latest
+docker push microbiomeacr.azurecr.io/microbiome:latest
 ```
 
 ### Verify
 
 ```bash
 az acr repository show-tags \
-  --name microdentifyacr \
-  --repository microdentify \
+  --name microbiomeacr \
+  --repository microbiome \
   --output table
 # Expected: latest
 ```
@@ -460,14 +432,14 @@ az acr repository show-tags \
 ```bash
 # Delete a specific tag
 az acr repository delete \
-  --name microdentifyacr \
-  --image microdentify:latest \
+  --name microbiomeacr \
+  --image microbiome:latest \
   --yes
 
 # Delete the whole registry
 az acr delete \
-  --name microdentifyacr \
-  --resource-group microdentify-rg \
+  --name microbiomeacr \
+  --resource-group microbiome-rg \
   --yes
 ```
 
@@ -481,11 +453,11 @@ az acr delete \
 
 ```bash
 az postgres flexible-server create \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres \
+  --resource-group microbiome-rg \
+  --name microbiome-postgres \
   --location swedencentral \
-  --admin-user malmo \
-  --admin-password "MalmoSecure2026!" \
+  --admin-user <username> \
+  --admin-password "<password>" \
   --sku-name Standard_B1ms \ # Defines compute Burstable VM with 1vCPU and 2GB RAM
   --tier Burstable \ # cheaper aimer for low traffic workloads
   --storage-size 32 \
@@ -497,15 +469,15 @@ az postgres flexible-server create \
 
 ### List all PostgreSQL servers in your resource group
 ```bash
-az postgres flexible-server list --resource-group microdentify-rg --query "[].{Name:name, State:state, Location:location}" --output table
+az postgres flexible-server list --resource-group microbiome-rg --query "[].{Name:name, State:state, Location:location}" --output table
 ```
 
 ### Create your database
 
 ```bash
 az postgres flexible-server db create \
-  --resource-group microdentify-rg \
-  --server-name microdentify-postgres \
+  --resource-group microbiome-rg \
+  --server-name microbiome-postgres \
   --name malmo_db
 ```
 
@@ -522,42 +494,42 @@ Think of the firewall rule as saying:
 
 ```bash
 az postgres flexible-server firewall-rule create \
-  --resource-group microdentify-rg \
-  --server-name microdentify-postgres \
+  --resource-group microbiome-rg \
+  --server-name microbiome-postgres \
   --name AllowAzureServices \
   --start-ip-address 0.0.0.0 \
   --end-ip-address 0.0.0.0
 ```
 
-### Get hostname — SAVE THIS
+### Get hostname 
 
 ```bash
 POSTGRES_HOST=$(az postgres flexible-server show \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres \
+  --resource-group microbiome-rg \
+  --name microbiome-postgres \
   --query "fullyQualifiedDomainName" \
   --output tsv)
 
 echo "POSTGRES_HOST=$POSTGRES_HOST"
-# Looks like: microdentify-postgres.postgres.database.azure.com
+# Looks like: microbiome-postgres.postgres.database.azure.com
 ```
 
 ```bash
 # List all resources in your resource group
-az resource list --resource-group microdentify-rg --output table
+az resource list --resource-group microbiome-rg --output table
 
 # Or list just PostgreSQL servers
-az postgres flexible-server list --resource-group microdentify-rg --output table
+az postgres flexible-server list --resource-group microbiome-rg --output table
 
 # Get details of your specific server
-az postgres flexible-server show --resource-group microdentify-rg --name microdentify-postgres
+az postgres flexible-server show --resource-group microbiome-rg --name microbiome-postgres
 ```
 
 ### Verify connection
 
 ```bash
 # Install psql locally if needed: sudo apt install postgresql-client
-psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=malmo password=MalmoSecure2026! sslmode=require"
+psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=<username> password=<password> sslmode=require"
 # Should open a postgres prompt. Type \q to exit.
 ```
 
@@ -565,21 +537,21 @@ psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=malmo password=MalmoSec
 
 ```bash
 az postgres flexible-server stop \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres
+  --resource-group microbiome-rg \
+  --name microbiome-postgres
 
 # Start again when needed
 az postgres flexible-server start \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres
+  --resource-group microbiome-rg \
+  --name microbiome-postgres
 ```
 
 ### Delete (if needed)
 
 ```bash
 az postgres flexible-server delete \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres \
+  --resource-group microbiome-rg \
+  --name microbiome-postgres \
   --yes
 ```
 
@@ -593,8 +565,8 @@ az postgres flexible-server delete \
 
 ```bash
 az vm create \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm \
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm \
   --image Ubuntu2204 \
   --size Standard_B2ats_v2 \
   --admin-username azureuser \
@@ -603,8 +575,8 @@ az vm create \
 
 # Get the public IP — SAVE THIS
 REDIS_VM_IP=$(az vm show \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm \
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm \
   --show-details \
   --query "publicIps" \
   --output tsv)
@@ -623,14 +595,14 @@ sudo apt-get install -y redis-server
 
 # Configure Redis to accept connections from Azure services
 sudo sed -i 's/bind 127.0.0.1/bind 0.0.0.0/' /etc/redis/redis.conf
-sudo sed -i 's/# requirepass foobared/requirepass RedisSecure2026!/' /etc/redis/redis.conf
+sudo sed -i 's/# requirepass foobared/requirepass <password>/' /etc/redis/redis.conf
 
 # Start and enable
 sudo systemctl restart redis-server
 sudo systemctl enable redis-server
 
 # Verify
-redis-cli -a RedisSecure2026! ping
+redis-cli -a <password> ping
 # Expected: PONG
 
 exit
@@ -640,8 +612,8 @@ exit
 
 ```bash
 az vm open-port \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm \
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm \
   --port 6379 \
   --priority 100
 ```
@@ -649,7 +621,7 @@ az vm open-port \
 ### Verify from your laptop
 
 ```bash
-redis-cli -h $REDIS_VM_IP -p 6379 -a RedisSecure2026! ping
+redis-cli -h $REDIS_VM_IP -p 6379 -a <password> ping
 # Expected: PONG
 ```
 
@@ -658,21 +630,21 @@ redis-cli -h $REDIS_VM_IP -p 6379 -a RedisSecure2026! ping
 ```bash
 # Stop (deallocate = no charges)
 az vm deallocate \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm
 
 # Start again
 az vm start \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm
 ```
 
 ### Delete (if needed)
 
 ```bash
 az vm delete \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm \
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm \
   --yes
 ```
 
@@ -686,28 +658,28 @@ az vm delete \
 
 ```bash
 az batch account create \
-  --name microdentifybatch \
-  --resource-group microdentify-rg \
+  --name microbiomebatch \
+  --resource-group microbiome-rg \
   --location swedencentral \
-  --storage-account microdentifystorage
+  --storage-account ednamicrobiomestorage
 ```
 
 ### Get credentials — SAVE THESE
 
 ```bash
 BATCH_URL=$(az batch account show \
-  --name microdentifybatch \
-  --resource-group microdentify-rg \
+  --name microbiomebatch \
+  --resource-group microbiome-rg \
   --query "accountEndpoint" \
   --output tsv)
 
 BATCH_KEY=$(az batch account keys list \
-  --name microdentifybatch \
-  --resource-group microdentify-rg \
+  --name microbiomebatch \
+  --resource-group microbiome-rg \
   --query "primary" \
   --output tsv)
 
-echo "BATCH_ACCOUNT_NAME=microdentifybatch"
+echo "BATCH_ACCOUNT_NAME=microbiomebatch"
 echo "BATCH_ACCOUNT_URL=https://$BATCH_URL"
 echo "BATCH_ACCOUNT_KEY=$BATCH_KEY"
 ```
@@ -716,8 +688,8 @@ echo "BATCH_ACCOUNT_KEY=$BATCH_KEY"
 
 ```bash
 az batch account show \
-  --name microdentifybatch \
-  --resource-group microdentify-rg \
+  --name microbiomebatch \
+  --resource-group microbiome-rg \
   --query "{name:name, state:provisioningState}" \
   --output table
 # Expected: state=Succeeded
@@ -727,8 +699,8 @@ az batch account show \
 
 ```bash
 az batch account delete \
-  --name microdentifybatch \
-  --resource-group microdentify-rg \
+  --name microbiomebatch \
+  --resource-group microbiome-rg \
   --yes
 ```
 
@@ -741,53 +713,47 @@ az batch account delete \
 Fill in all the values you saved in the steps above:
 
 ```bash
-# Create the file
-cat > .env.azure << 'ENVFILE'
-# ═══════════════════════════════════════════
-# Azure cloud environment
-# ═══════════════════════════════════════════
-# NEVER commit this file to Git
-
 PROJECT_ROOT=/app
 
-# I/O paths (inside container)
-UPLOAD_DIR=/app/uploads
-RESULTS_DIR=/app/results
-LOGS_DIR=/app/logs
-RUNTIME_DIR=/app/config/runtime
+# I/O paths — mounted from Azure File Share
+UPLOAD_DIR=/mnt/data/uploads
+RESULTS_DIR=/mnt/data/results
+LOGS_DIR=/mnt/data/logs
+RUNTIME_DIR=/mnt/data/runtime
 
-# PostgreSQL — Azure managed
-BACKEND_DB_URL=postgresql://malmo:MalmoSecure2026!@microdentify-postgres.postgres.database.azure.com:5432/malmo_db
+# PostgreSQL — fill in once you complete Step 5
+BACKEND_DB_URL=postgresql://<PG_USER>:<PG_PASSWORD>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db
 
-# Redis — running on free VM
-CELERY_BROKER_URL=redis://:RedisSecure2026!@<REDIS_VM_IP>:6379/0
-CELERY_RESULT_BACKEND=redis://:RedisSecure2026!@<REDIS_VM_IP>:6379/0
+# Redis — on your free VM
+CELERY_BROKER_URL=redis://:<REDIS_PASSWORD>@<REDIS_VM_IP>:6379/0
+CELERY_RESULT_BACKEND=redis://:<REDIS_PASSWORD>@<REDIS_VM_IP>:6379/0
 
-# ML model path (inside container)
-MODEL_PATH=/app/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl
+# ML model — stored in Blob Storage
+MODEL_PATH=/mnt/blob/databases/models/production_model.pkl
 
-# Snakemake — points to Azure Batch profile
+# Snakemake
 SNAKEMAKE_PROFILE=profiles/azure_batch
 SNAKEMAKE_CONFIG=config/config_single_run.yaml
 SNAKEMAKE_BIN=snakemake
+SNAKEMAKE_TOOLS=/mnt/blob/tools
 
-# Reference databases — on Blob Storage (mounted on Batch VMs)
-KRAKEN2_DB=/mnt/blob/databases/kraken2
-HUMAN_GENOME_DIR=/mnt/blob/databases/hg38
+# Reference databases — on Blob Storage
+KRAKEN2_DB=/mnt/blob/databases/core_nt_Database
+HUMAN_GENOME_DIR=/mnt/blob/databases/hg38_ref
 HUMAN_GENOME_INDEX=hg38_index
 
-# Azure Batch credentials
-AZURE_BATCH_ACCOUNT_NAME=microdentifybatch
-AZURE_BATCH_ACCOUNT_URL=https://microdentifybatch.swedencentral.batch.azure.com
-AZURE_BATCH_ACCOUNT_KEY=<BATCH_KEY from Step 7>
+# Azure Batch
+AZURE_BATCH_ACCOUNT_NAME=microbiomebatch
+AZURE_BATCH_ACCOUNT_URL=https://microbiomebatch.swedencentral.batch.azure.com
+AZURE_BATCH_ACCOUNT_KEY=<YOUR_NEW_BATCH_KEY>
 
 # Azure Storage
-AZURE_STORAGE_ACCOUNT=microdentifystorage
-AZURE_STORAGE_CONNECTION_STRING=<STORAGE_CONN from Step 2>
+AZURE_STORAGE_ACCOUNT=ednamicrobiomestorage
+AZURE_STORAGE_CONNECTION_STRING=<YOUR_NEW_STORAGE_CONNECTION_STRING>
 
 # Apptainer bind mounts on Batch VMs
-APPTAINER_BINDS=--bind /mnt/blob:/mnt/blob
-ENVFILE
+APPTAINER_BINDS=--bind /mnt/blob:/mnt/blob --bind /mnt/data:/mnt/data
+
 ```
 
 Replace `<REDIS_VM_IP>`, `<BATCH_KEY>`, and `<STORAGE_CONN>` with your actual values.

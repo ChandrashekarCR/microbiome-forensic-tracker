@@ -1,0 +1,112 @@
+# profiles/azure_batch/config.yaml
+# Azure Batch equivalent of profiles/single_run/config.yaml
+# Usage:
+#   set -a; source .env.azure; set +a
+#   snakemake --snakefile workflow/Snakefile \
+#             --profile profiles/azure_batch \
+#             --configfile config/config_single_run.yaml \
+#             --config samples_file=config/samples_test.tsv
+
+executor: azure-batch
+restart-times: 1
+
+# Nested Azure Batch configuration
+azure-batch:
+  account-name: "${AZURE_BATCH_ACCOUNT_NAME}"
+  account-key: "${AZURE_BATCH_ACCOUNT_KEY}"
+  account-url: "${SNAKEMAKE_AZURE_BATCH_ACCOUNT_URL}"
+  resource-group-name: "${SNAKEMAKE_AZURE_BATCH_RESOURCE_GROUP_NAME}"
+  subscription-id: "${SNAKEMAKE_AZURE_BATCH_SUBSCRIPTION_ID}"
+  pool-id: "snakemake-pool"
+  storage-account: "${AZURE_STORAGE_ACCOUNT}"
+  storage-sas-token: "${SNAKEMAKE_AZURE_STORAGE_SAS_TOKEN}"
+
+# Storage plugin settings
+storage-azure-account-name: "${SNAKEMAKE_STORAGE_AZURE_ACCOUNT_NAME}"
+#storage-azure-sas-token: "${SNAKEMAKE_AZURE_STORAGE_SAS_TOKEN}"
+
+# Job limits — same as single_run
+cores: 50
+jobs: 15
+max-jobs-per-second: 5
+local-cores: 2
+
+# Job management
+latency-wait: 60
+keep-going: true
+printshellcmds: false
+
+# Container execution via Apptainer (no conda on Batch VMs)
+software-deployment-method:
+  - apptainer
+
+apptainer-args: "${APPTAINER_BINDS}"
+
+# Storage
+default-storage-provider: azure
+
+default-storage-prefix: "${SNAKEMAKE_STORAGE_PREFIX}"
+
+# Default resources — cheap VM for anything not specified
+default-resources:
+  az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, 16GB RAM ~$0.09/hr
+  runtime: "1h"
+  mem_mb: 4000
+
+# Per-rule VM sizes — mirrors your LUNARC partition choices
+set-resources:
+
+  fastqc_raw:
+    az_batch_node_size: "Standard_D2as_v4"  # 2 vCPU, 16GB — same as lu48 2 cpus
+    runtime: "30m"
+    mem_mb: 1000
+
+  fastqc_processed:
+    az_batch_node_size: "Standard_D2as_v4"
+    runtime: "30m"
+    mem_mb: 1000
+
+  fastp:
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB — matches 4 cpus
+    runtime: "30m"
+    mem_mb: 6000
+
+  adapter_removal:
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    runtime: "30m"
+    mem_mb: 1000
+
+  remove_human_reads:
+    az_batch_node_size: "Standard_D8as_v4"  # 8 vCPU, 64GB — matches 8 cpus
+    runtime: "45m"
+    mem_mb: 6000
+
+  error_correction:
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    runtime: "1h"
+    mem_mb: 8000
+
+  multiqc:
+    az_batch_node_size: "Standard_D2as_v4"
+    runtime: "15m"
+    mem_mb: 2000
+
+  kraken:
+    az_batch_node_size: "Standard_D96a_v4"  # 96 vCPU, 384GB — for 350GB Kraken2 DB
+    runtime: "2h"
+    mem_mb: 350000
+
+  bracken:
+    az_batch_node_size: "Standard_D2as_v4"
+    runtime: "15m"
+    mem_mb: 1000
+
+  standardize_bracken:
+    az_batch_node_size: "Standard_D2as_v4"
+    runtime: "15m"
+    mem_mb: 100
+
+  merge_bracken:
+    az_batch_node_size: "Standard_D2as_v4"
+    runtime: "15m"
+    mem_mb: 100
