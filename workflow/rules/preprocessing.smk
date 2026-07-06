@@ -213,9 +213,10 @@ rule error_correction:
             RESULTS_DIR, "05_error_correction", "{sample}_tmp_R2.fastq.gz"
         ),
         bbmap_sif=TOOLS["bbmap"],
-        repair=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} repair.sh",
-        tadpole=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} tadpole.sh",
-        bbduk=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} bbduk.sh",
+        bind_paths=lambda w: _apptainer_binds([RESULTS_DIR]),
+        #repair=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} repair.sh",
+        #tadpole=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} tadpole.sh",
+        #bbduk=f"apptainer exec --bind {RESULTS_DIR}:{RESULTS_DIR} {TOOLS['bbmap']} bbduk.sh",
         output_dir=lambda w, output: os.path.dirname(output.r1),
         memory_gb=config["parameters"]["error_correction"]["memory_gb"],
         k_size=config["parameters"]["error_correction"]["k_size"],
@@ -235,7 +236,7 @@ rule error_correction:
         mkdir -p {params.output_dir}
 
         # Step 1: Repair paired-end reads
-        {params.repair} \
+        apptainer exec {params.bind_paths} {params.bbmap_sif} repair.sh \
             in={input.r1} in2={input.r2} \
             out={params.tmp_r1} out2={params.tmp_r2} \
             repair=t -Xmx{params.memory_gb}g -eoom >{log.repair} 2>&1
@@ -248,7 +249,7 @@ rule error_correction:
         echo "Starting error correction for {wildcards.sample}" >{log.tadpole}
 
         # Attempt 1: conservative tadpole
-        if {params.tadpole} mode=correct \
+        if apptainer exec {params.bind_paths} {params.bbmap_sif} tadpole.sh mode=correct \
             in={params.tmp_r1} in2={params.tmp_r2} \
             out={output.r1} out2={output.r2} \
             -Xmx{params.memory_gb}g threads={threads} buildthreads={threads} \
@@ -258,7 +259,7 @@ rule error_correction:
             rm -f {params.tmp_r1} {params.tmp_r2}
 
         # Attempt 2: minimal tadpole
-        elif {params.tadpole} mode=correct \
+        elif apptainer exec {params.bind_paths} {params.bbmap_sif} tadpole.sh mode=correct \
             in={params.tmp_r1} in2={params.tmp_r2} \
             out={output.r1} out2={output.r2} \
             -Xmx12g threads=1 buildthreads=1 k=21 \
@@ -267,7 +268,7 @@ rule error_correction:
             rm -f {params.tmp_r1} {params.tmp_r2}
 
         # Attempt 3: BBDuk
-        elif {params.bbduk} \
+        elif apptainer exec {params.bind_paths} {params.bbmap_sif} bbduk.sh \
             in={params.tmp_r1} in2={params.tmp_r2} \
             out={output.r1} out2={output.r2} \
             mode=correct ecc=t aggressive=f -Xmx8g threads=1 >>{log.tadpole} 2>&1; then
