@@ -115,6 +115,9 @@ az provider register --namespace Microsoft.ContainerRegistry
 # Register for the azure postgres service as well
 az provider register --namesapce Microsoft.DBPforPostgreSQL
 
+# Register for the azure container hosting
+az provier register --namespace Microsoft.OperationalInsights
+
 # Then re-run the first command az provider show...
 # It should show as registreed 
 
@@ -123,9 +126,9 @@ You may need to register for that service if needed and faced with the same issu
 
 ---
 
-## Step 2 — Blob Storage
+## Step 2 — Aure Storage
 
-**What it is:** Azure's file storage. Holds your .sif tools, databases, uploads, and results.
+**What it is:** Azure's file storage. Holds your bioinformatics tools, databases as blob storage, uploads, logs, runtime and results are stored as Azure file servies which can be mounted to the contianer.
 
 **Cost:** FREE up to 5GB. After that ~$0.02/GB/month. The Kraken2 database is 310GB — that costs ~$6/month once uploaded.
 
@@ -194,21 +197,6 @@ az storage container create \
   --name databases \
   --connection-string "$STORAGE_CONN"
 
-# FASTQ uploads from users
-az storage container create \
-  --name uploads \
-  --connection-string "$STORAGE_CONN"
-
-# Pipeline results
-az storage container create \
-  --name results \
-  --connection-string "$STORAGE_CONN"
-
-# Logs generated
-az storage container create \
-  --name logs \
-  --connection-string "$STORAGE_CONN"
-
 # Snakemake tools (Bioinformatics tools go here)
 az storage container create \
   --name tools \
@@ -216,6 +204,12 @@ az storage container create \
 
 # Generate a SAS token for the entire storage will help in file migrations and handling
 az storage account generate-sas --account-name ednamicrobiomestorage --account-key "$STORAGE_ACCOUNT_KEY" --expiry 2026-07-07 --permissions rwdlacup --services b --resource-types sco --https-only --output tsv
+
+# Creat azure storage for sharing between azure resources and that can be mounted to the container
+az storage share create \
+  --name microbiome-data \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
 
 
 ```
@@ -226,7 +220,7 @@ az storage account generate-sas --account-name ednamicrobiomestorage --account-k
 az storage container list \
   --connection-string "$STORAGE_CONN" \
   --output table
-# Expected: 5 containers listed
+# Expected: 2 containers listed
 ```
 
 ### Delete (if needed)
@@ -881,21 +875,29 @@ az extension add --name containerapp --upgrade
 
 ```bash
 az containerapp env create \
-  --name microdentify-env \
-  --resource-group microdentify-rg \
+  --name microbiome-env \
+  --resource-group microbiome-rg \
   --location swedencentral
+
+
+# To check if it has been created
+az containerapp env show \
+  --name microbiome-env \
+  --resource-group microbiome-rg \
+  --output table
+
 ```
 
 ### Deploy FastAPI
 
 ```bash
 az containerapp create \
-  --name microdentify-api \
-  --resource-group microdentify-rg \
-  --environment microdentify-env \
-  --image microdentifyacr.azurecr.io/microdentify:latest \
-  --registry-server microdentifyacr.azurecr.io \
-  --registry-username microdentifyacr \
+  --name microbiome-api \
+  --resource-group microbiome-rg \
+  --environment microbiome-env \
+  --image microbiomeacr.azurecr.io/microbiome:latest \
+  --registry-server microbiomeacr.azurecr.io \
+  --registry-username microbiomeacr \
   --registry-password "$ACR_PASSWORD" \
   --target-port 8000 \
   --ingress external \
@@ -904,9 +906,9 @@ az containerapp create \
   --env-vars \
     ENV_FILE=.env.azure \
     PYTHONPATH=/app \
-    "BACKEND_DB_URL=postgresql://malmo:MalmoSecure2026!@microdentify-postgres.postgres.database.azure.com:5432/malmo_db" \
-    "CELERY_BROKER_URL=redis://:RedisSecure2026!@${REDIS_VM_IP}:6379/0" \
-    "CELERY_RESULT_BACKEND=redis://:RedisSecure2026!@${REDIS_VM_IP}:6379/0" \
+    "BACKEND_DB_URL=postgresql://<user>:<postgres password>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db" \
+    "CELERY_BROKER_URL=redis://<redis password>@${REDIS_VM_IP}:6379/0" \
+    "CELERY_RESULT_BACKEND=redis://<redis password>@${REDIS_VM_IP}:6379/0" \
     UPLOAD_DIR=/app/uploads \
     RESULTS_DIR=/app/results \
     LOGS_DIR=/app/logs \
@@ -976,6 +978,12 @@ az containerapp update \
   --name microdentify-worker \
   --resource-group microdentify-rg \
   --image microdentifyacr.azurecr.io/microdentify:latest
+
+# For verificaiton
+az containerapp env show --name microbiome-env --resource-group microbiome-rg -o table
+az containerapp list --resource-group microbiome-rg -o table
+az resource list --resource-group microbiome-rg -o table
+
 ```
 
 ### Delete (if needed)

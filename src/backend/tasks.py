@@ -7,6 +7,7 @@ to JSON, pushed to Redis, and this function executes in the Celery worker.
 """
 
 import csv
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,11 +31,13 @@ RESULTS_BASE = settings.results_dir  # Use project results by default
 RUNTIME_DIR = settings.runtime_dir
 TASK_LOGS_DIR = settings.logs_dir / "celery_tasks"
 SNAKEMAKE_BIN = settings.SNAKEMAKE_BIN
+RENDERED_PROFILES_DIR = RUNTIME_DIR / "rendered_profiles"
 
 # Verify critical paths exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TASK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+RENDERED_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # generate_sample_sheet(123214,"malmo_park2", "some_path1", "some_path2")
@@ -128,6 +131,24 @@ def generate_sample_sheet(sample_name: str, r1_path: str, r2_path: str) -> Path:
     return sheet_path
 
 
+def render_snakemake_profile(profile_dir: Path) -> Path:
+    """
+    Render a Snakemake profile into runtime storage so environment variables
+    are expanded before Snakemake reads the config.
+    """
+    rendered_dir = RENDERED_PROFILES_DIR / profile_dir.name
+    rendered_dir.mkdir(parents=True, exist_ok=True)
+
+    source_config = profile_dir / "config.yaml"
+    rendered_config = rendered_dir / "config.yaml"
+    rendered_config.write_text(
+        os.path.expandvars(source_config.read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
+
+    return rendered_dir
+
+
 # Celery tasks
 @celery_app.task(
     bind=True,
@@ -165,12 +186,14 @@ def run_pipeline(self, sample_id: int, sample_name: str, r1_path: str, r2_path: 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = TASK_LOGS_DIR / f"{sample_name}_{timestamp}.log"
 
+        rendered_profile = render_snakemake_profile(PROFILE)
+
         snakemake_cmd = [
             SNAKEMAKE_BIN,
             "--snakefile",
             str(SNAKEFILE),
             "--profile",
-            str(PROFILE),
+            str(rendered_profile),
             "--configfile",
             str(CONFIG_FILE),
             "--config",
