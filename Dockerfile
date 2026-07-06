@@ -25,7 +25,7 @@ COPY config/ /app/config/
 COPY workflow/ /app/workflow/
 COPY profiles/ /app/profiles/
 
-ENV ENV_FILE=.env.local
+ENV ENV_FILE=.env.azure
 
 # Install python enviroment
 RUN make venv-all

@@ -15,9 +15,9 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Absolute path to .env - works regardless of where Celery/uvicorn is launched from
-# Need to import the env file as well when containerization
-ENV_FILE = Path(__file__).resolve().parents[2] / os.getenv("ENV_FILE", ".env.lunarc")
+# Absolute path to .env - works regardless of where Celery/uvicorn is launched from.
+# Azure containers should set ENV_FILE=.env.azure; local dev can use .env.local.
+ENV_FILE = Path(__file__).resolve().parents[2] / os.getenv("ENV_FILE", ".env.local")
 
 
 # This is a pydatntic setting, paths are imported from the .env files in the root,

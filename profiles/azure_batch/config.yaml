@@ -42,11 +42,6 @@ software-deployment-method:
 
 apptainer-args: "${APPTAINER_BINDS}"
 
-# Storage
-default-storage-provider: azure
-
-default-storage-prefix: "${SNAKEMAKE_STORAGE_PREFIX}"
-
 # Default resources — cheap VM for anything not specified
 default-resources:
   az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, 16GB RAM ~$0.09/hr
