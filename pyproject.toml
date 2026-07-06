@@ -135,6 +135,7 @@ all = [
     "snakemake-executor-plugin-slurm>=2.2.0",
     "snakemake-executor-plugin-slurm-jobstep>=0.4.0",
     "snakemake-executor-plugin-azure-batch",
+    "snakemake-storage-plugin-azure",
     "configargparse>=1.7.1",
     "connection_pool>=0.0.3",
     "dpath>=2.2.0",
