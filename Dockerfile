@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTENF=noninteractive
 
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y \
     python3 \
@@ -35,4 +36,5 @@ ENV PATH="/app/.venv-all/bin:${PATH}"
 EXPOSE 8000
 
 # Run the fastapi backend
+# To run Celery worker instead, override CMD: docker run ... celery -A src.backend.celery_app worker --loglevel=info
 CMD ["uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
