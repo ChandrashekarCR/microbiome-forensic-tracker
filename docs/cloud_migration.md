@@ -203,13 +203,20 @@ az storage container create \
   --connection-string "$STORAGE_CONN"
 
 # Generate a SAS token for the entire storage will help in file migrations and handling
-az storage account generate-sas --account-name ednamicrobiomestorage --account-key "$STORAGE_ACCOUNT_KEY" --expiry 2026-07-07 --permissions rwdlacup --services b --resource-types sco --https-only --output tsv
+az storage account generate-sas --account-name ednamicrobiomestorage --account-key "$STORAGE_ACCOUNT_KEY" --expiry 2026-07-07 --permissions acdlrw --services bf --resource-types sco --https-only --output tsv
 
 # Creat azure storage for sharing between azure resources and that can be mounted to the container
 az storage share create \
   --name microbiome-data \
   --account-name ednamicrobiomestorage \
   --account-key "$STORAGE_KEY"
+
+# Create the directories for azure file servive - uploads, results, logs, runtime
+  az storage directory create \
+    --share-name microbiome-data \
+    --name uploads \
+    --account-name ednamicrobiomestorage \
+    --account-key $STORAGE_KEY
 
 
 ```
@@ -221,6 +228,13 @@ az storage container list \
   --connection-string "$STORAGE_CONN" \
   --output table
 # Expected: 2 containers listed
+
+az storage share list \
+  --connection-string "$STORAGE_CONN" \
+  --output table
+
+# Should see microbiome-data
+
 ```
 
 ### Delete (if needed)
@@ -343,11 +357,13 @@ az storage blob list \
   --connection-string "$STORAGE_CONN" \
   --output table
 
-# Check code uploaded
-az storage blob list \
-  --container-name code \
-  --connection-string "$STORAGE_CONN" \
+# Check the files created for azure file share
+az storage directory list \
+  --share-name microbiome-data \
+  --account-name ednamicrobiomestorage \
+  --account-key "<your_key>" \
   --output table
+
 ```
 
 ---
@@ -402,7 +418,7 @@ sudo su -
 sudo su <your user name>
 
 # To log out of your container registry
-docker logout microbiomeacr.azurecr.io
+# docker logout microbiomeacr.azurecr.io
 
 # Tag your image
 docker tag microbiome:latest microbiomeacr.azurecr.io/microbiome:latest
@@ -707,23 +723,30 @@ az batch account delete \
 Fill in all the values you saved in the steps above:
 
 ```bash
+# Azure cloud environment
+# NEVER commit this file to Git
+
 PROJECT_ROOT=/app
 
-# I/O paths — mounted from Azure File Share
+
+# Azure File Share mounted at /mnt/data 
+# Nothing stored in the container — all goes to Azure storage
 UPLOAD_DIR=/mnt/data/uploads
 RESULTS_DIR=/mnt/data/results
 LOGS_DIR=/mnt/data/logs
 RUNTIME_DIR=/mnt/data/runtime
 
-# PostgreSQL — fill in once you complete Step 5
-BACKEND_DB_URL=postgresql://<PG_USER>:<PG_PASSWORD>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db
+
+# PostgreSQL
+BACKEND_DB_URL="postgresql://<user>:<password>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db"
 
 # Redis — on your free VM
-CELERY_BROKER_URL=redis://:<REDIS_PASSWORD>@<REDIS_VM_IP>:6379/0
-CELERY_RESULT_BACKEND=redis://:<REDIS_PASSWORD>@<REDIS_VM_IP>:6379/0
+CELERY_BROKER_URL="redis://:<password>@<public ip>:6379/0"
+CELERY_RESULT_BACKEND="redis://:<password>@<public ip>:6379/0"
 
-# ML model — stored in Blob Storage
-MODEL_PATH=/mnt/blob/databases/models/production_model.pkl
+# Pickle file for machine learning
+# Need to update this
+MODEL_PATH=/app/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl
 
 # Snakemake
 SNAKEMAKE_PROFILE=profiles/azure_batch
@@ -736,17 +759,19 @@ KRAKEN2_DB=/mnt/blob/databases/core_nt_Database
 HUMAN_GENOME_DIR=/mnt/blob/databases/hg38_ref
 HUMAN_GENOME_INDEX=hg38_index
 
-# Azure Batch
-AZURE_BATCH_ACCOUNT_NAME=microbiomebatch
-AZURE_BATCH_ACCOUNT_URL=https://microbiomebatch.swedencentral.batch.azure.com
-AZURE_BATCH_ACCOUNT_KEY=<YOUR_NEW_BATCH_KEY>
 
-# Azure Storage
-AZURE_STORAGE_ACCOUNT=ednamicrobiomestorage
-AZURE_STORAGE_CONNECTION_STRING=<YOUR_NEW_STORAGE_CONNECTION_STRING>
+# Azure batch configurations
+# These are the credentials Snakemake needs to submit jobs to Azure Batch
+AZ_BATCH_ACCOUNT_URL="https://microbiomebatch.swedencentral.batch.azure.com"
+AZ_BATCH_ACCOUNT_KEY=""
+
+# Azure Blob - Snakemake uses this to stage data to batch vms
+AZ_BLOB_ACCOUNT_URL="https://ednamicrobiomestorage.blob.core.windows.net/?<SAS Token>"
+AZ_BLOB_PREFIX=uploads
+
 
 # Apptainer bind mounts on Batch VMs
-APPTAINER_BINDS=--bind /mnt/blob:/mnt/blob --bind /mnt/data:/mnt/data
+APPTAINER_BINDS="--bind /mnt/blob:/mnt/blob --bind /mnt/data:/mnt/data"
 
 ```
 
@@ -886,68 +911,32 @@ az containerapp env show \
   --resource-group microbiome-rg \
   --output table
 
+# Register the file share with the container app environment
+az containerapp env storage set --name microbiome-env --resource-group microbiome-rg --storage-name microbiome-data --azure-file-account-name ednamicrobiomestorage --azure-file-account-key "<storage key>" --azure-file-share-name microbiome-data --access-mode ReadWrite
+
+# CHeck if it is attached
+az containerapp env storage show \
+  --name microbiome-env \
+  --resource-group microbiome-rg \
+  --storage-name microbiome-data \
+  -o table
+
 ```
 
 ### Deploy FastAPI
 
 ```bash
 az containerapp create \
-  --name microbiome-api \
   --resource-group microbiome-rg \
-  --environment microbiome-env \
-  --image microbiomeacr.azurecr.io/microbiome:latest \
-  --registry-server microbiomeacr.azurecr.io \
-  --registry-username microbiomeacr \
-  --registry-password "$ACR_PASSWORD" \
-  --target-port 8000 \
-  --ingress external \
-  --min-replicas 1 \
-  --max-replicas 2 \
-  --env-vars \
-    ENV_FILE=.env.azure \
-    PYTHONPATH=/app \
-    "BACKEND_DB_URL=postgresql://<user>:<postgres password>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db" \
-    "CELERY_BROKER_URL=redis://<redis password>@${REDIS_VM_IP}:6379/0" \
-    "CELERY_RESULT_BACKEND=redis://<redis password>@${REDIS_VM_IP}:6379/0" \
-    UPLOAD_DIR=/app/uploads \
-    RESULTS_DIR=/app/results \
-    LOGS_DIR=/app/logs \
-    SNAKEMAKE_PROFILE=profiles/azure_batch \
-    SNAKEMAKE_CONFIG=config/config_single_run.yaml \
-    SNAKEMAKE_BIN=snakemake \
-  --command '["uvicorn"]' \
-  --args '["src.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]'
+  --yaml deploy/api.yaml
 ```
 
 ### Deploy Celery worker
 
 ```bash
 az containerapp create \
-  --name microdentify-worker \
-  --resource-group microdentify-rg \
-  --environment microdentify-env \
-  --image microdentifyacr.azurecr.io/microdentify:latest \
-  --registry-server microdentifyacr.azurecr.io \
-  --registry-username microdentifyacr \
-  --registry-password "$ACR_PASSWORD" \
-  --min-replicas 1 \
-  --max-replicas 1 \
-  --env-vars \
-    ENV_FILE=.env.azure \
-    PYTHONPATH=/app \
-    "BACKEND_DB_URL=postgresql://malmo:MalmoSecure2026!@microdentify-postgres.postgres.database.azure.com:5432/malmo_db" \
-    "CELERY_BROKER_URL=redis://:RedisSecure2026!@${REDIS_VM_IP}:6379/0" \
-    "CELERY_RESULT_BACKEND=redis://:RedisSecure2026!@${REDIS_VM_IP}:6379/0" \
-    SNAKEMAKE_PROFILE=profiles/azure_batch \
-    SNAKEMAKE_CONFIG=config/config_single_run.yaml \
-    SNAKEMAKE_BIN=snakemake \
-    "AZURE_BATCH_ACCOUNT_NAME=microdentifybatch" \
-    "AZURE_BATCH_ACCOUNT_URL=https://microdentifybatch.swedencentral.batch.azure.com" \
-    "AZURE_BATCH_ACCOUNT_KEY=${BATCH_KEY}" \
-    "AZURE_STORAGE_ACCOUNT=microdentifystorage" \
-    "AZURE_STORAGE_CONNECTION_STRING=${STORAGE_CONN}" \
-  --command '["celery"]' \
-  --args '["-A", "src.backend.celery_app:celery_app", "worker", "--loglevel=info", "--concurrency=2"]'
+  --resource-group microbiome-rg \
+  --yaml deploy/worker.yaml
 ```
 
 ### Get your live API URL

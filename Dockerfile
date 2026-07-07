@@ -24,6 +24,7 @@ COPY src/ /app/src/
 COPY config/ /app/config/
 COPY workflow/ /app/workflow/
 COPY profiles/ /app/profiles/
+COPY .env.azure /app/.env.azure
 
 ENV ENV_FILE=.env.azure
 
