@@ -10,20 +10,18 @@
 executor: azure-batch
 restart-times: 1
 
-# Nested Azure Batch configuration
-azure-batch:
-  account-name: "${AZURE_BATCH_ACCOUNT_NAME}"
-  account-key: "${AZURE_BATCH_ACCOUNT_KEY}"
-  account-url: "${SNAKEMAKE_AZURE_BATCH_ACCOUNT_URL}"
-  resource-group-name: "${SNAKEMAKE_AZURE_BATCH_RESOURCE_GROUP_NAME}"
-  subscription-id: "${SNAKEMAKE_AZURE_BATCH_SUBSCRIPTION_ID}"
-  pool-id: "snakemake-pool"
-  storage-account: "${AZURE_STORAGE_ACCOUNT}"
-  storage-sas-token: "${SNAKEMAKE_AZURE_STORAGE_SAS_TOKEN}"
+# Azure Batch plugin settings
+azure-batch-account-url: "${SNAKEMAKE_AZURE_BATCH_ACCOUNT_URL}"
+azure-batch-resource-group-name: "${SNAKEMAKE_AZURE_BATCH_RESOURCE_GROUP_NAME}"
+azure-batch-subscription-id: "${SNAKEMAKE_AZURE_BATCH_SUBSCRIPTION_ID}"
 
-# Storage plugin settings
-storage-azure-account-name: "${SNAKEMAKE_STORAGE_AZURE_ACCOUNT_NAME}"
-#storage-azure-sas-token: "${SNAKEMAKE_AZURE_STORAGE_SAS_TOKEN}"
+# Azure Storage plugin settings
+storage-azure-account-name: "${AZURE_STORAGE_ACCOUNT}"
+storage-azure-sas-token: "${AZ_BLOB_SAS_TOKEN}"
+
+# Blob staging for workflow data/results
+default-storage-provider: azure
+default-storage-prefix: "${SNAKEMAKE_STORAGE_PREFIX}"
 
 # Job limits — same as single_run
 cores: 50

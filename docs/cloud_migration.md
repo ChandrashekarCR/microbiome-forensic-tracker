@@ -538,6 +538,13 @@ az postgres flexible-server show --resource-group microbiome-rg --name microbiom
 ### Verify connection
 
 ```bash
+
+az postgres flexible-server show \
+  --resource-group microbiome-rg \
+  --name microbiome-postgres \
+  --query state \
+  -o tsv
+
 # Install psql locally if needed: sudo apt install postgresql-client
 psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=<username> password=<password> sslmode=require"
 # Should open a postgres prompt. Type \q to exit.
