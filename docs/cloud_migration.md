@@ -323,7 +323,7 @@ az storage share list \
 az storage directory list \
   --share-name microbiome-data \
   --account-name ednamicrobiomestorage \
-  --connection-strin "$STORAGE_CONN" \
+  --connection-string "$STORAGE_CONN" \
   --output table
 
 # Inspect files inside a firectory
@@ -373,15 +373,23 @@ Then head bach to LUNRAC
 # Bioinformatics tools upload
 azcopy copy "/home/chandru/binp51/bin/*" "https://ednamicrobiomestorage.blob.core.windows.net/tools?<SAS_TOKEN>" --recursive --put-md5
 
+# Copy to azure file share
+azcopy copy "/home/chandru/binp51/bin/*"   "https://ednamicrobiomestorage.file.core.windows.net/microbiome-data/tools?<SAS_TOKEN>"   --recursive --put-md5
+
 # Human genome index database upload
 azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/*" \
   "https://ednamicrobiomestorage.blob.core.windows.net/databases/hg38_ref?<SAS_TOKEN>" \
   --recursive --put-md5
 
+# Copy human genome index databae upload to azure file
+azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/*" "https://ednamicrobiomestorage.file.core.windows.net/microbiome-data/databases/hg38_ref?<SAS_TOKEN>"   --recursive --put-md5
+
 # Copy the entire karken2 database
 azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/*" \
   "https://ednamicrobiomestorage.blob.core.windows.net/databases/core_nt_Database?<SAS_TOKEN>" \
   --recursive --put-md5
+
+azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/**" "https://ednamicrobiomestorage.file.core.windows.net/microbiome-data/databases/core_nt_Database?<SAS_TOKEN>"   --recursive --put-md5
 
 ```
 ---
@@ -408,6 +416,8 @@ sudo mount -t cifs \
   /mnt/microbiome-data \
   -o vers=3.0,username=ednamicrobiomestorage,password=$STORAGE_KEY,dir_mode=0777,file_mode=0777,serverino
 ```
+
+
 
 ### Verify
 

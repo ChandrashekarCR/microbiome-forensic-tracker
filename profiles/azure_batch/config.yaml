@@ -16,7 +16,9 @@ azure-batch-resource-group-name: "${AZ_BATCH_RESOURCE_GROUP_NAME}"
 azure-batch-subscription-id: "${AZ_BATCH_SUBSCRIPTION_ID}"
 
 # Azure Storage plugin settings
-#storage-azure-account-name: "${AZURE_STORAGE_ACCOUNT}"
+default-storage-provider: azure
+default-storage-prefix: "az://snakemake-runtime"
+storage-azure-account-name: "${AZURE_STORAGE_ACCOUNT}"
 
 # Job limits — same as single_run
 cores: 50
