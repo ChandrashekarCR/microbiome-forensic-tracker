@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from .database import Base
 
@@ -42,6 +43,13 @@ class Samples(Base):
     # latitude = Column(Float,nullable=True)
     # longitude = Column(Float,nullable=True)
 
+    abundances = relationship(
+        "Abundance",
+        back_populates="sample",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
 # Table 2: abundance
 # This table consists of the rsa values of the processed samples
@@ -49,10 +57,12 @@ class Abundance(Base):
     __tablename__ = "abundance"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    sample_id = Column(String(36), ForeignKey("samples.id"), nullable=False, index=True)
+    sample_id = Column(String(36), ForeignKey("samples.id",ondelete="CASCADE"), nullable=False, index=True)
     sample_name = Column(String(200), index=True)
     classifier = Column(String(200), nullable=False)
     clade = Column(String(400), nullable=False)
     taxa_id = Column(Integer, nullable=False)
     rank = Column(String(200), nullable=False)
     relative_abundance = Column(Float, nullable=False)
+
+    sample = relationship("Samples", back_populates="abundances")
