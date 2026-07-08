@@ -29,9 +29,14 @@ latency-wait: 60
 keep-going: true
 printshellcmds: false
 
-# Container execution via Apptainer (no conda on Batch VMs)
-software-deployment-method:
-  - apptainer
+# Use conda environments from main environment
+#use-conda: true
+#conda-frontend: "mamba"
+#
+## Container execution via Apptainer (no conda on Batch VMs)
+#software-deployment-method:
+#  - apptainer
+#  - conda
 
 apptainer-args: "${APPTAINER_BINDS}"
 
