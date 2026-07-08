@@ -137,7 +137,8 @@ all = [
     "snakemake-executor-plugin-azure-batch>=0.1.0",  # ADD THIS LINE
     "azure-batch>=14.0.0",  # Azure Batch SDK
     "azure-storage-blob>=12.0.0",  # Azure Storage SDK
-    "azure-identity>=1.14.0",  # Azure authentication
+    "azure-identity>=1.14.0",
+    "snakemake-storage-plugin-azure",
     "configargparse>=1.7.1",
     "connection_pool>=0.0.3",
     "dpath>=2.2.0",
