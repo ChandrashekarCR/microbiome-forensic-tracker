@@ -102,8 +102,8 @@ async def delete_sample(db: AsyncSession, sample_name: str):
     Delete a sample from the database by sample name.
     Returns True if deleted, False if not found.
     """
-    delete_sample = select(Samples).where(Samples.sample_name == sample_name)
-    result = await db.execute(delete_sample)
+    stmt = select(Samples).where(Samples.sample_name == sample_name)
+    result = await db.execute(stmt)
     sample = result.scalars().first()
     if not sample:
         return False

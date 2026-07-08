@@ -126,13 +126,41 @@ You may need to register for that service if needed and faced with the same issu
 
 ---
 
-## Step 2 — Aure Storage
+# Step 2 — Azure Storage
 
-**What it is:** Azure's file storage. Holds your bioinformatics tools, databases as blob storage, uploads, logs, runtime and results are stored as Azure file servies which can be mounted to the contianer.
+Azure Storage is used for **two different purposes** in this project.
 
-**Cost:** FREE up to 5GB. After that ~$0.02/GB/month. The Kraken2 database is 310GB — that costs ~$6/month once uploaded.
+| Storage Type           | Purpose                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Azure Blob Storage** | Read-only assets such as bioinformatics tools, Kraken2 databases, Bracken databases, hg38 reference genome, taxonomy files |
+| **Azure File Share**   | Shared runtime filesystem used by Snakemake. Stores uploads, intermediate files, logs and final results                    |
 
-### Create storage account
+The overall architecture looks like this:
+
+```text
+Azure Storage
+│
+├── Blob Storage
+│      ├── databases/
+│      │      ├── kraken2/
+│      │      ├── bracken/
+│      │      └── hg38/
+│      │
+│      └── tools/
+│             ├── kraken2.sif
+│             ├── bracken.sif
+│             └── fastqc.sif
+│
+└── Azure File Share
+       ├── uploads/
+       ├── runtime/
+       ├── logs/
+       └── results/
+```
+
+---
+
+## 1. Create Storage Account
 
 ```bash
 az storage account create \
@@ -141,131 +169,178 @@ az storage account create \
   --location swedencentral \
   --sku Standard_LRS \
   --kind StorageV2
-
-# What is Standard_LRS?
-# Standard performace + Locally Redundant Storage (data is replicated 3 times with a single data center.)
-
-# What is StorageV2?
-# General-purpose v2 storage account - the latest version that support all features (Blobs, Files, Queues, Tables etc.)
-```
-| Data Type              | Estimated Size   | Storage Cost (per month) | Free Tier Coverage                         |
-|------------------------|------------------|--------------------------|--------------------------------------------|
-| FASTQ uploads          | ~10–50 GB (temp) | ~$0.20 – $1.00           | 5 GB free, rest ~$0.02/GB               |
-| Pipeline results       | ~5–20 GB         | ~$0.10 – $0.40           | Covered by free 5 GB                    |
-| Logs                   | ~1–5 GB          | ~$0.02 – $0.10           |  Covered                                 |
-| SIF/container files    | ~5–10 GB         | ~$0.10 – $0.20           |  Mostly covered                          |
-| Reference databases (Kraken2, hg38) | 50–300 GB | ~$1.00 – $6.00           |  Exceeds free tier                       |
-| **Total (with databases)** | ~70–385 GB | ~$1.50 – $7.50/month     | —                                          |
-
-### List everything in your Resource Group
-```bash
-az resource list \
-    --resource-group microbiome-rg \
-    --output table
-
-# This shows every resource in the resource group, regardless of type.
 ```
 
-### List only Storage Accounts
+### What is Standard_LRS?
+- **Standard** performance tier.
+- **LRS (Locally Redundant Storage)** replicates data three times within a single datacenter.
+
+### What is StorageV2?
+- General‑purpose v2 storage account supporting:
+  - Blob Storage
+  - Azure File Share
+  - Queues
+  - Tables
+
+---
+
+## 2. List Resources
+
 ```bash
-az storage account list \
-    --resource-group microbiome-rg \
-    --output table
+# All resources in the resource group
+az resource list --resource-group microbiome-rg --output table
 
-### Get connection string — SAVE THIS
+# Storage accounts only
+az storage account list --resource-group microbiome-rg --output table
+```
 
+---
+
+## 3. Obtain Credentials
+
+```bash
+# Connection string
 STORAGE_CONN=$(az storage account show-connection-string \
   --name ednamicrobiomestorage \
   --resource-group microbiome-rg \
   --output tsv)
 
+# Storage account key
 STORAGE_KEY=$(az storage account keys list \
   --resource-group microbiome-rg \
   --account-name ednamicrobiomestorage \
   --query "[0].value" -o tsv)
 
-echo "STORAGE_CONNECTION_STRING=$STORAGE_CONN"
-# Copy this entire line into a safe place (password manager, notes)
-```
-
-### Create folders (containers) inside storage
-
-```bash
-
-# Bioinformatics databases (Kraken2, hg38)
-az storage container create \
-  --name databases \
-  --connection-string "$STORAGE_CONN"
-
-# Snakemake tools (Bioinformatics tools go here)
-az storage container create \
-  --name tools \
-  --connection-string "$STORAGE_CONN"
-
-# Generate a SAS token for the entire storage will help in file migrations and handling
-az storage account generate-sas --account-name ednamicrobiomestorage --account-key "$STORAGE_ACCOUNT_KEY" --expiry 2026-07-07 --permissions acdlrw --services bf --resource-types sco --https-only --output tsv
-
-# Creat azure storage for sharing between azure resources and that can be mounted to the container
-az storage share create \
-  --name microbiome-data \
-  --account-name ednamicrobiomestorage \
-  --account-key "$STORAGE_KEY"
-
-# Create the directories for azure file servive - uploads, results, logs, runtime
-  az storage directory create \
-    --share-name microbiome-data \
-    --name uploads \
-    --account-name ednamicrobiomestorage \
-    --account-key $STORAGE_KEY
-
-
-```
-
-### Verify
-
-```bash
-az storage container list \
-  --connection-string "$STORAGE_CONN" \
-  --output table
-# Expected: 2 containers listed
-
-az storage share list \
-  --connection-string "$STORAGE_CONN" \
-  --output table
-
-# Should see microbiome-data
-
-```
-
-### Delete (if needed)
-
-```bash
-# Delete one container
-az storage container delete \
-  --name tools \
-  --connection-string "$STORAGE_CONN"
-
-# Delete the whole storage account
-az storage account delete \
-  --name microdentifystorage \
-  --resource-group microdentify-rg \
-  --yes
-
-# Delete only certain things inside a container
-az storage blob delete-batch \
-  --source databases \
-  --connection-string "$STORAGE_CONN" \
-  --pattern "hg38_ref/hg38_ref/*"
-
+echo "STORAGE_CONN=$STORAGE_CONN"
+echo "STORAGE_KEY=$STORAGE_KEY"
 ```
 
 ---
 
-## Step 3 — Upload Tools to Blob Storage
+## 4. Create Blob Storage Containers
+
+Blob Storage holds large, mostly read‑only assets.
+
+### Create `databases` container
+
+```bash
+az storage container create \
+  --name databases \
+  --connection-string "$STORAGE_CONN"
+```
+
+### Create `tools` container
+
+```bash
+az storage container create \
+  --name tools \
+  --connection-string "$STORAGE_CONN"
+```
+
+---
+
+## 5. Generate a SAS Token
+
+A SAS token is useful when copying files from systems that cannot run Azure CLI (e.g., LUNARC).
+
+```bash
+az storage account generate-sas \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY" \
+  --expiry 2026-12-31 \
+  --permissions acdlrw \
+  --services bf \
+  --resource-types sco \
+  --https-only \
+  --output tsv
+```
+
+---
+
+## 6. Create Azure File Share
+
+Azure File Share provides a persistent, mountable filesystem.
+
+```bash
+az storage share create \
+  --name microbiome-data \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
+```
+
+---
+
+## 7. Create Runtime Directories
+
+Inside the file share, create directories for the different data types.
+
+```bash
+# uploads – user FASTQ files
+az storage directory create \
+  --share-name microbiome-data \
+  --name uploads \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
+
+# runtime – sample sheets, temporary files
+az storage directory create \
+  --share-name microbiome-data \
+  --name runtime \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
+
+# logs – pipeline logs
+az storage directory create \
+  --share-name microbiome-data \
+  --name logs \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
+
+# results – pipeline outputs
+az storage directory create \
+  --share-name microbiome-data \
+  --name results \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY"
+```
+
+---
+
+## 8. Verify
+
+```bash
+# List blob containers
+az storage container list \
+  --connection-string "$STORAGE_CONN" \
+  --output table
+
+# List file shares
+az storage share list \
+  --connection-string "$STORAGE_CONN" \
+  --output table
+
+# List directories inside the file share
+az storage directory list \
+  --share-name microbiome-data \
+  --account-name ednamicrobiomestorage \
+  --connection-strin "$STORAGE_CONN" \
+  --output table
+
+# Inspect files inside a firectory
+az storage file list \
+    --share-name microbiome-data \
+    --path uploads \
+    --connection-string "$STORAGE_CONN" \
+    --output table
+```
+
+---
+
+## 9. Upload Bioinformatics Tools
 
 **What it is:** Copy your `.sif` files from LUNARC to Blob Storage. One-time operation.
 
-# Without azure on LUNARC.
+### Without azure on LUNARC.
 Quite often you will not having sudo access on LUNARC and need to transfer files to cloud storage blobs.
 This can be done as follows -:
 
@@ -309,62 +384,111 @@ azcopy copy "/lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/*" \
   --recursive --put-md5
 
 ```
+---
 
-### This section is for transferring files if you can use azure on LUNARC or general files transfers without azcopy.
+## 11. Mount Azure File Share (for local testing or Batch nodes)
 
-### Upload tools (bionformatics)
+### Install CIFS utilities
 
 ```bash
-# Set your connection string
-STORAGE_CONN="<paste your connection string here>"
-
-# Upload all .sif files from bin/
-az storage blob upload-batch \
-  --source /home/chandru/binp51/bin/ \
-  --destination tools \
-  --connection-string "$STORAGE_CONN" \
-  --pattern "*.sif"
-
-
+sudo apt update && sudo apt install -y cifs-utils
 ```
 
-### Upload databases (WARNING: Kraken2 is 310GB — start this and leave it overnight)
+### Create mount point
 
 ```bash
-# hg38 human genome index (for bowtie2 host removal)
-az storage blob upload-batch \
-  --source /lunarc/nobackup/projects/snic2019-34-3/Daria/CAMP/ref_Human_hg38/ref_Human_hg38/hg38_ref/ \
-  --destination databases/hg38 \
-  --connection-string "$STORAGE_CONN"
-
-# Kraken2 database — this will take hours
-# Run in a screen session so it doesn't stop if you disconnect
-screen -S upload_kraken
-az storage blob upload-batch \
-  --source /lunarc/nobackup/projects/snic2019-34-3/Daria/core_nt_Database/ \
-  --destination databases/kraken2 \
-  --connection-string "$STORAGE_CONN"
-# Ctrl+A, D to detach from screen
-# screen -r upload_kraken to check progress
+sudo mkdir -p /mnt/microbiome-data
 ```
 
-### Verify uploads
+### Mount the share
 
 ```bash
-# Check tools uploaded
-az storage blob list \
-  --container-name tools \
-  --connection-string "$STORAGE_CONN" \
-  --output table
+sudo mount -t cifs \
+  //ednamicrobiomestorage.file.core.windows.net/microbiome-data \
+  /mnt/microbiome-data \
+  -o vers=3.0,username=ednamicrobiomestorage,password=$STORAGE_KEY,dir_mode=0777,file_mode=0777,serverino
+```
 
-# Check the files created for azure file share
-az storage directory list \
+### Verify
+
+```bash
+ls /mnt/microbiome-data
+```
+
+You should see the directories:
+```text
+logs  results  runtime  uploads
+```
+
+### Unmount
+
+```bash
+sudo umount /mnt/microbiome-data
+```
+
+---
+
+## 13. Delete Resources
+
+### Delete a blob container
+
+```bash
+az storage container delete \
+  --name tools \
+  --connection-string "$STORAGE_CONN"
+```
+
+### Delete a File Share directory
+
+```bash
+az storage directory delete \
   --share-name microbiome-data \
+  --name runtime \
   --account-name ednamicrobiomestorage \
-  --account-key "<your_key>" \
-  --output table
-
+  --account-key "$STORAGE_KEY"
 ```
+
+### Delete blobs matching a pattern
+
+```bash
+az storage blob delete-batch \
+  --source databases \
+  --connection-string "$STORAGE_CONN" \
+  --pattern "hg38/*"
+```
+
+### Delete the entire storage account
+
+```bash
+az storage account delete \
+  --name ednamicrobiomestorage \
+  --resource-group microbiome-rg \
+  --yes
+```
+
+---
+
+## How the Batch Node Sees Storage
+
+```text
+Azure Blob Storage (Read‑only)
+    databases/   tools/
+          │          │
+          ▼          ▼
+     /mnt/blob/ (mounted via BlobFuse2)
+
+Azure File Share (Read/Write)
+    uploads/  runtime/  logs/  results/
+          │
+          ▼
+/mnt/microbiome-data/ (mounted via CIFS/SMB)
+
+Docker Container (Snakemake)
+    ├── /data -> /mnt/microbiome-data
+    └── /db   -> /mnt/blob
+```
+
+This separation keeps your large, read‑only reference data in Blob Storage while your dynamic, write‑intensive runtime data lives in the File Share – exactly matching your architecture.
 
 ---
 

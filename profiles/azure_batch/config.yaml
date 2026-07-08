@@ -11,17 +11,12 @@ executor: azure-batch
 restart-times: 1
 
 # Azure Batch plugin settings
-azure-batch-account-url: "${SNAKEMAKE_AZURE_BATCH_ACCOUNT_URL}"
-azure-batch-resource-group-name: "${SNAKEMAKE_AZURE_BATCH_RESOURCE_GROUP_NAME}"
-azure-batch-subscription-id: "${SNAKEMAKE_AZURE_BATCH_SUBSCRIPTION_ID}"
+azure-batch-account-url: "${AZ_BATCH_ACCOUNT_URL}"
+azure-batch-resource-group-name: "${AZ_BATCH_RESOURCE_GROUP_NAME}"
+azure-batch-subscription-id: "${AZ_BATCH_SUBSCRIPTION_ID}"
 
 # Azure Storage plugin settings
-storage-azure-account-name: "${AZURE_STORAGE_ACCOUNT}"
-storage-azure-sas-token: "${AZ_BLOB_SAS_TOKEN}"
-
-# Blob staging for workflow data/results
-default-storage-provider: azure
-default-storage-prefix: "${SNAKEMAKE_STORAGE_PREFIX}"
+#storage-azure-account-name: "${AZURE_STORAGE_ACCOUNT}"
 
 # Job limits — same as single_run
 cores: 50
