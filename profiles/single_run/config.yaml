@@ -23,10 +23,6 @@ printshellcmds: false
 use-conda: true
 conda-frontend: "mamba"
 
-# Use conda environments from main environment
-use-conda: true
-conda-frontend: "mamba"
-
 # Enable container execution natively
 software-deployment-method: 
   - apptainer

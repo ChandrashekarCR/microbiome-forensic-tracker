@@ -13,7 +13,6 @@ RUN apt-get update && \
     make \
     wget \
     curl \
-    apptainer \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
