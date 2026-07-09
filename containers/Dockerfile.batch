@@ -1,0 +1,38 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System dependencies + Apptainer + Azure CLI
+RUN apt-get update && \
+    apt-get install -y \
+    software-properties-common \
+    curl wget vim git make rsync python3 python3-pip python3-venv python-is-python3 && \
+    add-apt-repository -y ppa:apptainer/ppa && \
+    apt-get update && \
+    apt-get install -y apptainer && \
+    curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the necessary parts
+COPY Makefile /app/Makefile
+COPY pyproject.toml /app/pyproject.toml
+COPY src/ /app/src/
+COPY config/ /app/config/
+COPY workflow/ /app/workflow/
+COPY profiles/ /app/profiles/
+COPY .env.azure /app/.env.azure
+COPY deploy/ /app/deploy/
+
+ENV ENV_FILE=.env.azure
+# Install everything including snakemake + azure plugins
+RUN make venv-all
+
+ENV PATH="/app/.venv-all/bin:${PATH}"
+
+# Ensure the container entrypoint is executable (script added to deploy/)
+RUN if [ -f /app/deploy/container_entrypoint.sh ]; then chmod +x /app/deploy/container_entrypoint.sh; fi
+
+ENTRYPOINT ["/app/deploy/container_entrypoint.sh"]
+CMD ["bash"]

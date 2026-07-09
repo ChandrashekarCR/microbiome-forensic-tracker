@@ -14,6 +14,12 @@ restart-times: 1
 azure-batch-account-url: "${AZ_BATCH_ACCOUNT_URL}"
 azure-batch-resource-group-name: "${AZ_BATCH_RESOURCE_GROUP_NAME}"
 azure-batch-subscription-id: "${AZ_BATCH_SUBSCRIPTION_ID}"
+azure-batch-account-name: "${AZ_BATCH_ACCOUNT_NAME}"
+azure-batch-account-key: "${AZ_BATCH_ACCOUNT_KEY}"
+
+# Azure Blob storage for Snakemake staging (optional; plugin will use these if present)
+azure-blob-account-url: "${AZ_BLOB_ACCOUNT_URL}"
+azure-blob-sas-token: "${AZ_BLOB_SAS_TOKEN}"
 
 # Shared Filesystem Storage settings
 default-storage-provider: fs
