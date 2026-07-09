@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTENF=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 RUN apt-get update && \
@@ -13,7 +13,10 @@ RUN apt-get update && \
     make \
     wget \
     curl \
+    rsync \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
 WORKDIR /app
 
@@ -25,6 +28,7 @@ COPY config/ /app/config/
 COPY workflow/ /app/workflow/
 COPY profiles/ /app/profiles/
 COPY .env.azure /app/.env.azure
+COPY deploy/ /app/deploy/
 
 ENV ENV_FILE=.env.azure
 

@@ -30,6 +30,9 @@ latency-wait: 60
 keep-going: true
 printshellcmds: false
 
+# Startup script runs on each Batch VMs before jobs start
+azure-batch-node-start-task-url: "${BATCH_NODE_START_TASK_URL}"
+
 # Use conda environments from main environment
 #use-conda: true
 #conda-frontend: "mamba"
