@@ -314,6 +314,14 @@ az storage container list \
   --connection-string "$STORAGE_CONN" \
   --output table
 
+# View files inside your container
+
+az storage blob list \
+  --account-name ednamicrobiomestorage \
+  --container-name tools \
+  --account-key "$STORAGE_KEY" \
+  --output table
+
 # List file shares
 az storage share list \
   --connection-string "$STORAGE_CONN" \
