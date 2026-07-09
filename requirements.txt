@@ -197,6 +197,7 @@ snakemake-interface-logger-plugins==2.1.0
 snakemake-interface-report-plugins==1.3.0
 snakemake-interface-scheduler-plugins==2.0.2
 snakemake-interface-storage-plugins==4.4.1
+snakemake-storage-plugin-fs==1.1.3
 SQLAlchemy==2.0.51
 sqlmodel==0.0.37
 sqlparse==0.5.5
