@@ -218,6 +218,44 @@ python src/smk_helper/generate_sample_sheet.py \
 - `tests/test_helper_scripts.py`
 - `tests/test_standardize_bracken.py`
 
+---
+
+## 9) Azure Batch container runbook
+
+This repository keeps the workflow unchanged and moves Azure-specific behavior into the container entrypoint, the Batch profile, and environment files.
+
+### Local container smoke test
+
+```bash
+docker build -f containers/Dockerfile.batch -t microbiome-batch:latest .
+
+docker run --rm -it \
+	--env-file .env.azure \
+	-v /mnt/data:/mnt/data \
+	microbiome-batch:latest
+```
+
+Inside the container, the entrypoint will:
+
+- source `.env.azure`,
+- reuse an existing Azure CLI session if present,
+- try Managed Identity when `AZURE_AUTH_MODE=managed-identity` or `AZURE_USE_MANAGED_IDENTITY=1`,
+- fall back to the service-principal login already defined in `.env.azure`.
+
+### Batch profile notes
+
+- `profiles/azure_batch/config.yaml` is tuned to fit the current 4-vCPU Batch quota.
+- The `kraken` rule is left as a smoke-test placeholder; the full core-nt database still needs a larger quota and a larger VM family.
+- For a real production run, restore the larger `kraken` VM size after your Azure quota increase.
+
+### Suggested cloud flow
+
+1. Build the batch image.
+2. Push it to Azure Container Registry.
+3. Configure Azure Batch to pull that image.
+4. Mount the Azure File Share at `/mnt/data`.
+5. Run Snakemake with the Azure Batch profile.
+
 ### Run tests
 
 ```bash

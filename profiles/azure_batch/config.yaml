@@ -25,11 +25,11 @@ azure-blob-sas-token: "${AZ_BLOB_SAS_TOKEN}"
 default-storage-provider: fs
 default-storage-prefix: /
 
-# Job limits — same as single_run
-cores: 50
-jobs: 15
-max-jobs-per-second: 5
-local-cores: 2
+# Job limits — tuned for the current 4-vCPU Batch quota
+cores: 4
+jobs: 2
+max-jobs-per-second: 2
+local-cores: 1
 
 # Job management
 latency-wait: 60
@@ -52,7 +52,7 @@ apptainer-args: "${APPTAINER_BINDS}"
 
 # Default resources — cheap VM for anything not specified
 default-resources:
-  az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, 16GB RAM ~$0.09/hr
+  az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, fits current quota
   runtime: "1h"
   mem_mb: 4000
 
@@ -70,22 +70,22 @@ set-resources:
     mem_mb: 1000
 
   fastp:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB — matches 4 cpus
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "30m"
     mem_mb: 6000
 
   adapter_removal:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "30m"
     mem_mb: 1000
 
   remove_human_reads:
-    az_batch_node_size: "Standard_D8as_v4"  # 8 vCPU, 64GB — matches 8 cpus
+    az_batch_node_size: "Standard_D4as_v4"  # reduced to stay within quota
     runtime: "45m"
     mem_mb: 6000
 
   error_correction:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "1h"
     mem_mb: 8000
 
@@ -95,9 +95,11 @@ set-resources:
     mem_mb: 2000
 
   kraken:
-    az_batch_node_size: "Standard_D96a_v4"  # 96 vCPU, 384GB — for 350GB Kraken2 DB
+    # Current quota cannot provision a large Kraken node; keep this as a smoke-test setting.
+    # For the full core-nt DB, you must raise Azure vCPU quota and switch this back to a large memory VM.
+    az_batch_node_size: "Standard_D4as_v4"
     runtime: "2h"
-    mem_mb: 350000
+    mem_mb: 16000
 
   bracken:
     az_batch_node_size: "Standard_D2as_v4"

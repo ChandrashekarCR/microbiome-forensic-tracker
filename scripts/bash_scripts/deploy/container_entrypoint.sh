@@ -13,11 +13,17 @@ if [ -f /app/.env.azure ]; then
   echo "[entrypoint] Sourced /app/.env.azure"
 fi
 
-# If service principal credentials are present, attempt non-interactive Azure login
-if [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ] && [ -n "${AZURE_TENANT_ID:-}" ]; then
+# Reuse an existing Azure CLI session if one is already available
+if az account show >/dev/null 2>&1; then
+  echo "[entrypoint] Azure CLI session already available."
+elif [ "${AZURE_USE_MANAGED_IDENTITY:-0}" = "1" ] || [ "${AZURE_AUTH_MODE:-}" = "managed-identity" ]; then
+  echo "[entrypoint] Attempting az login with managed identity..."
+  az login --identity || true
+  echo "[entrypoint] Managed identity login finished (status ignored)."
+elif [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ] && [ -n "${AZURE_TENANT_ID:-}" ]; then
   echo "[entrypoint] Attempting az login with service principal..."
   az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" || true
-  echo "[entrypoint] az login finished (status ignored)."
+  echo "[entrypoint] Service principal login finished (status ignored)."
 else
   echo "[entrypoint] AZURE service principal creds not provided; skipping az login."
 fi

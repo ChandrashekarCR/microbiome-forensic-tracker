@@ -1,0 +1,57 @@
+properties:
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      allowInsecure: false
+    registries:
+      - server: $REGISTRY
+        username: microbiomeacr
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: "$ACR_PASSWORD"
+  template:
+    containers:
+      - image: $IMAGE
+        name: microbiome-api
+        resources:
+          cpu: 0.5
+          memory: 1.0Gi
+        env:
+          - name: PYTHONPATH
+            value: "/app"
+          - name: ENV_FILE
+            value: ".env.azure"
+          - name: PROJECT_ROOT
+            value: "/app"
+          - name: UPLOAD_DIR
+            value: "/mnt/data/uploads"
+          - name: RESULTS_DIR
+            value: "/mnt/data/results"
+          - name: LOGS_DIR
+            value: "/mnt/data/logs"
+          - name: RUNTIME_DIR
+            value: "/mnt/data/runtime"
+          - name: BACKEND_DB_URL
+            value: "postgresql://${PG_USER}:${PG_PASSWORD}@${POSTGRES_HOST}:5432/malmo_db"
+          - name: CELERY_BROKER_URL
+            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+          - name: CELERY_RESULT_BACKEND
+            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+          - name: SNAKEMAKE_PROFILE
+            value: "profiles/azure_batch"
+          - name: SNAKEMAKE_CONFIG
+            value: "config/config_single_run.yaml"
+          - name: SNAKEMAKE_BIN
+            value: "snakemake"
+        volumeMounts:
+          - volumeName: microbiome-data
+            mountPath: /mnt/data
+    scale:
+      minReplicas: 1
+      maxReplicas: 2
+    volumes:
+      - name: microbiome-data
+        storageName: microbiome-data
+        storageType: AzureFile

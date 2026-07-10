@@ -19,11 +19,11 @@ WORKDIR /app
 COPY Makefile /app/Makefile
 COPY pyproject.toml /app/pyproject.toml
 COPY src/ /app/src/
+COPY scripts/ /app/scripts
 COPY config/ /app/config/
 COPY workflow/ /app/workflow/
 COPY profiles/ /app/profiles/
 COPY .env.azure /app/.env.azure
-COPY deploy/ /app/deploy/
 
 ENV ENV_FILE=.env.azure
 # Install everything including snakemake + azure plugins
@@ -32,7 +32,15 @@ RUN make venv-all
 ENV PATH="/app/.venv-all/bin:${PATH}"
 
 # Ensure the container entrypoint is executable (script added to deploy/)
-RUN if [ -f /app/deploy/container_entrypoint.sh ]; then chmod +x /app/deploy/container_entrypoint.sh; fi
+RUN if [ -f /app/scripts/bash_scripts/deploy/container_entrypoint.sh ]; then chmod +x /app/scripts/bash_scripts/deploy/container_entrypoint.sh; fi
 
-ENTRYPOINT ["/app/deploy/container_entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/bash_scripts/deploy/container_entrypoint.sh"]
 CMD ["bash"]
+
+# Interactively you can run this command provided you have uploaded sample in uploads, tools, databases
+# snakemake \
+#   --snakefile workflow/Snakefile \
+#   --profile profiles/azure_batch \
+#   --configfile config/config_single_run.yaml \
+#   --config samples_file=/mnt/data/runtime/sample_sheets/malmo_central.tsv \
+#   --dryrun
