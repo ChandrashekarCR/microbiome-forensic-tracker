@@ -25,10 +25,10 @@ COPY Makefile /app/Makefile
 COPY pyproject.toml /app/pyproject.toml
 COPY src/ /app/src/
 COPY config/ /app/config/
+COPY scripts /app/scripts
 COPY workflow/ /app/workflow/
 COPY profiles/ /app/profiles/
 COPY .env.azure /app/.env.azure
-COPY deploy/ /app/deploy/
 
 ENV ENV_FILE=.env.azure
 
@@ -38,8 +38,5 @@ RUN make venv-all
 # Make the venv’s bin directory the default PATH
 ENV PATH="/app/.venv-all/bin:${PATH}"
 
-EXPOSE 8000
+CMD [ "bash" ]
 
-# Run the fastapi backend
-# To run Celery worker instead, override CMD: docker run ... celery -A src.backend.celery_app worker --loglevel=info
-CMD ["uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
