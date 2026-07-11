@@ -1,325 +1,237 @@
-# BINP51 — Metagenomics Pipeline
+# Microbiome Forensic Tracker  
 
-[![CI/CD pipeline](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/workflows/CI%2FCD%20pipeline/badge.svg)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/actions/workflows/ci.yaml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) 
-[![Snakemake](https://img.shields.io/badge/snakemake-≥7-brightgreen.svg)](https://snakemake.readthedocs.io)
-[![GitHub issues](https://img.shields.io/github/issues/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/commits)
+[![CI/CD pipeline](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/workflows/CI%2FCD%20pipeline/badge.svg)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/actions/workflows/ci.yaml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Snakemake](https://img.shields.io/badge/snakemake-%E2%89%A77-brightgreen.svg)](https://snakemake.readthedocs.io) [![GitHub issues](https://img.shields.io/github/issues/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/issues) [![GitHub last commit](https://img.shields.io/github/last-commit/ChandrashekarCR/microbiome-forensic-tracker)](https://github.com/ChandrashekarCR/microbiome-forensic-tracker/commits)
 
-BINP51 is an end-to-end metagenomics workflow for paired-end FASTQ data. It performs:
+**Microbiome Forensic Tracker (MFT)** is an end-to-end metagenomics workflow designed for forensic geolocation analysis. It takes paired-end shotgun sequencing reads, performs comprehensive bioinformatics processing, and uses machine learning to predict the geographic origin (latitude/longitude) of the sample based on its microbiome. Key features include rigorous data **quality control**, **host DNA removal**, **taxonomic profiling** (Kraken2 + Bracken), contig **assembly** (MEGAHIT) and **DNABERT-S embeddings**, all orchestrated through a reproducible [Snakemake](https://snakemake.readthedocs.io/) pipeline. The project includes both the data processing engine and a REST API backend (FastAPI) for result tracking and on-demand prediction. MFT is scalable across HPC (Slurm) and cloud (Azure) environments.
 
-- read-level QC and preprocessing,
-- host-read removal,
-- taxonomic profiling with Kraken2 + Bracken,
-- report standardization/merging,
-- assembly with MEGAHIT,
-- contig embeddings with DNABERT-S.
+## Pipeline Workflow
 
-The workflow is implemented in Snakemake and designed for HPC usage (LUNARC SLURM profiles are included).
+MFT executes a multi-stage pipeline when given raw FASTQ data. The main stages are:
 
----
+- **Quality Control:**  Run FastQC on raw reads, and aggregate with MultiQC.
+- **Preprocessing:**  Trim/filter reads with *fastp* and remove adapters with *AdapterRemoval*.
+- **Host-read Depletion:**  Align against a host genome (e.g. human) using *Bowtie2* to remove contaminant reads.
+- **Error Correction:**  Correct sequencing errors using BBMap tools (`repair.sh`, `tadpole.sh`, or fallback `bbduk.sh`).
+- **Taxonomic Classification:**  Classify reads with *Kraken2* and estimate abundances with *Bracken* at multiple taxonomic ranks.
+- **Postprocessing:**  Normalize and standardize Bracken outputs, then merge per-sample abundance tables by taxonomic rank.
+- **Assembly:**  Assemble filtered reads into contigs using *MEGAHIT*.
+- **Sequence Embeddings:**  Generate **DNABERT-S** embeddings from assembled contigs (deep-learning-based sequence representations).
 
-## 1) Repository overview
+Each of these stages is defined as a Snakemake rule in `workflow/`, allowing parallel and incremental execution. The outputs are organized under the configured `results/` directory in numbered subfolders for each stage.  
 
-Top-level structure (simplified):
+ *Figure: Example output visualization from the pipeline. The charts illustrate a sample’s microbial abundance profiles and the geolocation prediction (latitude/longitude) with confidence scores.*  
 
-```text
-binp51/
-├── workflow/
-│   ├── Snakefile
-│   └── rules/
-│       ├── qc.smk
-│       ├── preprocessing.smk
-│       ├── classification.smk
-│       ├── postprocessing.smk
-│       ├── assembly.smk
-│       ├── bert.smk
-│       └── common.smk
-├── config/
-│   ├── config.yaml
-│   ├── config_single_run.yaml
-│   ├── samples.tsv
-│   └── samples_test.tsv
-├── src/
-│   ├── smk_helper/
-│   ├── backend/
-│   ├── malmo_samples/
-│   ├── mixed_samples/
-│   └── rag/
-├── tests/
-├── profiles/
-│   ├── single_run/
-│   ├── small_scale/
-│   └── production/
-├── scripts/
-├── Makefile
-└── pyproject.toml
-```
+## Outputs
 
----
+Upon completion, MFT produces a structured set of output files for each sample:
 
-## 2) Pipeline stages
+- **QC Reports:** `qc_raw/` and `qc_processed/` contain FastQC HTML reports for raw and filtered reads, and a MultiQC summary.
+- **Taxonomic Profiles:** `kraken/` and `bracken/` contain Kraken2 reports and Bracken abundance tables (in standard format).
+- **Merged Tables:** `bracken_merged/` holds merged abundance matrices across samples, by rank (phylum, class, … species).
+- **Assembly:** `assembly/` contains assembled contigs (FASTA) and assembly logs from MEGAHIT.
+- **Embeddings:** `embeddings/` contains generated DNABERT-S embedding files for each contig sequence.
+- **Feature Tables:** Feature-engineered tables (e.g., ecological diversity metrics) as CSV for model training.
+- **Predictions:** A table of machine learning predictions (latitude, longitude) for each sample.
 
-The default pipeline graph in `workflow/Snakefile` includes:
+The **API/backend** also logs information in a PostgreSQL database (or SQLite for local testing), including sample metadata and final abundance tables used for prediction.
 
-1. `fastqc_raw` — FastQC on raw reads
-2. `fastp` — quality filtering/trimming
-3. `adapter_removal` — AdapterRemoval
-4. `remove_human_reads` — host depletion with Bowtie2
-5. `error_correction` — BBMap tools (`repair.sh`, `tadpole.sh`, fallback `bbduk.sh`)
-6. `fastqc_processed` — FastQC on corrected reads
-7. `multiqc` — aggregated QC report
-8. `kraken` — taxonomic classification
-9. `bracken` — abundance estimation per rank
-10. `standardize_bracken` — normalize Bracken output format
-11. `merge_bracken` — merge all samples by rank
-12. `megahit_assembly` — assembly
-13. `dnaberts_embeddings` — DNABERT-S embeddings from contigs
+## Requirements
 
-Outputs are organized under the configured `results_dir` with numbered stage folders.
+The workflow runs on Linux with the following requirements:
 
----
+- **Python 3.9+** with `snakemake>=7`.
+- **Apptainer/Singularity** (for containerized tools) or local tool installations.
+- **SLURM** (for HPC profiles) or **Azure Batch** (for cloud).
+- External tools (via containers in `bin/`): FastQC, fastp, AdapterRemoval, Bowtie2, Samtools, BBMap, Kraken2, Bracken, MEGAHIT, etc.
+- (Optional) GPU drivers if running DNABERT-S on GPU.
 
-## 3) Requirements
+Python dependencies are managed via `pyproject.toml`. Optional extra groups include:
+- `dev` (linters, test tools),
+- `snakemake` (workflow dependencies),
+- `dnaberts` (for embeddings),
+- `rag` (if using Retrieval-Augmented features),
+- `backend` (FastAPI server).
 
-### Runtime
+## Installation
 
-- Linux
-- Python >= 3.9
-- Apptainer (for `.sif` tool images)
-- SLURM (for cluster execution profiles)
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ChandrashekarCR/microbiome-forensic-tracker.git
+   cd microbiome-forensic-tracker
+   ```
 
-### Python dependencies
+2. **Create a Python virtual environment:**
+   ```bash
+   make venv
+   source .venv/bin/activate
+   ```
 
-Managed in `pyproject.toml` with optional groups:
+3. **Install dependencies:**
+   ```bash
+   pip install -e .[dev,snakemake]
+   # Or selectively: pip install -e .[dnaberts,rag,backend] etc.
+   ```
 
-- `dev`
-- `snakemake`
-- `dnaberts`
-- `rag`
-- `backend`
+4. **Download tool containers and scripts:**
+   ```bash
+   make download
+   ```
+   This will pull the required Bioinformatics tool images (as Singularity/Apptainer `.sif` files under `bin/`) and helper scripts (BBMap, DNABERT-S code).
 
----
+5. **(Optional) Set up Azure credentials** in `.env.azure` for cloud runs, or ensure SLURM configs are correct.
 
-## 4) Environment setup
+## Configuration
 
-You can use the provided Make targets.
+All major settings are in `config/config.yaml`. Key entries:
 
-### Base dev environment
+- `data.raw_dir`: Path to input FASTQ files.
+- `data.results_dir`: Root of the output results directory.
+- `samples.sample_sheet`: Tab-separated TSV listing `sample`, `r1`, `r2` columns.
+- `tools.*`: Paths to tool containers/scripts.
+- `databases.*`: Paths to host genome index, Kraken2 database.
+- `taxonomy.ranks`: List of taxonomic ranks to process.
+- `resources.*`: Resource (threads, memory) specifications for each rule.
+- `pipeline.steps.*`: Enable/disable stages (QC, classification, assembly, embeddings, etc).
 
+A separate `config/config_single_run.yaml` is provided for quick testing on a small dataset. Use `config/samples_test.tsv` as a minimal example.
+
+## Usage
+
+### Dry-run / Local
+
+First, always perform a dry-run to check configurations:
 ```bash
-make venv
+snakemake -n --snakefile workflow/Snakefile
 ```
 
-### Specialized environments
-
+For a single-sample test run locally (using a handful of CPUs):
 ```bash
-make venv-snakemake
-make venv-dnaberts
-make venv-rag
-make venv-backend
+snakemake \
+  --snakefile workflow/Snakefile \
+  --profile profiles/single_run \
+  --configfile config/config_single_run.yaml
 ```
 
-### Install containers/tools
+### HPC (SLURM)
 
-```bash
-make download
-```
-
-This pulls tool images to `bin/` (FastQC, fastp, AdapterRemoval, Bowtie2, Samtools, SPAdes, Kraken2, Bracken, MEGAHIT, etc.) and unpacks BBMap helper scripts.
-
----
-
-## 5) Configuration
-
-Primary config file: `config/config.yaml`
-
-Important keys:
-
-- `data.raw_dir` — source FASTQ directory
-- `data.results_dir` — output root
-- `samples.sample_sheet` — TSV with columns `sample`, `r1`, `r2`
-- `tools.*` — container/script locations
-- `databases.*` — host genome and Kraken2 DB paths
-- `taxonomy.ranks` — output ranks (`species`, `genus`, `family`, `order`, `class`, `phylum`)
-- `resources.*` — per-rule memory/runtime/thread settings
-- `pipeline.steps.*` — stage on/off switches
-
-For single-run testing, see `config/config_single_run.yaml`.
-
----
-
-## 6) Running the workflow
-
-### A) Local dry-run (recommended first)
-
-```bash
-snakemake --snakefile workflow/Snakefile -n
-```
-
-### B) Single run profile
+On an HPC cluster, use the provided SLURM profiles:
 
 ```bash
 snakemake \
-	--snakefile workflow/Snakefile \
-	--profile profiles/single_run \
-	--configfile config/config_single_run.yaml
+  --snakefile workflow/Snakefile \
+  --profile profiles/small_scale \
+  --configfile config/config.yaml \
+  --config samples_file=config/samples.tsv
 ```
 
-### C) Small-scale profile (HPC)
-
+Or for full production runs:
 ```bash
 snakemake \
-	--snakefile workflow/Snakefile \
-	--profile profiles/small_scale \
-	--configfile config/config_single_run.yaml \
-	--config samples_file=config/samples_test.tsv
+  --snakefile workflow/Snakefile \
+  --profile profiles/production \
+  --configfile config/config.yaml
 ```
+These profiles submit Snakemake jobs as SLURM batch jobs, respecting the resource limits in `config.yaml`.
 
-### D) Production profile (HPC)
+### Azure Batch (Cloud)
 
-```bash
-snakemake \
-	--snakefile workflow/Snakefile \
-	--profile profiles/production \
-	--configfile config/config.yaml
-```
+For cloud deployment on Azure:
 
----
+1. **Build the Azure Batch container image:**  
+   ```bash
+   docker build -f containers/Dockerfile.batch -t microbiome-batch:latest .
+   ```
+2. **Push to Azure Container Registry (ACR).**  
+3. **Prepare Azure Batch:** Create a Batch pool that mounts the Azure File Share (containing FASTQ and tool images) at `/mnt/data`.
+4. **Run Snakemake with Azure Batch profile:**  
+   ```bash
+   snakemake \
+     --snakefile workflow/Snakefile \
+     --profile profiles/azure_batch \
+     --configfile config/config.yaml
+   ```
+   The `profiles/azure_batch/config.yaml` is preconfigured for a moderate pool size (4 vCPUs per node). Adjust VM sizes in the profile as needed for heavy jobs (e.g., Kraken2).
 
-## 7) Utility scripts and helper modules
+### API / Backend Service
 
-### Snakemake helpers (`src/smk_helper`)
+A FastAPI application in `src/backend` provides endpoints to upload samples and query results. Current endpoints (under development) include:
+- `POST /samples`: Submit a new paired-end FASTQ sample to process.
+- `GET /samples`: List previously submitted samples and their status.
+- `GET /samples/{id}`: Fetch status and results for a sample.
+- `GET /predict?sample_id={id}`: Trigger/retrieve the geolocation prediction for a sample.
 
-- `generate_sample_sheet.py` — generate sample TSV from FASTQ directory
-- `helper_scripts.py` — load/validate sample sheet and accessor helpers
-- `standardize_bracken.py` — Bracken normalization + merge utilities
-- `select_partition.py` — cluster partition chooser for heavy jobs
-- `dnaberts_embeddings.py` — DNABERT-S embedding entrypoint
+By default, the backend uses a local SQLite database. In production, configure it to use an Azure PostgreSQL database. The prediction endpoint loads the trained model from the Azure File Share (`models/` folder) and returns the predicted latitude/longitude (no Celery needed for this quick operation).
 
-### Example: generate sample sheet
+## Architecture & Deployment
 
-```bash
-python src/smk_helper/generate_sample_sheet.py \
-	-i /path/to/fastq_dir \
-	-o config/samples.tsv
-```
+ *Figure: Conceptual architecture of the Microbiome Forensic Tracker. Raw FASTQ files are uploaded and queued, Snakemake workers run the analysis pipeline, results are written to storage and database, and the FastAPI serves status and predictions.*  
 
----
+The system is designed to be modular and scalable:
 
-## 8) Testing and code quality
+- **Backend:** FastAPI (running in a container on Azure Container Apps or similar) handles HTTP requests. It queues tasks and retrieves results.
+- **Task Queue:** Azure Cache for Redis acts as the Celery broker. When a sample is submitted, the FastAPI pushes a Celery task into Redis.
+- **Workers:** Celery workers (in containers) listen on Redis. For taxonomic analysis tasks, a worker will trigger Snakemake (via an Azure Batch job or local SLURM submission).
+- **Workflow Engine:** Snakemake orchestrates all bioinformatics tools. On Azure, Snakemake uses the Batch profile to run on VM nodes with tools on an Azure File Share (`/mnt/data`).
+- **Data Storage:** 
+  - **Azure Files** holds input data (`uploads/`), sample configurations (`config/`), and tool images/containers (`bin/`). 
+  - **Azure Database for PostgreSQL** (or SQLite) stores metadata, task statuses, and final abundance tables.
+- **Machine Learning:** For a given sample, the FastAPI can also directly run the geolocation model. It fetches the required abundance data from the database and loads the pretrained model (from `models/` in Azure Files) into memory. Prediction (latitude/longitude) is returned in the HTTP response.
+- **Infrastructure:** Snakemake profiles and helper scripts (`src/smk_helper`) manage resource selection (e.g. choosing proper SLURM partitions or Batch VM sizes).
 
-### Current tests
+Together, this architecture ensures reproducibility (via Snakemake), scalability (via HPC/cloud), and a clean separation between analysis (Celery/Snakemake) and serving (FastAPI/API).
 
-- `tests/test_generate_sample_sheet.py`
-- `tests/test_helper_scripts.py`
-- `tests/test_standardize_bracken.py`
+## Configuration Details
 
----
+Important configuration and script files include:
 
-## 9) Azure Batch container runbook
+- **`config/samples.tsv`** – Template sample sheet (TSV) listing sample names and FASTQ paths.
+- **`config/config.yaml`** – Master config. Customize `data.raw_dir`, `databases.kraken2_db`, etc.
+- **`profiles/`** – Execution profiles for different environments: `single_run` (local), `small_scale` & `production` (Slurm), `azure_batch` (Azure).
+- **`src/smk_helper/*`** – Helper Python modules for Snakemake:
+  - `generate_sample_sheet.py`: auto-generate TSV from a directory of FASTQs.
+  - `standardize_bracken.py`: normalize and merge Bracken outputs.
+  - `select_partition.py`: logic for selecting SLURM partitions.
+  - `dnaberts_embeddings.py`: entrypoint for DNABERT-S embedding step.
+- **`containers/`** – Dockerfiles for building the Azure Batch image (`Dockerfile.batch`).
+- **`.env.azure`** – Environment variables for Azure authentication (service principal or Managed Identity).
 
-This repository keeps the workflow unchanged and moves Azure-specific behavior into the container entrypoint, the Batch profile, and environment files.
+## Testing & Code Quality
 
-### Local container smoke test
+Automated tests and linters help ensure reliability:
 
-```bash
-docker build -f containers/Dockerfile.batch -t microbiome-batch:latest .
+- Run **pytest** to execute unit tests under `tests/`. Example tests cover the sample-sheet generator, helper scripts, and Bracken standardization.
+  ```bash
+  pytest tests -v
+  ```
+- Enforce code style and lint:
+  ```bash
+  make lint      # runs ruff, black --check, snakefmt
+  make format    # applies fixes (ruff --fix, black, snakefmt)
+  snakemake --lint  # check Snakefile formatting
+  ```
+- Continuous Integration (GitHub Actions) is configured to run the above checks on each push. The [CI/CD badge] shows the latest status.
 
-docker run --rm -it \
-	--env-file .env.azure \
-	-v /mnt/data:/mnt/data \
-	microbiome-batch:latest
-```
+## Upcoming Features / Roadmap
 
-Inside the container, the entrypoint will:
+The Microbiome Forensic Tracker is under active development. Planned enhancements include:
 
-- source `.env.azure`,
-- reuse an existing Azure CLI session if present,
-- try Managed Identity when `AZURE_AUTH_MODE=managed-identity` or `AZURE_USE_MANAGED_IDENTITY=1`,
-- fall back to the service-principal login already defined in `.env.azure`.
+- **AI-Generated Forensic Reports:** Integrate an endpoint that uses the Ollama LLM to produce narrative summaries of the forensic analysis results. (e.g. “For this sample, predominant microbes were X, Y, Z; the predicted location is [lat,lon] with confidence…”).
+- **Advanced Geolocation Models:** Explore graph-based methods (e.g. taxonomic graph rules in Snakemake, Graph Attention Networks) to improve prediction accuracy by capturing relationships between taxa.
+- **Enhanced Sequence Embeddings:** Continue development on DNABERT-S and RAG (retrieval-augmented generation) methods to encode genomic sequences with contextual information.
+- **Expanded Backend/API:** Fully wire the FastAPI endpoints to the pipeline (asynchronous task tracking, result retrieval, map visualization, etc.).
+- **Additional Datasets:** Incorporate more diverse environmental microbiome datasets to improve model generalizability.
 
-### Batch profile notes
+For a detailed roadmap and discussion of new features, see the GitHub Issues and project board.
 
-- `profiles/azure_batch/config.yaml` is tuned to fit the current 4-vCPU Batch quota.
-- The `kraken` rule is left as a smoke-test placeholder; the full core-nt database still needs a larger quota and a larger VM family.
-- For a real production run, restore the larger `kraken` VM size after your Azure quota increase.
+## Documentation
 
-### Suggested cloud flow
+Comprehensive user guides and reference documentation are available on the project website. The `docs/` directory generates a GitHub Pages site with usage examples, API docs, and tutorials. You can access it here: [Microbiome Forensic Tracker Docs](https://chandrashekarcr.github.io/microbiome-forensic-tracker/).
 
-1. Build the batch image.
-2. Push it to Azure Container Registry.
-3. Configure Azure Batch to pull that image.
-4. Mount the Azure File Share at `/mnt/data`.
-5. Run Snakemake with the Azure Batch profile.
+## Contributing
 
-### Run tests
+Contributions are welcome! If you find issues, please file them on GitHub. You can also submit pull requests with bug fixes, new features, or improvements. Please follow the existing code style (see `make format`) and add tests for any new functionality.
 
-```bash
-pytest tests -v
-```
+## License
 
-### Lint/format
-
-```bash
-make lint
-make format
-```
-
-Notes:
-
-- `make format` runs `ruff --fix`, `black`, and `snakefmt`.
-- Ensure `.venv` (and `.venv-snakemake` for `snakefmt`) exists before running formatting targets.
-
----
-
-## 9) Backend/API (work in progress)
-
-The `src/backend` module contains an evolving FastAPI service for sample uploads and result tracking (`sqlite` backend).
-
-Main endpoints currently include:
-
-- `GET /` health/status
-- `POST /samples` upload paired FASTQ
-- `GET /samples` list submitted samples
-- `GET /map` serve interactive map HTML
-
-This API layer is under active development and not yet fully wired to robust asynchronous pipeline execution.
-
----
-
-## 10) CI/CD recommendations
-
-Before publishing, run locally:
-
-```bash
-make format
-make lint
-pytest tests -v
-snakemake --snakefile workflow/Snakefile --lint
-```
-
-Then add GitHub Actions with stages:
-
-1. install (`pip install -e .[dev,snakemake]`)
-2. lint (`ruff`, `black --check`)
-3. tests (`pytest`)
-4. optional Snakemake lint/dry-run
-
----
-
-## 11) Known constraints
-
-- Some default config values point to local/HPC-specific absolute paths.
-- DNABERT-S embedding is GPU-oriented; CPU fallback exists but is slower.
-- Large Kraken2 DB (core-nt) workloads require high-memory partitions.
-
----
-
-## 12) License
-
-This project is licensed under the MIT License. See `LICENSE`.
-
+This project is licensed under the [MIT License](LICENSE).  
+All code, workflows, and documentation are open-source and freely available.  
