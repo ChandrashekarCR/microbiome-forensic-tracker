@@ -5,19 +5,33 @@ properties:
       targetPort: 8000
       allowInsecure: false
     registries:
-      - server: $REGISTRY
+      - server: microbiomeacr.azurecr.io
         username: microbiomeacr
         passwordSecretRef: acr-password
     secrets:
       - name: acr-password
-        value: "$ACR_PASSWORD"
+        value: "${ACR_PASSWORD}"
   template:
+    volumes:
+      - name: microbiome-data
+        storageName: microbiome-data
+        storageType: AzureFile
     containers:
-      - image: $IMAGE
-        name: microbiome-api
+      - name: microbiome-api
+        image: microbiomeacr.azurecr.io/microbiome:latest
+        command:
+          - uvicorn
+          - src.backend.main:app
+          - --host
+          - 0.0.0.0
+          - --port
+          - 8000
         resources:
           cpu: 0.5
           memory: 1.0Gi
+        volumeMounts:
+          - volumeName: microbiome-data
+            mountPath: /mnt/data
         env:
           - name: PYTHONPATH
             value: "/app"
@@ -34,24 +48,17 @@ properties:
           - name: RUNTIME_DIR
             value: "/mnt/data/runtime"
           - name: BACKEND_DB_URL
-            value: "postgresql://${PG_USER}:${PG_PASSWORD}@${POSTGRES_HOST}:5432/malmo_db"
+            value: "postgresql://malmo:${PG_PASSWORD}@microbiome-postgres.postgres.database.azure.com:5432/malmo_db"
           - name: CELERY_BROKER_URL
-            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
           - name: CELERY_RESULT_BACKEND
-            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
           - name: SNAKEMAKE_PROFILE
             value: "profiles/azure_batch"
           - name: SNAKEMAKE_CONFIG
             value: "config/config_single_run.yaml"
           - name: SNAKEMAKE_BIN
             value: "snakemake"
-        volumeMounts:
-          - volumeName: microbiome-data
-            mountPath: /mnt/data
     scale:
       minReplicas: 1
       maxReplicas: 2
-    volumes:
-      - name: microbiome-data
-        storageName: microbiome-data
-        storageType: AzureFile

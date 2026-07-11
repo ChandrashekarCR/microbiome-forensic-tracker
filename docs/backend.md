@@ -430,6 +430,9 @@ psql -d malmo_backend_db -U chandru_malmo_backend -h localhost
 -- List all databases
 \l
 
+-- Select a databat
+\c malmo_db
+
 -- List all tables
 \dt
 

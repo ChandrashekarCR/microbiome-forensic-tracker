@@ -1,15 +1,15 @@
 properties:
   configuration:
     registries:
-      - server: $REGISTRY
+      - server: microbiomeacr.azurecr.io
         username: microbiomeacr
         passwordSecretRef: acr-password
     secrets:
       - name: acr-password
-        value: "$ACR_PASSWORD"
+        value: "${ACR_PASSWORD}"
   template:
     containers:
-      - image: $IMAGE
+      - image: microbiomeacr.azurecr.io/microbiome:latest
         name: microbiome-worker
         command:
           - celery
@@ -39,9 +39,9 @@ properties:
           - name: BACKEND_DB_URL
             value: "postgresql://${PG_USER}:${PG_PASSWORD}@${POSTGRES_HOST}:5432/malmo_db"
           - name: CELERY_BROKER_URL
-            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
           - name: CELERY_RESULT_BACKEND
-            value: "redis://:${REDIS_PASSWORD}@${REDIS_IP}:6379/0"
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
           - name: SNAKEMAKE_PROFILE
             value: "profiles/azure_batch"
           - name: SNAKEMAKE_CONFIG
@@ -53,25 +53,25 @@ properties:
           - name: AZ_BATCH_ACCOUNT_URL
             value: "https://microbiomebatch.swedencentral.batch.azure.com"
           - name: AZ_BATCH_RESOURCE_GROUP_NAME
-            value: "${RESOURCE_GROUP}"
+            value: "microbiome-rg"
           - name: AZ_BATCH_SUBSCRIPTION_ID
-            value: "${SUBSCRIPTION_ID}"
+            value: "${AZ_BATCH_SUBSCRIPTION_ID}"
 
           # Additional Batch credentials 
           - name: AZ_BATCH_ACCOUNT_NAME
             value: "microbiomebatch"
           - name: AZ_BATCH_ACCOUNT_KEY
-            value: "${BATCH_KEY}"
+            value: "${AZ_BATCH_ACCOUNT_KEY}"
           - name: AZ_BATCH_ACCOUNT_URL
             value: "https://microbiomebatch.swedencentral.batch.azure.com"
 
           # Storage for staging (optional, but needed for Batch nodes) 
           - name: AZURE_STORAGE_ACCOUNT
-            value: "${STORAGE_ACCOUNT}"
+            value: "ednamicrobiomestorage"
           - name: AZ_BLOB_SAS_TOKEN
-            value: "${BLOB_SAS_TOKEN}"
+            value: "${AZ_BLOB_SAS_TOKEN}"
           - name: AZ_BLOB_ACCOUNT_URL
-            value: "https://${STORAGE_ACCOUNT}.blob.core.windows.net/?${BLOB_SAS_TOKEN}"
+            value: "https://ednamicrobiomestorage.blob.core.windows.net/?${AZ_BLOB_SAS_TOKEN}"
 
           # Paths for Batch nodes (mounted separately) 
           - name: SNAKEMAKE_TOOLS
