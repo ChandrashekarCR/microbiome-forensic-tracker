@@ -24,6 +24,7 @@ WORKDIR /app
 COPY Makefile /app/Makefile
 COPY pyproject.toml /app/pyproject.toml
 COPY src/ /app/src/
+COPY tests /app/tests
 COPY config/ /app/config/
 COPY scripts /app/scripts
 COPY workflow/ /app/workflow/

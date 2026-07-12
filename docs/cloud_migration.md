@@ -1114,51 +1114,53 @@ mkdir -p .github/workflows
 ```
 
 ```yaml
-# .github/workflows/deploy.yml
-name: Build and Deploy to Azure
+# CD pipeline
+
+name: Build and Deploy on Azure Cloud Services
 
 on:
   push:
-    branches: [main]
+    branches: ["master"]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+  
+  steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Login to Azure 
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }} # Need to share this to github under settings
 
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Login to Azure Container Registry
+      uses: azure/docker-login@v1
+      with:
+        login-server: microbiomeacr.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Login to Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: microbiomeacr.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+    - name: Build and push the docker image
+      run: |
+        docker build -t microbiomeacr.azurecr.io/microbiome:latest -f containers/Dockerfile .
+        docker push microbiomeacr.azurecr.io/microbiome:latest
 
-      - name: Build and push Docker image
-        run: |
-          docker build -t microbiomeacr.azurecr.io/microbiome:latest .
-          docker push microbiomeacr.azurecr.io/microbiome:latest
+    - name: Deploy API
+      run: |
+        az containerapp update \
+          --name microbiome-api \
+          --resource-group microbiome-rg \
+          --image microbiomeacr.azurecr.io/microbiome:latest
 
-      - name: Deploy API
-        run: |
-          az containerapp update \
-            --name microbiome-api \
-            --resource-group microbiome-rg \
-            --image microbiomeacr.azurecr.io/microbiome:latest
-
-      - name: Deploy Worker
-        run: |
-          az containerapp update \
-            --name microbiome-worker \
-            --resource-group microbiome-rg \
-            --image microbiomeacr.azurecr.io/microbiome:latest
+    - name: Deploy Worker
+      run: |
+        az containerapp update \
+          --name microbiome-worker \
+          --resource-group microbiome-rg \
+          --image microbiomeacr.azurecr.io/microbiome:latest     
+    
 ```
 
 ### Add secrets to GitHub

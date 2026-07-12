@@ -104,7 +104,7 @@ def log_fold_feature_counts(fold: int, X_train: pd.DataFrame, X_val: pd.DataFram
     current_val = X_val.copy()
 
     # Store step names for tracking
-    _previous_step_name = "raw"
+    #previous_step_name = "raw"
 
     for step_name, step_obj in pipeline.steps:
         if step_name == "model":

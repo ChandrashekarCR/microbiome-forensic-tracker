@@ -4,7 +4,8 @@ import pandas as pd
 import seaborn as sns
 import umap
 
-from ml.data_loading import DatabaseRSA, db_reader
+from ml.data_loading import DatabaseRSA
+from malmo_samples.db_reader import DatabaseCreate
 
 
 def plot_umap_by_zone(
@@ -68,7 +69,7 @@ def plot_barplot_by_zone(df: pd.DataFrame, save_path: str = "stacked_barplot.png
     return zone_df
 
 
-samples = db_reader.DatabaseCreate(db="../../databases/malmo.db")
+samples = DatabaseCreate(db="../../databases/malmo.db")
 rsa = DatabaseRSA(db="../../databases/malmo.db", db_table="malmo_species")
 df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
 

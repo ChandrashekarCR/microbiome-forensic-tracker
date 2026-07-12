@@ -1,0 +1,6 @@
+classifier,clade,tax_id,malmo_park_01
+kraken2_bracken,Bacteroides fragilis,817,0.1523
+kraken2_bracken,Prevotella copri,165179,0.0812
+kraken2_bracken,Faecalibacterium prausnitzii,853,0.2004
+kraken2_bracken,Escherichia coli,562,0.0345
+kraken2_bracken,Akkermansia muciniphila,239935,0.0198

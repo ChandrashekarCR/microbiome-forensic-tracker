@@ -2,7 +2,7 @@ import pandas as pd
 from pyproj import Transformer
 from sklearn.model_selection import GroupKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
 
-from malmo_samples import db_reader
+from malmo_samples.db_reader import DatabaseCreate
 from ml.config import config
 from ml.data_loading import DatabaseRSA
 
@@ -10,7 +10,7 @@ from ml.data_loading import DatabaseRSA
 # Load the data from the SQL database
 def load_and_prep_data() -> pd.DataFrame:
     """Load from SQLite, merge metadata, drop NaNs."""
-    samples = db_reader.DatabaseCreate(db=config.database.path)
+    samples = DatabaseCreate(db=config.database.path)
     rsa = DatabaseRSA(db=config.database.path, db_table=config.database.table)
     df = rsa.merge_data(samples.get_samples(), rsa.sql_to_clean())
 
