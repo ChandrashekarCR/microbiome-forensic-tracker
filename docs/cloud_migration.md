@@ -1165,7 +1165,7 @@ jobs:
 
 ### Add secrets to GitHub
 
-Go to: `GitHub repo → Settings → Secrets and variables → Actions → New repository secret`
+Go to: `GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret`
 
 Add these three secrets:
 
