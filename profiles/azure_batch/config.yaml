@@ -14,21 +14,30 @@ restart-times: 1
 azure-batch-account-url: "${AZ_BATCH_ACCOUNT_URL}"
 azure-batch-resource-group-name: "${AZ_BATCH_RESOURCE_GROUP_NAME}"
 azure-batch-subscription-id: "${AZ_BATCH_SUBSCRIPTION_ID}"
+azure-batch-account-name: "${AZ_BATCH_ACCOUNT_NAME}"
+azure-batch-account-key: "${AZ_BATCH_ACCOUNT_KEY}"
+
+# Azure Blob storage for Snakemake staging (optional; plugin will use these if present)
+azure-blob-account-url: "${AZ_BLOB_ACCOUNT_URL}"
+azure-blob-sas-token: "${AZ_BLOB_SAS_TOKEN}"
 
 # Shared Filesystem Storage settings
 default-storage-provider: fs
 default-storage-prefix: /
 
-# Job limits — same as single_run
-cores: 50
-jobs: 15
-max-jobs-per-second: 5
-local-cores: 2
+# Job limits — tuned for the current 4-vCPU Batch quota
+cores: 4
+jobs: 2
+max-jobs-per-second: 2
+local-cores: 1
 
 # Job management
 latency-wait: 60
 keep-going: true
 printshellcmds: false
+
+# Startup script runs on each Batch VMs before jobs start
+azure-batch-node-start-task-url: "${BATCH_NODE_START_TASK_URL}"
 
 # Use conda environments from main environment
 #use-conda: true
@@ -43,7 +52,7 @@ apptainer-args: "${APPTAINER_BINDS}"
 
 # Default resources — cheap VM for anything not specified
 default-resources:
-  az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, 16GB RAM ~$0.09/hr
+  az_batch_node_size: "Standard_D2as_v4"   # 2 vCPU, fits current quota
   runtime: "1h"
   mem_mb: 4000
 
@@ -61,22 +70,22 @@ set-resources:
     mem_mb: 1000
 
   fastp:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB — matches 4 cpus
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "30m"
     mem_mb: 6000
 
   adapter_removal:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "30m"
     mem_mb: 1000
 
   remove_human_reads:
-    az_batch_node_size: "Standard_D8as_v4"  # 8 vCPU, 64GB — matches 8 cpus
+    az_batch_node_size: "Standard_D4as_v4"  # reduced to stay within quota
     runtime: "45m"
     mem_mb: 6000
 
   error_correction:
-    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, 32GB
+    az_batch_node_size: "Standard_D4as_v4"  # 4 vCPU, max size allowed by current quota
     runtime: "1h"
     mem_mb: 8000
 
@@ -86,9 +95,11 @@ set-resources:
     mem_mb: 2000
 
   kraken:
-    az_batch_node_size: "Standard_D96a_v4"  # 96 vCPU, 384GB — for 350GB Kraken2 DB
+    # Current quota cannot provision a large Kraken node; keep this as a smoke-test setting.
+    # For the full core-nt DB, you must raise Azure vCPU quota and switch this back to a large memory VM.
+    az_batch_node_size: "Standard_D4as_v4"
     runtime: "2h"
-    mem_mb: 350000
+    mem_mb: 16000
 
   bracken:
     az_batch_node_size: "Standard_D2as_v4"

@@ -1,0 +1,100 @@
+properties:
+  configuration:
+    registries:
+      - server: microbiomeacr.azurecr.io
+        username: microbiomeacr
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: "${ACR_PASSWORD}"
+  template:
+    containers:
+      - image: microbiomeacr.azurecr.io/microbiome:latest
+        name: microbiome-worker
+        command:
+          - celery
+          - -A
+          - src.backend.celery_app:celery_app
+          - worker
+          - --loglevel=info
+          - --concurrency=2
+        resources:
+          cpu: 1.0
+          memory: 2.0Gi
+        env:
+          - name: PYTHONPATH
+            value: "/app"
+          - name: ENV_FILE
+            value: ".env.azure"
+          - name: PROJECT_ROOT
+            value: "/app"
+          - name: UPLOAD_DIR
+            value: "/mnt/data/uploads"
+          - name: RESULTS_DIR
+            value: "/mnt/data/results"
+          - name: LOGS_DIR
+            value: "/mnt/data/logs"
+          - name: RUNTIME_DIR
+            value: "/mnt/data/runtime"
+          - name: BACKEND_DB_URL
+            value: "postgresql://${PG_USER}:${PG_PASSWORD}@${POSTGRES_HOST}:5432/malmo_db"
+          - name: CELERY_BROKER_URL
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
+          - name: CELERY_RESULT_BACKEND
+            value: "redis://:${REDIS_PASSWORD}@20.91.202.193:6379/0"
+          - name: SNAKEMAKE_PROFILE
+            value: "profiles/azure_batch"
+          - name: SNAKEMAKE_CONFIG
+            value: "config/config_single_run.yaml"
+          - name: SNAKEMAKE_BIN
+            value: "snakemake"
+
+          # Required for Azure Batch executor plugin 
+          - name: AZ_BATCH_ACCOUNT_URL
+            value: "https://microbiomebatch.swedencentral.batch.azure.com"
+          - name: AZ_BATCH_RESOURCE_GROUP_NAME
+            value: "microbiome-rg"
+          - name: AZ_BATCH_SUBSCRIPTION_ID
+            value: "${AZ_BATCH_SUBSCRIPTION_ID}"
+
+          # Additional Batch credentials 
+          - name: AZ_BATCH_ACCOUNT_NAME
+            value: "microbiomebatch"
+          - name: AZ_BATCH_ACCOUNT_KEY
+            value: "${AZ_BATCH_ACCOUNT_KEY}"
+          - name: AZ_BATCH_ACCOUNT_URL
+            value: "https://microbiomebatch.swedencentral.batch.azure.com"
+
+          # Storage for staging (optional, but needed for Batch nodes) 
+          - name: AZURE_STORAGE_ACCOUNT
+            value: "ednamicrobiomestorage"
+          - name: AZ_BLOB_SAS_TOKEN
+            value: "${AZ_BLOB_SAS_TOKEN}"
+          - name: AZ_BLOB_ACCOUNT_URL
+            value: "https://ednamicrobiomestorage.blob.core.windows.net/?${AZ_BLOB_SAS_TOKEN}"
+
+          # Paths for Batch nodes (mounted separately) 
+          - name: SNAKEMAKE_TOOLS
+            value: "/mnt/data/tools"
+          - name: KRAKEN2_DB
+            value: "/mnt/data/databases/core_nt_Database"
+          - name: HUMAN_GENOME_DIR
+            value: "/mnt/data/databases/hg38_ref"
+          - name: HUMAN_GENOME_INDEX
+            value: "hg38_index"
+          - name: APPTAINER_BINDS
+            value: "--bind /mnt/data:/mnt/data"
+
+          # For apptainer on Batch nodes 
+          - name: APPTAINER_BINDS
+            value: "--bind /mnt/data:/mnt/data"
+        volumeMounts:
+          - volumeName: microbiome-data
+            mountPath: /mnt/data
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+    volumes:
+      - name: microbiome-data
+        storageName: microbiome-data
+        storageType: AzureFile

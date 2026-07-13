@@ -10,22 +10,6 @@
 
 ---
 
-## Your Budget Reality
-
-| Service | Free Tier | After Free |
-|---------|-----------|------------|
-| Container Registry | ✅ 1 standard FREE | $5/month |
-| PostgreSQL B1MS | ✅ 750 hrs/month FREE | $15/month |
-| Linux VM B2pts | ✅ 750 hrs/month FREE | $8/month |
-| Blob Storage | ✅ 5GB FREE | $0.02/GB/month |
-| Redis Cache C0 | ❌ Not free | $15/month |
-| Container Apps | ❌ Not free | ~$5/month |
-| Azure Batch VMs | ❌ Pay per use | ~$0.10–4/hr |
-
-**Strategy:** Use the free Linux VM to run Redis + Celery worker. This saves $15/month on Redis.
-
----
-
 ## Prerequisites — Do This First
 
 ### Install Azure CLI on your laptop
@@ -234,6 +218,14 @@ az storage container create \
 ```bash
 az storage container create \
   --name tools \
+  --connection-string "$STORAGE_CONN"
+```
+
+### Create `startup` container
+
+```bash
+az storage container create \
+  --name startup \
   --connection-string "$STORAGE_CONN"
 ```
 
@@ -508,6 +500,38 @@ Docker Container (Snakemake)
 
 This separation keeps your large, read‑only reference data in Blob Storage while your dynamic, write‑intensive runtime data lives in the File Share – exactly matching your architecture.
 
+## Upload the startp script and get URL
+
+```bash
+STORAGE_KEY=$(az storage account keys list \
+  -g microbiome-rg \
+  -n ednamicrobiomestorage \
+  --query "[0].value" -o tsv)
+
+# Upload startup script
+az storage blob upload \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY" \
+  --container-name startup \
+  --name batch_startup.sh \
+  --file deploy/batch_startup.sh
+
+# Generate SAS URL (Batch VMs download this to run it)
+EXPIRY=$(date -u -d "+90 days" '+%Y-%m-%dT%H:%MZ')
+STARTUP_URL=$(az storage blob generate-sas \
+  --account-name ednamicrobiomestorage \
+  --account-key "$STORAGE_KEY" \
+  --container-name startup \
+  --name batch_startup.sh \
+  --permissions r \
+  --expiry "$EXPIRY" \
+  --https-only \
+  --full-uri \
+  --output tsv)
+
+echo "BATCH_NODE_START_TASK_URL=$STARTUP_URL"
+```
+
 ---
 
 ## Step 4 — Container Registry
@@ -572,6 +596,10 @@ docker push microbiomeacr.azurecr.io/microbiome:latest
 ### Verify
 
 ```bash
+# List all the repositores
+az acr repository list --name microbiomeacr -o table
+
+# List all the tags in the repository
 az acr repository show-tags \
   --name microbiomeacr \
   --repository microbiome \
@@ -587,6 +615,9 @@ az acr repository delete \
   --name microbiomeacr \
   --image microbiome:latest \
   --yes
+
+# Delete a repository
+az acr repository delete --name microbiomeacr --repository microbiome --yes
 
 # Delete the whole registry
 az acr delete \
@@ -874,57 +905,78 @@ Fill in all the values you saved in the steps above:
 ```bash
 # Azure cloud environment
 # NEVER commit this file to Git
-
+ 
 PROJECT_ROOT=/app
-
-
+ 
+ 
 # Azure File Share mounted at /mnt/data 
 # Nothing stored in the container — all goes to Azure storage
 UPLOAD_DIR=/mnt/data/uploads
 RESULTS_DIR=/mnt/data/results
 LOGS_DIR=/mnt/data/logs
 RUNTIME_DIR=/mnt/data/runtime
-
-
+ 
+ 
 # PostgreSQL
-BACKEND_DB_URL="postgresql://<user>:<password>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db"
-
+BACKEND_DB_URL="postgresql://<USER_NAME>:<POSTGRES_PASSWORD>@microbiome-postgres.postgres.database.azure.com:5432/malmo_db"
+ 
 # Redis — on your free VM
-CELERY_BROKER_URL="redis://:<password>@<public ip>:6379/0"
-CELERY_RESULT_BACKEND="redis://:<password>@<public ip>:6379/0"
-
+CELERY_BROKER_URL="redis://:<REDIS_PASSWORD>@<REDIS_IP>/0"
+CELERY_RESULT_BACKEND="redis://:<REDIS_PASSWORD>@<REDIS_IP>/0"
+ 
 # Pickle file for machine learning
 # Need to update this
 MODEL_PATH=/app/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl
-
+ 
 # Snakemake
 SNAKEMAKE_PROFILE=profiles/azure_batch
 SNAKEMAKE_CONFIG=config/config_single_run.yaml
 SNAKEMAKE_BIN=snakemake
-SNAKEMAKE_TOOLS=/mnt/blob/tools
-
+SNAKEMAKE_TOOLS=/mnt/data/tools
+SNAKEMAKE_STORAGE_PREFIX=az://results/snakemake/
+ 
 # Reference databases — on Blob Storage
-KRAKEN2_DB=/mnt/blob/databases/core_nt_Database
-HUMAN_GENOME_DIR=/mnt/blob/databases/hg38_ref
+KRAKEN2_DB=/mnt/data/databases/core_nt_Database
+HUMAN_GENOME_DIR=/mnt/data/databases/hg38_ref
 HUMAN_GENOME_INDEX=hg38_index
-
-
+ 
+ 
 # Azure batch configurations
 # These are the credentials Snakemake needs to submit jobs to Azure Batch
 AZ_BATCH_ACCOUNT_URL="https://microbiomebatch.swedencentral.batch.azure.com"
+AZ_BATCH_RESOURCE_GROUP_NAME="microbiome-rg"
+AZ_BATCH_SUBSCRIPTION_ID=""
+AZ_BLOB_PREFIX="uploads"
+ 
+AZ_BATCH_ACCOUNT_NAME="microbiomebatch"
 AZ_BATCH_ACCOUNT_KEY=""
-
+ 
 # Azure Blob - Snakemake uses this to stage data to batch vms
-AZ_BLOB_ACCOUNT_URL="https://ednamicrobiomestorage.blob.core.windows.net/?<SAS Token>"
-AZ_BLOB_PREFIX=uploads
+AZURE_STORAGE_ACCOUNT="ednamicrobiomestorage"
+AZ_BLOB_SAS_TOKEN=""
+AZ_BLOB_ACCOUNT_URL="https://ednamicrobiomestorage.blob.core.windows.net/?<SAS_TOKEN>"
 
 
 # Apptainer bind mounts on Batch VMs
 APPTAINER_BINDS="--bind /mnt/blob:/mnt/blob --bind /mnt/data:/mnt/data"
 
-```
+AZURE_CLIENT_ID=""
+AZURE_CLIENT_SECRET=""
+AZURE_TENANT_ID=""
 
-Replace `<REDIS_VM_IP>`, `<BATCH_KEY>`, and `<STORAGE_CONN>` with your actual values.
+# Optional auth mode for the container entrypoint:
+#   AZURE_AUTH_MODE=managed-identity
+#   AZURE_USE_MANAGED_IDENTITY=1
+# If neither is set, the entrypoint falls back to the service principal above.
+
+# Azure Storage key
+BATCH_NODE_START_TASK_URL="https://ednamicrobiomestorage.blob.core.windows.net/startup/batch_startup.sh?<SAS_TOKEN>"
+AZURE_STORAGE_KEY="<Azure storage key>"
+
+# Apptainer configurations
+APPTAINER_NO_USERNS=1
+
+```
 
 ### Add to .gitignore
 
@@ -932,105 +984,6 @@ Replace `<REDIS_VM_IP>`, `<BATCH_KEY>`, and `<STORAGE_CONN>` with your actual va
 echo ".env.azure" >> .gitignore
 echo ".env.lunarc" >> .gitignore
 echo ".env.local" >> .gitignore
-```
-
----
-
-## Step 9 — Write `profiles/azure_batch/config.yaml`
-
-**What it is:** Tells Snakemake to use Azure Batch as the job executor instead of SLURM.
-
-```bash
-mkdir -p profiles/azure_batch
-```
-
-```yaml
-# profiles/azure_batch/config.yaml
-
-executor: azure-batch
-
-# Azure Batch connection (read from environment)
-az-batch-account-name: "${AZURE_BATCH_ACCOUNT_NAME}"
-az-batch-account-key: "${AZURE_BATCH_ACCOUNT_KEY}"
-az-batch-account-url: "${AZURE_BATCH_ACCOUNT_URL}"
-
-# Blob Storage for input/output
-az-storage-account-name: "${AZURE_STORAGE_ACCOUNT}"
-az-storage-account-key: ""
-
-# Pool settings
-az-batch-pool-id: "snakemake-pool"
-
-# Job limits
-cores: 50
-jobs: 15
-latency-wait: 60
-keep-going: true
-printshellcmds: false
-
-# Container support
-software-deployment-method:
-  - apptainer
-
-apptainer-args: "${APPTAINER_BINDS}"
-
-# Default resources for all rules
-default-resources:
-  az_batch_node_size: "Standard_D4s_v3"
-  runtime: "1h"
-  mem_mb: 8000
-
-# Per-rule overrides
-set-resources:
-  fastqc_raw:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "30m"
-    mem_mb: 2000
-
-  fastp:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "30m"
-    mem_mb: 2000
-
-  adapter_removal:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "30m"
-    mem_mb: 2000
-
-  remove_human_reads:
-    az_batch_node_size: "Standard_D4s_v3"
-    runtime: "1h"
-    mem_mb: 8000
-
-  error_correction:
-    az_batch_node_size: "Standard_D4s_v3"
-    runtime: "1h"
-    mem_mb: 16000
-
-  multiqc:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "15m"
-    mem_mb: 2000
-
-  kraken:
-    az_batch_node_size: "Standard_E96bds_v5"
-    runtime: "2h"
-    mem_mb: 460000
-
-  bracken:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "15m"
-    mem_mb: 2000
-
-  standardize_bracken:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "15m"
-    mem_mb: 500
-
-  merge_bracken:
-    az_batch_node_size: "Standard_D2s_v3"
-    runtime: "15m"
-    mem_mb: 500
 ```
 
 ---
@@ -1048,6 +1001,7 @@ az extension add --name containerapp --upgrade
 ### Create Container Apps environment
 
 ```bash
+# Create the container app environment
 az containerapp env create \
   --name microbiome-env \
   --resource-group microbiome-rg \
@@ -1061,9 +1015,9 @@ az containerapp env show \
   --output table
 
 # Register the file share with the container app environment
-az containerapp env storage set --name microbiome-env --resource-group microbiome-rg --storage-name microbiome-data --azure-file-account-name ednamicrobiomestorage --azure-file-account-key "<storage key>" --azure-file-share-name microbiome-data --access-mode ReadWrite
+az containerapp env storage set --name microbiome-env --resource-group microbiome-rg --storage-name microbiome-data --azure-file-account-name ednamicrobiomestorage --azure-file-account-key "$STORAGE_KEY" --azure-file-share-name microbiome-data --access-mode ReadWrite
 
-# CHeck if it is attached
+# Check if it is attached
 az containerapp env storage show \
   --name microbiome-env \
   --resource-group microbiome-rg \
@@ -1075,25 +1029,34 @@ az containerapp env storage show \
 ### Deploy FastAPI
 
 ```bash
+# This ensures that your yaml file has the correct env varibales
+envsubst < scripts/bash_scripts/deploy/api.yaml > /tmp/api_final.yaml
+
 az containerapp create \
-  --resource-group microbiome-rg \
-  --yaml deploy/api.yaml
+  --name microbiome-api \
+  --resource-group "$RESOURCE_GROUP" \
+  --environment "$ENVIRONMENT" \
+  --yaml /tmp/api_final.yaml
 ```
 
 ### Deploy Celery worker
 
 ```bash
+envsubst < scripts/bash_scripts/deploy/worker.yaml > /tmp/worker_final.yaml
+
 az containerapp create \
-  --resource-group microbiome-rg \
-  --yaml deploy/worker.yaml
+  --name microbiome-worker \
+  --resource-group "$RESOURCE_GROUP" \
+  --environment "$ENVIRONMENT" \
+  --yaml /tmp/worker_final.yaml
 ```
 
 ### Get your live API URL
 
 ```bash
 API_URL=$(az containerapp show \
-  --name microdentify-api \
-  --resource-group microdentify-rg \
+  --name microbiome-api \
+  --resource-group microbiome-rg \
   --query "properties.configuration.ingress.fqdn" \
   --output tsv)
 
@@ -1108,14 +1071,14 @@ Open `https://<your-url>/docs` in your browser. You should see the Swagger UI.
 
 ```bash
 az containerapp update \
-  --name microdentify-api \
-  --resource-group microdentify-rg \
-  --image microdentifyacr.azurecr.io/microdentify:latest
+  --name microbiome-api \
+  --resource-group microbiome-rg \
+  --image microbiomeacr.azurecr.io/microbiome:latest
 
 az containerapp update \
-  --name microdentify-worker \
-  --resource-group microdentify-rg \
-  --image microdentifyacr.azurecr.io/microdentify:latest
+  --name microbiome-worker \
+  --resource-group microbiome-rg \
+  --image microbiomeacr.azurecr.io/microbiome:latest
 
 # For verificaiton
 az containerapp env show --name microbiome-env --resource-group microbiome-rg -o table
@@ -1128,13 +1091,13 @@ az resource list --resource-group microbiome-rg -o table
 
 ```bash
 az containerapp delete \
-  --name microdentify-api \
-  --resource-group microdentify-rg \
+  --name microbiome-api \
+  --resource-group microbiome-rg \
   --yes
 
 az containerapp delete \
-  --name microdentify-worker \
-  --resource-group microdentify-rg \
+  --name microbiome-worker \
+  --resource-group microbiome-rg \
   --yes
 ```
 
@@ -1151,56 +1114,58 @@ mkdir -p .github/workflows
 ```
 
 ```yaml
-# .github/workflows/deploy.yml
-name: Build and Deploy to Azure
+# CD pipeline
+
+name: Build and Deploy on Azure Cloud Services
 
 on:
   push:
-    branches: [main]
+    branches: ["master"]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+  
+  steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Login to Azure 
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }} # Need to share this to github under settings
 
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Login to Azure Container Registry
+      uses: azure/docker-login@v1
+      with:
+        login-server: microbiomeacr.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Login to Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: microdentifyacr.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+    - name: Build and push the docker image
+      run: |
+        docker build -t microbiomeacr.azurecr.io/microbiome:latest -f containers/Dockerfile .
+        docker push microbiomeacr.azurecr.io/microbiome:latest
 
-      - name: Build and push Docker image
-        run: |
-          docker build -t microdentifyacr.azurecr.io/microdentify:latest .
-          docker push microdentifyacr.azurecr.io/microdentify:latest
+    - name: Deploy API
+      run: |
+        az containerapp update \
+          --name microbiome-api \
+          --resource-group microbiome-rg \
+          --image microbiomeacr.azurecr.io/microbiome:latest
 
-      - name: Deploy API
-        run: |
-          az containerapp update \
-            --name microdentify-api \
-            --resource-group microdentify-rg \
-            --image microdentifyacr.azurecr.io/microdentify:latest
-
-      - name: Deploy Worker
-        run: |
-          az containerapp update \
-            --name microdentify-worker \
-            --resource-group microdentify-rg \
-            --image microdentifyacr.azurecr.io/microdentify:latest
+    - name: Deploy Worker
+      run: |
+        az containerapp update \
+          --name microbiome-worker \
+          --resource-group microbiome-rg \
+          --image microbiomeacr.azurecr.io/microbiome:latest     
+    
 ```
 
 ### Add secrets to GitHub
 
-Go to: `GitHub repo → Settings → Secrets and variables → Actions → New repository secret`
+Go to: `GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret`
 
 Add these three secrets:
 
@@ -1208,22 +1173,22 @@ Add these three secrets:
 ```bash
 # Run this command and copy the entire JSON output
 az ad sp create-for-rbac \
-  --name "microdentify-github-actions" \
+  --name "microbiome-github-actions" \
   --role contributor \
-  --scopes /subscriptions/$SUBSCRIPTION_ID/resourceGroups/microdentify-rg \
+  --scopes /subscriptions/$SUBSCRIPTION_ID/resourceGroups/microbiome-rg \
   --sdk-auth
 ```
 
 **Secret 2: `ACR_USERNAME`**
 ```
-microdentifyacr
+microbiomeacr
 ```
 
 **Secret 3: `ACR_PASSWORD`**
 ```bash
 # Run this and copy the output
 az acr credential show \
-  --name microdentifyacr \
+  --name microbiomeacr \
   --query "passwords[0].value" \
   --output tsv
 ```
@@ -1251,7 +1216,7 @@ curl https://$API_URL/
 # Expected: {"status":"running","message":"Microdentify"}
 
 # Database tables exist
-psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=malmo password=MalmoSecure2026! sslmode=require" \
+psql "host=$POSTGRES_HOST port=5432 dbname=malmo_db user=malmo password=<passwordhere> sslmode=require" \
   -c "\dt"
 # Expected: samples, abundance tables
 
@@ -1295,27 +1260,27 @@ If you need to stop all spending immediately:
 ```bash
 # Stop Postgres (biggest ongoing cost)
 az postgres flexible-server stop \
-  --resource-group microdentify-rg \
-  --name microdentify-postgres
+  --resource-group microbiome-rg \
+  --name microbiome-postgres
 
 # Stop Redis VM
 az vm deallocate \
-  --resource-group microdentify-rg \
-  --name microdentify-redis-vm
+  --resource-group microbiome-rg \
+  --name microbiome-redis-vm
 
 # Scale API to zero
 az containerapp update \
-  --name microdentify-api \
-  --resource-group microdentify-rg \
+  --name microbiome-api \
+  --resource-group microbiome-rg \
   --min-replicas 0
 
 az containerapp update \
-  --name microdentify-worker \
-  --resource-group microdentify-rg \
+  --name microbiome-worker \
+  --resource-group microbiome-rg \
   --min-replicas 0
 
 # Nuclear option — delete everything
-az group delete --name microdentify-rg --yes
+az group delete --name microbiome-rg --yes
 ```
 
 ---
@@ -1341,19 +1306,6 @@ snakemake                       databases/kraken2/
 
 ## Cost Summary with Free Tier
 
-| Resource | Monthly Cost |
-|----------|-------------|
-| Container Registry Standard | ✅ FREE |
-| PostgreSQL B1MS | ✅ FREE (750 hrs) |
-| Linux VM B2pts (Redis) | ✅ FREE (750 hrs) |
-| Blob Storage up to 5GB | ✅ FREE |
-| Blob Storage for databases (~350GB) | 💰 ~$7/month |
-| Container Apps (2 containers) | 💰 ~$10/month |
-| Azure Batch per sample (~30 min) | 💰 ~$2–4/sample |
-| **Total fixed** | **~$17/month** |
-| **Per sample run** | **~$2–4** |
-
-With $200: fixed costs for 11+ months, plus ~50 sample runs.
 
 # Cloud Migration
 
