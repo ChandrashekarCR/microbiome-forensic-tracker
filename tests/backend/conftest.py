@@ -38,8 +38,8 @@ os.environ.setdefault("CELERY_RESULT_BACKEND", "cache+memory://")
 os.environ.setdefault("BACKEND_DB_URL", "sqlite+aiosqlite:///:memory:")
 
 # Now it's safe to import backend modules — they'll pick up the overrides.
-from backend import crud, main  # noqa: E402
-from backend.database import Base, get_async_session  # noqa: E402
+from src.backend import crud, main  # noqa: E402
+from src.backend.database import Base, get_async_session  # noqa: E402
 
 
 # 2.  Event loop — one loop per test session (needed for async fixtures).
