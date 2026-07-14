@@ -23,23 +23,6 @@ def _wrap_multioutput(estimator):
     return MultiOutputRegressor(estimator)
 
 
-# Build filtering and cleaning pipeline
-def build_preprocessing_pipeline() -> Pipeline:
-    """
-    ZeroFilter and CLR only
-    Build a pipeline that cleans the data for synthetic data generation 
-    """
-    steps = []
-
-    # Prevalence filter toggle
-    steps.append(("prevalance_filter",ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalanece,
-                                                       min_abd=config.feature_engineering.min_abundance)))
-    
-    # CLR - Centered log ratio convertion
-    steps.append(("clr_transform",CLRFilter(delta=config.feature_engineering.delta_value)))
-
-    return Pipeline(steps)
-
 # Build a pipline which is re-usable
 def build_modelling_pipeline(estimator, use_k_best: bool = False, 
                              use_network_features: bool = True, 
@@ -204,23 +187,27 @@ def evaluate_model_cv(
         y_train = y_train_coords[y_cols]
 
         # Fit preprocessing X_train_raw through zero filtering and clr
-        preprocess = build_preprocessing_pipeline()
-        X_train_clean = preprocess.fit(X_train_raw)
-        X_val_clean = preprocess.transform(X_val_raw) 
+        zero_filter = ZeroColumnFilter(
+            min_prevalence=config.feature_engineering.min_prevalance,
+            min_abd=config.feature_engineering.min_abundance
+        )
+        X_train_filtered = zero_filter.fit_transform(X_train_raw)
+        X_val_filtered = zero_filter.transform(X_val_raw)
 
-        # Preserve column names after CLR (CLRFilter should return dataframe)
+        # Apply CLR transform (no fitting needed)
+        clr_filter = CLRFilter(delta=config.feature_engineering.delta_value)
+        X_train_clean = clr_filter.transform(X_train_filtered)
+        X_val_clean = clr_filter.transform(X_val_filtered)
+
+        # Ensure DataFrames with consistent columns
         if not isinstance(X_train_clean, pd.DataFrame):
-            X_train_clean = pd.DataFrame(
-                X_train_clean,
-                columns=preprocess.named_steps["prevalence_filter"]._keep_cols_
-            )
-            X_val_clean = pd.DataFrame(
-                X_val_clean,
-                columns=preprocess.named_steps["prevalence_filter"]._keep_cols_
-            )
+            cols = zero_filter._keep_cols_  # column names after filtering
+            X_train_clean = pd.DataFrame(X_train_clean, columns=cols)
+            X_val_clean = pd.DataFrame(X_val_clean, columns=cols)
         
         # Generate in synthetic data in the clean filter space
         if data_route != DataRoute.RAW and synthesizer is not None:
+            print("Fitting synthetic data")
             synthesizer.fit(X_train_clean,y_train.reset_index(drop=True))
             syn_X, syn_y = synthesizer.generate(n=n_synthetic)
         
@@ -257,14 +244,14 @@ def evaluate_model_cv(
         pipeline.fit(X_train_final, y_train_final)
 
         # Log feature counts for this fold using the fitted preprocessing steps
-        stage_counts = log_fold_feature_counts(fold, X_train_final, X_val_clean, pipeline)
+        #stage_counts = log_fold_feature_counts(fold, X_train_final, X_val_clean, pipeline)
 
         # Store in master dictionary
-        for stage_name, counts in stage_counts.items():
-            if stage_name not in all_feature_counts:
-                all_feature_counts[stage_name] = {"train": [], "val": []}
-            all_feature_counts[stage_name]["train"].append(counts.get("train", 0))
-            all_feature_counts[stage_name]["val"].append(counts.get("val", 0))
+        #for stage_name, counts in stage_counts.items():
+        #    if stage_name not in all_feature_counts:
+        #        all_feature_counts[stage_name] = {"train": [], "val": []}
+        #    all_feature_counts[stage_name]["train"].append(counts.get("train", 0))
+        #    all_feature_counts[stage_name]["val"].append(counts.get("val", 0))
 
         # 4. Predict on validation
         preds_val = pipeline.predict(X_val_clean)

@@ -14,37 +14,63 @@ import mlflow.sklearn
 from omegaconf import ListConfig
 from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV
+from dataclasses import dataclass, field
+from sklearn.base import BaseEstimator
+import pandas as pd
+from typing import Optional
+from enum import Enum
+
 
 from ml.config import config
 from ml.mlflow_utils import log_model_metrics, log_model_params, start_run
 from ml.model_registry import models as model_registry
-from ml.models import TrainTestSplit, load_and_prep_data
-from ml.pipeline import build_pipeline, evaluate_model_cv, get_configured_cv_split
+from ml.models import TrainTestSplit, load_and_prep_data, TVAEDataSynthesizer, BaseSynthesizer, DataRoute
+from ml.pipeline import build_modelling_pipeline,evaluate_model_cv, get_configured_cv_split
 
 TAXONOMY_TABLES = {
-    "phylum": "malmo_phylum",
-    "class": "malmo_class",
-    "order": "malmo_order",
-    "family": "malmo_family",
-    "genus": "malmo_genus",
+#   "phylum": "malmo_phylum",
+#    "class": "malmo_class",
+#    "order": "malmo_order",
+#    "family": "malmo_family",
+#    "genus": "malmo_genus",
     "species": "malmo_species",
 }
 
+class Synthesizertype(str,Enum):
+    NONE = "none"
+    BOOTSTRAP = "bootstrap"
+    TVAE = "tvae"
 
+@dataclass
+class SynthesizerConfig:
+    synthesizer_type: Synthesizertype = Synthesizertype.NONE
+    n_synthetic: int = 500
+    epochs: int = 100
+    batch_size: int = 128
+    data_routes: list = field(default_factory=lambda: [DataRoute.RAW])
 
-# STAGE 1: Taxonomy Baseline
-# In this stage, we are intrested in which of the following models from our config file and
-# which of the following taxonomy levels give the best result, i.e least mean_error_km
-
-
-def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
+@dataclass
+class ExperimentSetup:
     """
-    Experiment 1: Determine which taxonomy level provides best geolocation signal.
-    Uses all baseline models (no feature engineering, no hyperparameter tuning).
+    Container for all experiment context.
     """
-    print(f"STAGE 1: Taxonomy Baseline {model_type} (no feature engineering, no hyperparameter tuning)")
+    taxonomy_level: str
+    table_name: str
+    model_type: str
+    model_family: str
+    estimator: BaseEstimator
+    df: pd.DataFrame
+    splitter: TrainTestSplit
+    n_samples: int
+    use_meters: bool
+    cv_strategy: str
+    synthesizer_config: Optional[SynthesizerConfig] = None
 
-    stage1_results = {}
+
+def setup_experiment(taxonomy_level: str, 
+                     model_type: str, 
+                     use_meters: bool = None,
+                     synthesizer_config: SynthesizerConfig = None) -> ExperimentSetup:
 
     # Get the baseline models from the model registry
     all_models = []
@@ -56,30 +82,80 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
         if selected_model is None:
             available = [m["model_type"] for m in all_models]
             raise ValueError(f"Model '{model_type}' not enabled. Available: {available}")
-    else:
-        selected_model = all_models[0]  # Use first enabled model
-        model_type = selected_model["model_type"]
 
-    model_family = selected_model["family"]  # tree or linear
+    # Get the table name
+    table_name = TAXONOMY_TABLES.get(taxonomy_level)
+    if table_name is None:
+        raise ValueError(f"Unknown taxonomy level: {taxonomy_level}")
+    
+    # Config and data load
+    config.database.table = table_name
+    df = load_and_prep_data()
 
-    print(f"Using model:{model_type}, family: {model_family}")
+    # Create splitter
+    splitter = TrainTestSplit(
+        df,
+        n_splits=config.data_splitting.n_splits,
+        test_size=config.data_splitting.test_size,
+    )
 
-    for level, table in TAXONOMY_TABLES.items():
-        print(f"\nRunning taxonomy level: {level} (table: {table})")
+    # Other configurations
+    if use_meters is None:
+        use_meters = config.pipeline_excecution.get("use_cartesian_meters",True)
+    cv_strategy = config.pipeline_excecution.get("cv_strategy","stratified")
 
-        # Override config to load from correct table
-        config.database.table = table
+    return ExperimentSetup(
+        taxonomy_level=taxonomy_level,
+        table_name=table_name,
+        model_type=selected_model["model_type"],
+        model_family=selected_model["family"],
+        estimator=selected_model["estimator"],
+        df=df,
+        splitter=splitter,
+        n_samples=len(df),
+        use_meters=use_meters,
+        cv_strategy=cv_strategy,
+        synthesizer_config=synthesizer_config
+    )
 
-        # Load data for this taxonomy level
-        df = load_and_prep_data()
-        print(f"Loaded {len(df)} samples with {df.shape[1] - 3} taxa (after sample_id, zone, coords)")
-
-        # Create train/test split
-        splitter = TrainTestSplit(
-            df,
-            n_splits=config.data_splitting.n_splits,
-            test_size=config.data_splitting.test_size,
+def build_synthesizer(synth_config: SynthesizerConfig) -> Optional[BaseSynthesizer]:
+    """Instantiate the correct synthesizer from config."""
+    if synth_config is None or synth_config.synthesizer_type == Synthesizertype.NONE:
+        return None
+    if synth_config.synthesizer_type == Synthesizertype.TVAE:
+        return TVAEDataSynthesizer(
+            epochs=synth_config.epochs,
+            batch_size=synth_config.batch_size
         )
+
+# STAGE 1: Taxonomy Baseline
+# In this stage, we are intrested in which of the following models from our config file and
+# which of the following taxonomy levels give the best result, i.e least mean_error_km
+
+
+def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
+                                 synthesizer_config: SynthesizerConfig = None,
+                                 data_route: DataRoute = DataRoute.RAW):
+    """
+    Experiment 1: Determine which taxonomy level provides best geolocation signal.
+    Uses all baseline models (no feature engineering, no hyperparameter tuning).
+    """
+    print(f"STAGE 1: Taxonomy Baseline {model_type} - route: {data_route.value}")
+    
+    stage1_results = {}
+
+
+    for level in TAXONOMY_TABLES.keys():
+        print(f"\nRunning taxonomy level: {level}")
+
+        # Setup configurations
+        setup = setup_experiment(taxonomy_level=level, 
+                                 model_type=model_type,
+                                 synthesizer_config=synthesizer_config)
+
+        # Build the synthesizer if any
+        synthesizer = build_synthesizer(synthesizer_config) if synthesizer_config else None
+        n_synthetic = synthesizer_config.n_synthetic if synthesizer_config else None
 
         # Create MLflow run
         run_name = f"stage1_{model_type}_{level}_{int(time.time())}"
@@ -87,31 +163,41 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
             # === TAGS ===
             mlflow.set_tag("stage", "stage1_taxonomy_baseline")
             mlflow.set_tag("taxonomy_level", level)
-            mlflow.set_tag("model_type", model_type)  # e.g., "RandomForest"
-            mlflow.set_tag("model_family", model_family)  # e.g., "tree"
+            mlflow.set_tag("model_type", setup.model_type)  # e.g., "RandomForest"
+            mlflow.set_tag("model_family", setup.model_family)  # e.g., "tree"
+            mlflow.set_tag("data_route", data_route.value)
+            mlflow.set_tag("synthesizer_type", 
+                           synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
             mlflow.set_tag("use_network_features", "False")
             mlflow.set_tag("use_k_best", "False")
             mlflow.set_tag("use_rfe", "False")
 
             # === PARAMETERS ===
-            mlflow.log_params(
-                {
-                    "taxonomy_table": table,
-                    "model_type": model_type,
-                    "model_family": model_family,
-                    "n_samples": len(df),
-                    "cv_strategy": config.pipeline_excecution.get("cv_strategy"),
-                    "use_meters": config.pipeline_excecution.get("use_cartesian_meters"),
-                }
-            )
+            params = {
+                "taxonomy_table": setup.table_name,
+                "model_type": setup.model_type,
+                "model_family": setup.model_family,
+                "n_samples_real": setup.n_samples,
+                "cv_strategy": setup.cv_strategy,
+                "use_meters": setup.use_meters,
+                "data_route": data_route.value,
+                "n_synthetic": n_synthetic,
+            }
+            if synthesizer_config:
+                params["synthesizer_epochs"] = synthesizer_config.epochs
+                params["synthesizer_batch_size"] = synthesizer_config.batch_size
+            mlflow.log_params(params)
 
             # Log XGBoost model hyperparameters
-            log_model_params(selected_model["estimator"])
+            log_model_params(setup.estimator)
 
             # Evaluate the model across CV folds
-            print(f"Evaluating {selected_model['model_type']} with {config.data_splitting.n_splits} splits...")
             avg_mekm, summary_metrics = evaluate_model_cv(
-                splitter, selected_model["estimator"], use_network_features=False, use_k_best=False, feature_flags=None, model_family=model_family
+                setup.splitter, setup.estimator,
+                synthesizer=synthesizer,
+                data_route=data_route,n_synthetic=n_synthetic,
+                use_network_features=False, 
+                use_k_best=False, feature_flags=None, model_family=setup.model_family
             )
 
             # Log evaluation metrics
@@ -119,7 +205,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor"):
 
             # Store result
             stage1_results[level] = {
-                "model_name": selected_model["model_type"],
+                "model_name": setup.model_type,
                 "avg_mekm": avg_mekm,
                 "metrics": summary_metrics,
                 "run_id": mlflow.active_run().info.run_id,
@@ -381,8 +467,7 @@ def run_stage4_hyperparameter_tuning(
     use_network_features: bool = False,
     use_kbest: bool = True,
     feature_flags: dict = None,
-    n_iter: int = 20,
-):
+    n_iter: int = 20):
     """
     Stage 4: Hyperparameter tuning with MLflow logging.
 
@@ -463,7 +548,7 @@ def run_stage4_hyperparameter_tuning(
             mlflow.log_params({f"fe_{k}": v for k, v in feature_flags.items()})
 
         # 7. Build pipeline (once, for the search)
-        pipeline = build_pipeline(
+        pipeline = build_modelling_pipeline(
             estimator=clone(base_estimator),
             use_network_features=use_network_features,
             use_k_best=use_kbest,
@@ -517,7 +602,7 @@ def run_stage4_hyperparameter_tuning(
 
         # 12. Fit final pipeline on the full training set
         print("\nFitting final pipeline on full training set...")
-        final_pipeline = build_pipeline(
+        final_pipeline = build_modelling_pipeline(
             estimator=clone(tuned_estimator),
             use_network_features=use_network_features,
             use_k_best=use_kbest,
@@ -561,8 +646,19 @@ def main():
     mlflow.set_experiment(config.mlflow.experiment_name)
 
     try:
-        # Stage 1: Determine best taxonomy level
-        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
+        # Stage 1: Determine best taxonomy level     
+        synthetic_config = SynthesizerConfig(
+            synthesizer_type=Synthesizertype.TVAE,
+            n_synthetic=1000,
+            epochs=300,
+            batch_size=32
+        )
+
+        best_synth, results_synth = run_stage1_taxonomy_baseline(
+            model_type="XGBoost",
+            synthesizer_config=synthetic_config,
+            data_route=DataRoute.COMBINED
+        )
 
         # Stage 2: Determine best feature engineering approach
         # stage2_results = run_stage2_fe_kbest("species", "RandomForest")

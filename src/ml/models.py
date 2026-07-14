@@ -11,6 +11,7 @@ from ml.data_loading import DatabaseRSA
 from abc import ABC, abstractmethod
 from sdv.metadata import SingleTableMetadata
 from sdv.single_table import TVAESynthesizer
+import torch
 
 
 # Load the data from the SQL database
@@ -131,12 +132,13 @@ class TVAEDataSynthesizer(BaseSynthesizer):
     Fit on combined (X,y) to learn joint distribution
     """
 
-    def __init__(self, epochs:int=300, batch_size:int=32):
+    def __init__(self, epochs:int=300, batch_size:int=32, cuda: bool = True):
         self.epochs = epochs
         self.batch_size = batch_size
         self.synthesizer = None
         self._x_cols = None
         self._y_cols = None
+        self.cuda = cuda and torch.cuda.is_available()
 
     def fit(self, X:pd.DataFrame, y:pd.DataFrame) -> None:
         self._x_cols = X.columns.tolist()
@@ -156,7 +158,8 @@ class TVAEDataSynthesizer(BaseSynthesizer):
             metadata,
             enforce_min_max_values=True,
             epochs=self.epochs,
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            enable_gpu=self.cuda
         )
 
         self.synthesizer.fit(combined_df)
