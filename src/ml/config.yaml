@@ -76,6 +76,8 @@ feature_engineering:
   max_iter: 500
   top_k_edges: 200
   k_best_features: 128
+  min_abundance: 1e-6
+  delta_value: 1e-6
 
 
 # Stage 3: Tuned hyperparameters (only for top 5)

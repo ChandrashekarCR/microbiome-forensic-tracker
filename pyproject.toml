@@ -189,6 +189,8 @@ all = [
     "mlflow>=2.0",
     "imbalanced-learn>=0.12",
     "omegaconf>=2.3",
+    "sdv==1.37.3",
+
 
     # =========================
     # BIOINFORMATICS CORE

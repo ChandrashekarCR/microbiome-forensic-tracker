@@ -31,6 +31,7 @@ TAXONOMY_TABLES = {
 }
 
 
+
 # STAGE 1: Taxonomy Baseline
 # In this stage, we are intrested in which of the following models from our config file and
 # which of the following taxonomy levels give the best result, i.e least mean_error_km
@@ -561,7 +562,7 @@ def main():
 
     try:
         # Stage 1: Determine best taxonomy level
-        # best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
+        best_taxonomy, stage1_results = run_stage1_taxonomy_baseline(model_type="ExtraTreesRegressor")
 
         # Stage 2: Determine best feature engineering approach
         # stage2_results = run_stage2_fe_kbest("species", "RandomForest")
@@ -571,12 +572,12 @@ def main():
 
         # Stage 4 remains optional/disabled unless you explicitly enable it later
         # Tune RandomForest on genus level without network features
-        best_pipe, error, params, run_id = run_stage4_hyperparameter_tuning(
-            taxonomy_level="species", model_type="RandomForest", use_network_features=False, use_kbest=True, n_iter=60
-        )
+        #best_pipe, error, params, run_id = run_stage4_hyperparameter_tuning(
+        #    taxonomy_level="species", model_type="RandomForest", use_network_features=False, use_kbest=True, n_iter=60
+        #)
 
-        print(f"Best error: {error:.2f} km")
-        print(f"Best params: {params}")
+        #print(f"Best error: {error:.2f} km")
+        #print(f"Best params: {params}")
 
     except Exception as e:
         print(f"\nError: {e}")

@@ -8,9 +8,9 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import KBestFeatureSelection, LinearModelScaler, MicrobiomeFeatureEngineer, ZeroColumnFilter
+from ml.features import KBestFeatureSelection, LinearModelScaler, MicrobiomeFeatureEngineer, ZeroColumnFilter, CLRFilter
 from ml.mlflow_utils import log_feature_count
-from ml.models import TrainTestSplit
+from ml.models import TrainTestSplit, DataRoute, BaseSynthesizer
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="sklearn.covariance")
 
@@ -23,15 +23,32 @@ def _wrap_multioutput(estimator):
     return MultiOutputRegressor(estimator)
 
 
+# Build filtering and cleaning pipeline
+def build_preprocessing_pipeline() -> Pipeline:
+    """
+    ZeroFilter and CLR only
+    Build a pipeline that cleans the data for synthetic data generation 
+    """
+    steps = []
+
+    # Prevalence filter toggle
+    steps.append(("prevalance_filter",ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalanece,
+                                                       min_abd=config.feature_engineering.min_abundance)))
+    
+    # CLR - Centered log ratio convertion
+    steps.append(("clr_transform",CLRFilter(delta=config.feature_engineering.delta_value)))
+
+    return Pipeline(steps)
+
 # Build a pipline which is re-usable
-def build_pipeline(estimator, use_network_features: bool = True, use_k_best: bool = False, feature_flags: dict = None, model_family: str = "tree"):
+def build_modelling_pipeline(estimator, use_k_best: bool = False, 
+                             use_network_features: bool = True, 
+                             feature_flags: dict = None, 
+                             model_family: str = "tree") -> Pipeline:
     """
     Build a reusable pipeline with optional network feature engineering.
     """
     steps = []
-
-    # Prevalence filter toggle switch
-    steps.append(("zeros_filter", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalence)))
 
     # Select the best features
     if use_k_best:
@@ -42,7 +59,6 @@ def build_pipeline(estimator, use_network_features: bool = True, use_k_best: boo
         # Default flags if not provieded
         if feature_flags is None:
             feature_flags = {
-                "use_clr": True,
                 "use_degree": False,
                 "use_hub": False,
                 "use_edge": False,
@@ -56,7 +72,6 @@ def build_pipeline(estimator, use_network_features: bool = True, use_k_best: boo
                     cv_folds=config.feature_engineering.cv_folds,
                     max_iter=config.feature_engineering.max_iter,
                     top_k_edges=feature_flags.get("top_k_edges", config.feature_engineering.top_k_edges),
-                    use_clr=feature_flags.get("use_clr", True),
                     use_degree=feature_flags.get("use_degree", False),
                     use_hub=feature_flags.get("use_hub", False),
                     use_edge=feature_flags.get("use_edge", False),
@@ -153,6 +168,9 @@ def get_configured_cv_split(splitter: TrainTestSplit):
 def evaluate_model_cv(
     splitter: TrainTestSplit,
     estimator,
+    synthesizer: BaseSynthesizer = None,
+    data_route: DataRoute = DataRoute.RAW,
+    n_synthetic: int = 500,
     use_network_features: bool = False,
     use_k_best: bool = False,
     feature_flags: dict = None,
@@ -174,28 +192,72 @@ def evaluate_model_cv(
     cv_splits = get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
+    y_cols = ["X_meters", "Y_meters"] if use_meters else ["latitude", "longitude"]
 
     for fold, (train_idx, val_idx) in enumerate(cv_splits):
         # 1. Get fold data
-        X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
+        X_train_raw, X_val_raw, y_train_zone, y_val_zone, \
+        y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
 
         # Check if the use meters is switched on or off. If we are using cartesion then we need to train on x,y as cartesion cordinates
         # and not as latitude and longitude
-        if use_meters:
-            y_train_coords = y_train_coords[["X_meters", "Y_meters"]]
+        y_train = y_train_coords[y_cols]
+
+        # Fit preprocessing X_train_raw through zero filtering and clr
+        preprocess = build_preprocessing_pipeline()
+        X_train_clean = preprocess.fit(X_train_raw)
+        X_val_clean = preprocess.transform(X_val_raw) 
+
+        # Preserve column names after CLR (CLRFilter should return dataframe)
+        if not isinstance(X_train_clean, pd.DataFrame):
+            X_train_clean = pd.DataFrame(
+                X_train_clean,
+                columns=preprocess.named_steps["prevalence_filter"]._keep_cols_
+            )
+            X_val_clean = pd.DataFrame(
+                X_val_clean,
+                columns=preprocess.named_steps["prevalence_filter"]._keep_cols_
+            )
+        
+        # Generate in synthetic data in the clean filter space
+        if data_route != DataRoute.RAW and synthesizer is not None:
+            synthesizer.fit(X_train_clean,y_train.reset_index(drop=True))
+            syn_X, syn_y = synthesizer.generate(n=n_synthetic)
+        
+            # Align columns (synthesizer might reorder)
+            syn_X = syn_X.reindex(columns=X_train_clean.columns,fill_value=0.0)
+            syn_y = syn_y.reindex(columns=y_cols,fill_value=0.0)
+
+            if data_route == DataRoute.SYNTHETIC:
+                X_train_final = syn_X.reset_index(drop=True)
+                y_train_final = syn_y.reset_index(drop=True)
+            else: # Combined  = raw + synthetic
+                X_train_final = pd.concat(
+                    [X_train_clean.reset_index(drop=True),syn_X],
+                    ignore_index=True
+                )
+                y_train_final = pd.concat(
+                    [y_train.reset_index(drop=True),syn_y],
+                    ignore_index=True
+                )
         else:
-            y_train_coords = y_train_coords[["latitude", "longitude"]]
+            X_train_final = X_train_clean.reset_index(drop=True)
+            y_train_final = y_train.reset_index(drop=True)
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
-        pipeline = build_pipeline(
-            clone(estimator), use_network_features=use_network_features, use_k_best=use_k_best, feature_flags=feature_flags, model_family=model_family
+        pipeline = build_modelling_pipeline(
+            clone(estimator), 
+            use_network_features=use_network_features, 
+            use_k_best=use_k_best, 
+            feature_flags=feature_flags, 
+            model_family=model_family
         )
 
         # 3. Fit the models
-        pipeline.fit(X_train, y_train_coords)
+        pipeline.fit(X_train_final, y_train_final)
 
         # Log feature counts for this fold using the fitted preprocessing steps
-        stage_counts = log_fold_feature_counts(fold, X_train, X_val, pipeline)
+        stage_counts = log_fold_feature_counts(fold, X_train_final, X_val_clean, pipeline)
 
         # Store in master dictionary
         for stage_name, counts in stage_counts.items():
@@ -205,7 +267,7 @@ def evaluate_model_cv(
             all_feature_counts[stage_name]["val"].append(counts.get("val", 0))
 
         # 4. Predict on validation
-        preds_val = pipeline.predict(X_val)
+        preds_val = pipeline.predict(X_val_clean)
 
         # 5. Custom evaluation script (use projected meters if configured)
         if use_meters:

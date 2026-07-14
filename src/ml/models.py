@@ -1,10 +1,16 @@
 import pandas as pd
 from pyproj import Transformer
 from sklearn.model_selection import GroupKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
+from enum import Enum
+
 
 from malmo_samples.db_reader import DatabaseCreate
 from ml.config import config
 from ml.data_loading import DatabaseRSA
+
+from abc import ABC, abstractmethod
+from sdv.metadata import SingleTableMetadata
+from sdv.single_table import TVAESynthesizer
 
 
 # Load the data from the SQL database
@@ -107,6 +113,66 @@ class TrainTestSplit:
         """
         return self.X_test, self.y_test_zone, self.y_test_coords
 
+class BaseSynthesizer(ABC):
+    """Abstract base for all synthetic data generators."""
+
+    @abstractmethod
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> None:
+        pass
+
+    @abstractmethod
+    def generate(self, n: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Returns (synthetic_X, synthetic_y)"""
+        pass
+
+class TVAEDataSynthesizer(BaseSynthesizer):
+    """
+    TVAE based synthesizer using SDV
+    Fit on combined (X,y) to learn joint distribution
+    """
+
+    def __init__(self, epochs:int=300, batch_size:int=32):
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.synthesizer = None
+        self._x_cols = None
+        self._y_cols = None
+
+    def fit(self, X:pd.DataFrame, y:pd.DataFrame) -> None:
+        self._x_cols = X.columns.tolist()
+        self._y_cols = y.columns.to_list()
+
+        # We need to combined this to a dataframe
+        combined_df = pd.concat([X.reset_index(drop=True),y.reset_index(drop=True)],axis=1)
+
+        # Initialize metadata class
+        metadata = SingleTableMetadata()
+        metadata.detect_from_dataframe(combined_df)
+        for cols in self._y_cols:
+            metadata.update_column(column_name=cols,sdtype="numerical")
+        
+        # Initialize the synthesizer
+        self.synthesizer = TVAESynthesizer(
+            metadata,
+            enforce_min_max_values=True,
+            epochs=self.epochs,
+            batch_size=self.batch_size
+        )
+
+        self.synthesizer.fit(combined_df)
+    
+    def generate(self, n:int) -> tuple[pd.DataFrame,pd.DataFrame]:
+        synthetic = self.synthesizer.sample(num_rows=n)
+
+        return synthetic[self._x_cols].reset_index(drop=True), \
+                synthetic[self._y_cols].reset_index(drop=True)
+        
+
+
+class DataRoute(str, Enum):
+    RAW = "raw"               # only real data (your current baseline)
+    SYNTHETIC = "synthetic"   # only synthetic data
+    COMBINED = "combined"     # real + synthetic (most useful)
 
 # df = load_and_prep_data()
 # splitter = TrainTestSplit(df)

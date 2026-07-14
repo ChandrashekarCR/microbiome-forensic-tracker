@@ -45,6 +45,78 @@ class ZeroColumnFilter(BaseEstimator, TransformerMixin):
         X_out = X_out.loc[:, ~X_out.columns.duplicated(keep="first")]
         return X_out.astype(float)
 
+class CLRFilter(BaseEstimator, TransformerMixin):
+    """
+    Centered Log-Ratio (CLR) transformation for compositional data.
+    
+    Steps:
+        1. Multiplicative replacement of zeros (impute with delta)
+        2. Row-wise normalization to relative abundance (sum = 1)
+        3. CLR: log(x) - mean(log(x)) for each sample
+    
+    This is a standalone transformer that can be used in an sklearn Pipeline.
+    """
+    
+    def __init__(self, delta: float = 1e-6):
+        """
+        Parameters
+        ----------
+        delta : float, default=1e-6
+            Small pseudo-count to replace zeros before log transformation.
+        """
+        self.delta = delta
+
+    def fit(self, X, y=None):
+        """
+        Fit method - does nothing (CLR is parameter-free).
+        Required for sklearn pipeline compatibility.
+        """
+        return self
+
+    def transform(self, X) -> pd.DataFrame:
+        """
+        Apply CLR transformation to the input data.
+        
+        Parameters
+        ----------
+        X : pd.DataFrame or np.ndarray
+            Relative abundance data (features as columns, samples as rows).
+            Can contain zeros - they will be handled.
+            
+        Returns
+        -------
+        pd.DataFrame or np.ndarray
+            CLR-transformed data (same shape as input).
+        """
+        # Preserve index/columns if input is DataFrame
+        is_df = isinstance(X, pd.DataFrame)
+        if is_df:
+            index = X.index
+            columns = X.columns
+            X = X.values
+        else:
+            X = np.asarray(X, dtype=float)
+
+        # Step 1: Multiplicative replacement (handle zeros)
+        X[X == 0] = self.delta
+
+        # Step 2: Row normalization (ensure compositional)
+        row_sums = X.sum(axis=1, keepdims=True)
+        # Safety check: if any row sums to 0 (shouldn't happen after replacement)
+        row_sums[row_sums == 0] = self.delta
+        X = X / row_sums
+
+        # Step 3: Clipping to avoid log(0) or log(negative) 
+        X = np.clip(X, self.delta, 1.0)
+
+        # Step 4: Centered Log-Ratio transformation 
+        clr_transformed = clr(X)
+
+        # Step 5: Return in same format as input
+        if is_df:
+            return pd.DataFrame(clr_transformed, index=index, columns=columns)
+        return clr_transformed
+
 
 class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
     """
@@ -58,7 +130,6 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         max_iter: int = 2000,
         n_jobs: int = -1,
         top_k_edges: int = 20,
-        use_clr: bool = True,
         use_degree: bool = False,
         use_hub: bool = False,
         use_edge: bool = False,
@@ -71,33 +142,9 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         self.glasso = GraphicalLassoCV(cv=self.cv_folds, n_jobs=self.n_jobs, max_iter=self.max_iter)
         self.precision_matrix = None  # Sparse Inverse Covariance matrix
         self.adjacency_matrix = None  # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
-        self.use_clr = use_clr
         self.use_degree = use_degree
         self.use_hub = use_hub
         self.use_edge = use_edge
-
-    def multiplicative_replacement(self, X: np.ndarray, delta: float = 1e-6) -> pd.DataFrame:
-        """
-        CLR log transformation requires non zeros values when adding a small delta value (negligible).
-        Includes numerical stability checks.
-        """
-        X = np.array(X, dtype=float)
-
-        # Replace zeros with delta
-        X[X == 0] = delta
-
-        # Normalize by row sums (relative abundance)
-        row_sums = X.sum(axis=1, keepdims=True)
-        if np.any(row_sums <= 0):
-            print("Warning: Zero or negative row sums detected. Adding minimum threshold.")
-            row_sums = np.maximum(row_sums, delta)
-
-        X = X / row_sums
-
-        # Clip to valid range to avoid log(0) or log(negative)
-        X = np.clip(X, delta, 1.0 - delta)
-
-        return X
 
     def get_top_edges_by_absolute_weight(self, precision_matrix, taxa_names, top_k=20):
         """
@@ -138,8 +185,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         X_raw = X.values.copy()
 
         # CLR (Centered Log Ratio) Transformation to handle compositional data from sequencing
-        X_nonzero = self.multiplicative_replacement(X_raw)
-        self.X_clr_train_ = clr(X_nonzero)
+        self.X_clr_train_ = X_raw
 
         # Check for NaN or Inf
         if np.any(~np.isfinite(self.X_clr_train_)):
@@ -184,9 +230,8 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         features = {}
 
         # a) Raw CLR features
-        if self.use_clr:
-            for i, taxon in enumerate(self.taxa_names_):
-                features[f"clr_{taxon}"] = X_clr_data[:, i]
+        for i, taxon in enumerate(self.taxa_names_):
+            features[f"clr_{taxon}"] = X_clr_data[:, i]
 
         # b) Degree-weighted abundances (amplify ecologically connected taxa)
         if self.use_degree:
@@ -346,3 +391,8 @@ class LinearModelScaler(BaseEstimator, TransformerMixin):
             return pd.DataFrame(X_scaled, index=X.index, columns=X.columns)
 
         return X_scaled
+
+
+
+
+
