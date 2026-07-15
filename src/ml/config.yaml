@@ -6,8 +6,8 @@ database:
 data_splitting:
   test_size: 0.2
   random_state: 42
-  n_splits: 5
-  n_repeats: 1
+  n_splits: 7
+  n_repeats: 3
 
 mlflow:
   experiment_name: "Microbiome_Geolocation"
@@ -16,7 +16,7 @@ mlflow:
 # Pipeline excecution
 pipeline_excecution:
   allowed_families: ["tree"]
-  cv_strategy: "stratified" # Options: "loo" (Leave-One-Out), "repeated_kfold", "stratified", "group_kfold"
+  cv_strategy: "group_kfold" # Options: "loo" (Leave-One-Out), "repeated_kfold", "stratified", "group_kfold"
   use_cartesian_meters: true 
 
 
@@ -73,9 +73,9 @@ feature_engineering:
   min_prevalance: 0.05
   use_network_features: true
   cv_folds: 3
-  max_iter: 500
+  max_iter: 2000
   top_k_edges: 200
-  k_best_features: 128
+  k_best_features: 64
   min_abundance: 1e-6
   delta_value: 1e-6
 

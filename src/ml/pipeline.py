@@ -8,7 +8,7 @@ from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import KBestFeatureSelection, LinearModelScaler, MicrobiomeFeatureEngineer, ZeroColumnFilter, CLRFilter
+from ml.features import KBestFeatureSelection, LinearModelScaler, GraphLaplacianFeatureEngineer, ZeroColumnFilter, CLRFilter
 from ml.mlflow_utils import log_feature_count
 from ml.models import TrainTestSplit, DataRoute, BaseSynthesizer
 
@@ -39,26 +39,30 @@ def build_modelling_pipeline(estimator, use_k_best: bool = False,
 
     # Feature Engineering toggle switch
     if use_network_features:
-        # Default flags if not provieded
+        # Default flags if none provided (fallback to CLR‑only)
         if feature_flags is None:
-            feature_flags = {
-                "use_degree": False,
-                "use_hub": False,
-                "use_edge": False,
-                "top_k_edges": config.feature_engineering.top_k_edges,
-            }
+            feature_flags = {}
+
+        # Extract all parameters that GraphLaplacianFeatureEngineer accepts
+        # We'll pass the whole dict, but only keys that are in the class's __init__
+        valid_keys = [
+            "cv_folds", "max_iter", "n_jobs", 
+            "n_spectral_features", "min_community_size", 
+            "edge_threshold", "eps",
+            "use_spectral", "use_global_graph", "use_community"
+        ]
+        network_kwargs = {k: v for k, v in feature_flags.items() if k in valid_keys}
+
+        # If any required parameter is missing, fall back to config defaults
+        if "cv_folds" not in network_kwargs:
+            network_kwargs["cv_folds"] = config.feature_engineering.cv_folds
+        if "max_iter" not in network_kwargs:
+            network_kwargs["max_iter"] = config.feature_engineering.max_iter
 
         steps.append(
             (
                 "network_features",
-                MicrobiomeFeatureEngineer(
-                    cv_folds=config.feature_engineering.cv_folds,
-                    max_iter=config.feature_engineering.max_iter,
-                    top_k_edges=feature_flags.get("top_k_edges", config.feature_engineering.top_k_edges),
-                    use_degree=feature_flags.get("use_degree", False),
-                    use_hub=feature_flags.get("use_hub", False),
-                    use_edge=feature_flags.get("use_edge", False),
-                ),
+                GraphLaplacianFeatureEngineer(**network_kwargs),
             )
         )
         if use_k_best:

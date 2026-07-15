@@ -130,9 +130,9 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         max_iter: int = 2000,
         n_jobs: int = -1,
         top_k_edges: int = 20,
-        use_degree: bool = False,
-        use_hub: bool = False,
         use_edge: bool = False,
+        use_community: bool = True,
+        min_community_size: int =3
     ):
 
         self.cv_folds = cv_folds
@@ -142,9 +142,9 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         self.glasso = GraphicalLassoCV(cv=self.cv_folds, n_jobs=self.n_jobs, max_iter=self.max_iter)
         self.precision_matrix = None  # Sparse Inverse Covariance matrix
         self.adjacency_matrix = None  # Binary graph matrix 1 denotes edge between two taxa and 0 is no edge
-        self.use_degree = use_degree
-        self.use_hub = use_hub
         self.use_edge = use_edge
+        self.use_community = use_community
+        self.min_community_size = min_community_size
 
     def get_top_edges_by_absolute_weight(self, precision_matrix, taxa_names, top_k=20):
         """
@@ -208,11 +208,26 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         # Any value sufficiently far from 0 is an edge
         self.adjacency_matrix = (np.abs(self.precision_matrix) > 1e-5).astype(int)
         np.fill_diagonal(self.adjacency_matrix, 0)
-        G = nx.from_numpy_array(self.adjacency_matrix)
+        
+        G = nx.Graph()
+        G.add_nodes_from(range(len(self.taxa_names_)))
+        rows, cols = np.where(np.triu(self.adjacency_matrix, k=1) == 1)
+        for r,c in zip(rows,cols):
+            G.add_edge(int(r),int(c),weight=float(abs(self.precision_matrix[r,c])))
+        
+        raw_communities = nx.community.louvain_communities(G,weight="weight",seed=42)
+
+        self._communities_ = [
+            {"community_id": i, "taxa": [self.taxa_names_[idx] for idx in sorted(comm)]}
+            for i, comm in enumerate(raw_communities)
+            if len(comm) >= self.min_community_size
+        ]
+
 
         # Extract network derived features per taxon
-        self.degree_centrality = nx.degree_centrality(G)
-        self.betweenness = nx.betweenness_centrality(G)
+        Gd = nx.from_numpy_array(self.adjacency_matrix)
+        self.degree_centrality = nx.degree_centrality(Gd)
+        self.betweenness = nx.betweenness_centrality(Gd)
 
         return self
 
@@ -221,8 +236,9 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         Apply learned transformation to any data (train,val or test)
         """
         X_raw = X.values.copy()
-        X_nonzero = self.multiplicative_replacement(X_raw)
-        X_clr_data = clr(X_nonzero)
+        #X_nonzero = self.multiplicative_replacement(X_raw)
+        #X_clr_data = clr(X_nonzero)
+        X_clr_data = X_raw
 
         if np.any(~np.isfinite(X_clr_data)):
             X_clr_data = np.nan_to_num(X_clr_data, nan=0.0, posinf=0.0, neginf=0.0)
@@ -232,20 +248,17 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         # a) Raw CLR features
         for i, taxon in enumerate(self.taxa_names_):
             features[f"clr_{taxon}"] = X_clr_data[:, i]
+        
+        # b) Community aggregated scores
+        if self.use_community:
+            col_index = {name: i for i, name in enumerate(self.taxa_names_)}
+            for comm in self._communities_:
+                idx = [col_index[t] for t in comm["taxa"] if t in col_index]
+                if len(idx) < self.min_community_size:
+                    continue
+                features[f"community_{comm['community_id']}_score"] = X_clr_data[:,idx].sum(axis=1)
 
-        # b) Degree-weighted abundances (amplify ecologically connected taxa)
-        if self.use_degree:
-            for i, taxon in enumerate(self.taxa_names_):
-                deg = self.degree_centrality.get(i, 0)
-                features[f"deg_weighted_{taxon}"] = X_clr_data[:, i] * deg
-
-        # c) Hub scores (betweenness-weighted)
-        if self.use_hub:
-            for i, taxon in enumerate(self.taxa_names_):
-                btw = self.betweenness.get(i, 0)
-                features[f"hub_weighted_{taxon}"] = X_clr_data[:, i] * btw
-
-        # d) Extract specific Sample-by-Edge active interactions
+        # c) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
         if self.use_edge:
             top_edges = self.get_top_edges_by_absolute_weight(self.precision_matrix, self.taxa_names_, self.top_k_edges)
@@ -393,6 +406,218 @@ class LinearModelScaler(BaseEstimator, TransformerMixin):
         return X_scaled
 
 
+class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
+    """
+    Network-only feature engineering from a sparse inverse covariance network.
+
+    Input
+    -----
+    X : CLR-transformed species matrix, samples x species.
+
+    Output
+    ------
+    Network-derived sample features only:
+      1. Graph Fourier / spectral coordinates
+      2. Global graph smoothness
+      3. Community-specific Laplacian coherence scores
+
+    No individual CLR species features are returned.
+    No edge-product features are returned.
+    """
+
+    def __init__(
+        self,
+        cv_folds: int = 5,
+        max_iter: int = 2000,
+        n_jobs: int = -1,
+        n_spectral_features: int = 8,
+        min_community_size: int = 3,
+        edge_threshold: float = 1e-5,
+        eps: float = 1e-12,
+        use_spectral: bool = False,
+        use_global_graph: bool = False,
+        use_community: bool = False
+    ):
+        self.cv_folds = cv_folds
+        self.max_iter = max_iter
+        self.n_jobs = n_jobs
+        self.n_spectral_features = n_spectral_features
+        self.min_community_size = min_community_size
+        self.edge_threshold = edge_threshold
+        self.eps = eps
+        self.use_spectral = use_spectral
+        self.use_global_graph = use_global_graph
+        self.use_community = use_community
+
+    def fit(self, X: pd.DataFrame, y=None):
+        """
+        Fit ONLY on a training fold.
+        X must already be CLR-transformed.
+        """
+        self.taxa_names_ = list(X.columns)
+
+        x_train = X.to_numpy(dtype=float, copy=True)
+        x_train = np.nan_to_num(
+            x_train,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+
+        # 1. Fit sparse inverse covariance network.
+        self.glasso_ = GraphicalLassoCV(
+            cv=self.cv_folds,
+            n_jobs=self.n_jobs,
+            max_iter=self.max_iter,
+        )
+        self.glasso_.fit(x_train)
+
+        self.precision_matrix_ = self.glasso_.precision_
+
+        # 2. Convert precision matrix to partial correlations.
+        diagonal = np.sqrt(
+            np.outer(
+                np.diag(self.precision_matrix_),
+                np.diag(self.precision_matrix_),
+            )
+        )
+
+        partial_corr = -self.precision_matrix_ / np.maximum(
+            diagonal,
+            self.eps,
+        )
+        np.fill_diagonal(partial_corr, 0.0)
+
+        self.partial_corr_ = partial_corr
+
+        # Use absolute partial correlations as weighted graph affinities.
+        affinity = np.abs(partial_corr)
+        affinity[affinity < self.edge_threshold] = 0.0
+        np.fill_diagonal(affinity, 0.0)
+
+        self.affinity_matrix_ = affinity
+
+        # 3. Build normalized graph Laplacian.
+        degree = affinity.sum(axis=1)
+        degree_inv_sqrt = np.zeros_like(degree)
+
+        valid_degree = degree > self.eps
+        degree_inv_sqrt[valid_degree] = 1.0 / np.sqrt(
+            degree[valid_degree]
+        )
+
+        d_inv_sqrt = np.diag(degree_inv_sqrt)
+
+        self.laplacian_ = (
+            np.eye(affinity.shape[0])
+            - d_inv_sqrt @ affinity @ d_inv_sqrt
+        )
+
+        # 4. Graph spectral basis.
+        eigenvalues, eigenvectors = np.linalg.eigh(self.laplacian_)
+
+        # Ignore near-zero eigenvectors associated with connected components.
+        usable = np.where(eigenvalues > 1e-8)[0]
+
+        n_keep = min(self.n_spectral_features, len(usable))
+
+        if n_keep == 0:
+            # Safe fallback for a graph with no usable edges.
+            self.spectral_basis_ = np.zeros(
+                (affinity.shape[0], 0)
+            )
+        else:
+            self.spectral_basis_ = eigenvectors[:, usable[:n_keep]]
+
+        self.spectral_eigenvalues_ = eigenvalues[usable[:n_keep]]
+
+        # 5. Louvain communities from the weighted network.
+        graph = nx.from_numpy_array(affinity)
+
+        raw_communities = nx.community.louvain_communities(
+            graph,
+            weight="weight",
+            seed=42,
+        )
+
+        self.community_indices_ = [
+            np.array(sorted(list(community)), dtype=int)
+            for community in raw_communities
+            if len(community) >= self.min_community_size
+        ]
+
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate network-only features for train, validation, or test data.
+        """
+        X = X.loc[:, self.taxa_names_]
+
+        x_clr = X.to_numpy(dtype=float, copy=True)
+        x_clr = np.nan_to_num(
+            x_clr,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+
+        features = {}
+
+        # As a fallback we add the raw CLR features as well
+        for i, taxon in enumerate(self.taxa_names_):
+            features[f"clr_{taxon}"] = x_clr[:,i]
+
+        # A. Network spectral coordinates:
+        # Each coordinate is a graph-informed projection of the full species profile.
+        if self.use_spectral:
+            if self.spectral_basis_.shape[1] > 0:
+                spectral_scores = x_clr @ self.spectral_basis_
+
+                for component_index in range(spectral_scores.shape[1]):
+                    features[
+                        f"network_spectral_{component_index + 1}"
+                    ] = spectral_scores[:, component_index]
+
+        # B. Global graph Laplacian energy:
+        # High value: connected taxa have strongly discordant CLR behavior.
+        # Low value: connected taxa have coherent CLR behavior.
+        if self.use_global_graph:
+            global_energy = np.sum(
+                x_clr * (x_clr @ self.laplacian_),
+                axis=1,
+            )
+
+            clr_norm = np.sum(np.square(x_clr), axis=1)
+
+            features["network_global_laplacian_energy"] = (
+                global_energy / (clr_norm + self.eps)
+            )
+
+        # C. Community-specific network coherence:
+        # One topology-aware score per detected microbial community.
+        if self.use_community:
+            for community_id, idx in enumerate(self.community_indices_):
+                x_community = x_clr[:, idx]
+                L_community = self.laplacian_[np.ix_(idx, idx)]
+
+                community_energy = np.sum(
+                    x_community * (x_community @ L_community),
+                    axis=1,
+                )
+
+                community_norm = np.sum(
+                    np.square(x_community),
+                    axis=1,
+                )
+
+                features[
+                    f"community_{community_id}_laplacian_energy"
+                ] = community_energy / (
+                    community_norm + self.eps
+                )
+
+        return pd.DataFrame(features, index=X.index)
 
 
 
