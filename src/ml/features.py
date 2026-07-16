@@ -470,9 +470,28 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
             n_jobs=self.n_jobs,
             max_iter=self.max_iter,
         )
-        self.glasso_.fit(x_train)
+        self.graph_failed_ = False
+        try:
+            self.glasso_.fit(x_train)
+            self.precision_matrix_ = self.glasso_.precision_
+        except (FloatingPointError, np.linalg.LinAlgError, ValueError) as exc:
+            # Stage 4 can hit a near-singular covariance on some folds.
+            # Fall back to a safe, zero-interaction graph so the search continues.
+            print(f"Warning: GraphicalLassoCV failed ({exc}). Falling back to empty network features for this fold.")
+            self.graph_failed_ = True
+            self.precision_matrix_ = np.zeros((x_train.shape[1], x_train.shape[1]), dtype=float)
+            self.affinity_matrix_ = np.zeros_like(self.precision_matrix_)
+            self.laplacian_ = np.eye(x_train.shape[1], dtype=float)
+            self.spectral_basis_ = np.zeros((x_train.shape[1], 0), dtype=float)
+            self.spectral_eigenvalues_ = np.array([], dtype=float)
+            self.community_indices_ = []
+            self.partial_corr_ = np.zeros_like(self.precision_matrix_)
+            self.degree_centrality = {i: 0.0 for i in range(x_train.shape[1])}
+            self.betweenness = {i: 0.0 for i in range(x_train.shape[1])}
+            return self
 
-        self.precision_matrix_ = self.glasso_.precision_
+        self.affinity_matrix_ = np.abs(self.precision_matrix_)
+        self.partial_corr_ = self.precision_matrix_
 
         # 2. Convert precision matrix to partial correlations.
         diagonal = np.sqrt(

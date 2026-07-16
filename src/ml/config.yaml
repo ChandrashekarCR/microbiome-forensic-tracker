@@ -105,6 +105,17 @@ stage_3:
       bootstrap: [True]                     # lock this on — don't let search disable it
       min_weight_fraction_leaf: [0.0, 0.01]
       max_leaf_nodes: [50, 100, 200]        # drop null
+
+    ExtraTreesRegressor:
+      n_estimators: [100, 200, 400, 600, 900]      # Include 200 (your default)
+      max_depth: [5, 10, 15, 20, None]             # Include None (unlimited)
+      min_samples_split: [2, 5, 10]                # Keep as is
+      min_samples_leaf: [1, 2, 4]                  # Keep as is (include 1)
+      max_features: ['sqrt', 'log2', 0.3, 0.5]     # Include 'sqrt' (your default)
+      bootstrap: [True, False]                     # Keep
+      min_impurity_decrease: [0.0, 1e-6]           # Keep
+      max_leaf_nodes: [None, 50, 100, 200]         # Include None and more
+      min_weight_fraction_leaf: [0.0]              # Fixed
   
   # Parallelism (set via n_jobs in your pipeline, not part of grid)
 
