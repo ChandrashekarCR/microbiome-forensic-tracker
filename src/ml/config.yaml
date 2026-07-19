@@ -7,7 +7,7 @@ data_splitting:
   test_size: 0.2
   random_state: 42
   n_splits: 7
-  n_repeats: 3
+  n_repeats: 1
 
 mlflow:
   experiment_name: "Microbiome_Geolocation"
@@ -75,7 +75,7 @@ feature_engineering:
   cv_folds: 3
   max_iter: 2000
   top_k_edges: 200
-  k_best_features: 64
+  k_best_features: 128
   min_abundance: 1e-6
   delta_value: 1e-6
 

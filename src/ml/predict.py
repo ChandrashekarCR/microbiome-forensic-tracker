@@ -1,92 +1,253 @@
 import joblib
+import numpy as np
 import pandas as pd
-from pyproj import Transformer
+from sklearn.base import clone
 
 from ml.config import config
 from ml.evaluation import evaluate_projected_coordinates
 from ml.models import TrainTestSplit, load_and_prep_data
+from ml.pipeline import build_modelling_pipeline
+from ml.model_registry import models
 
 
-def predict_and_evaluate_test_set():
+# ----------------------------------------------------------------------
+# Helper: get a fresh estimator for a given model type
+# ----------------------------------------------------------------------
+def get_model(model_type):
+    """Return a cloned estimator for the given model type."""
+    all_models = models.get_baseline_models()
+    for m in all_models:
+        if m['model_type'] == model_type:
+            return clone(m['estimator'])
+    raise ValueError(f"Model '{model_type}' not found in registry.")
+
+
+# ----------------------------------------------------------------------
+# 1. Baseline model (NO network features)
+# ----------------------------------------------------------------------
+def evaluate_baseline_on_test_set(seeds=range(1, 11)):
     """
-    Load the final fitted pipeline, predict on the blind 20% test set,
-    and report honest final metrics.
+    Build baseline pipeline (NO network features) for each seed,
+    fit on CV set, evaluate on test set, and return metrics.
     """
-    # 1. Load the saved pipeline
-    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
+    print("=" * 60)
+    print("Evaluating BASELINE model on test set (10 random splits)")
+    print("=" * 60)
 
-    # 2. Reconstruct the exact same train/test split
-    # Deterministic because random_state is fixed in config
-    config.database.table = "malmo_species"
-    df = load_and_prep_data()
-    splitter = TrainTestSplit(
-        df,
-        n_splits=config.data_splitting.n_splits,
-        test_size=config.data_splitting.test_size,
-    )
+    all_metrics = []
+    base_estimator = get_model("ExtraTreesRegressor")
 
-    # 3. Get the blind test set — never seen during training or CV
-    X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+    for seed in seeds:
+        original_rs = config.data_splitting.random_state
+        config.data_splitting.random_state = seed
 
-    # 4. Predict — pipeline handles zeros_filter + k_best + RF internally
-    preds = pipeline.predict(X_test)  # shape (n_test_samples, 2) → [X_meters, Y_meters]
+        config.database.table = "malmo_order"
+        df = load_and_prep_data()
+        splitter = TrainTestSplit(
+            df,
+            n_splits=config.data_splitting.n_splits,
+            test_size=config.data_splitting.test_size,
+        )
+        X_cv = splitter.X_cv
+        y_cv = splitter.y_cv_coords[["X_meters", "Y_meters"]]
+        X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+        X_test = X_test.reindex(columns=splitter.X_cv.columns, fill_value=0.0)
 
-    # 5. Evaluate with your existing evaluation function
-    metrics = evaluate_projected_coordinates(
-        x_true=y_test_coords["X_meters"].values,
-        y_true=y_test_coords["Y_meters"].values,
-        x_pred=preds[:, 0],
-        y_pred=preds[:, 1],
-        zones_true=y_test_zone.values,
-    )
+        pipeline = build_modelling_pipeline(
+            estimator=clone(base_estimator),
+            use_network_features=False,
+            use_k_best=False,
+            feature_flags=None,
+            model_family="tree"
+        )
+        pipeline.fit(X_cv, y_cv)
+        preds = pipeline.predict(X_test)
 
-    print("Final Test Set Evaluation (blind 20%)\n")
-    print(f"Mean error:   {metrics['mean_error_km']:.4f} km")
-    print(f"Median error: {metrics['median_error_km']:.4f} km")
-    print(f"Max error:    {metrics['max_error_km']:.4f} km")
-    print(f"Within 0.5 km:{metrics['in_radius_0.5km_pct']:.1f}%")
-    print(f"Within 1 km:  {metrics['in_radius_1km_pct']:.1f}%")
-    print(f"Within 3 km:  {metrics['in_radius_3km_pct']:.1f}%")
-    print(f"Within 5 km:  {metrics['in_radius_5km_pct']:.1f}%")
-    print(f"Within 10 km: {metrics['in_radius_10km_pct']:.1f}%")
+        metrics = evaluate_projected_coordinates(
+            x_true=y_test_coords["X_meters"].values,
+            y_true=y_test_coords["Y_meters"].values,
+            x_pred=preds[:, 0],
+            y_pred=preds[:, 1],
+            zones_true=y_test_zone.values,
+        )
+        all_metrics.append(metrics)
+        print(f"Seed {seed:2d} | Mean: {metrics['mean_error_km']:.4f} km | "
+              f"Median: {metrics['median_error_km']:.4f} km | "
+              f"Max: {metrics['max_error_km']:.4f} km")
 
-    return preds, metrics
+        config.data_splitting.random_state = original_rs
+
+    # Aggregate all metrics
+    mean_errors = [m['mean_error_km'] for m in all_metrics]
+    median_errors = [m['median_error_km'] for m in all_metrics]
+    max_errors = [m['max_error_km'] for m in all_metrics]
+
+    print("\n" + "=" * 60)
+    print("BASELINE SUMMARY (over 10 seeds)")
+    print("=" * 60)
+    print(f"Mean Error:   {np.mean(mean_errors):.4f} ± {np.std(mean_errors):.4f} km  (range: {np.min(mean_errors):.4f}–{np.max(mean_errors):.4f})")
+    print(f"Median Error: {np.mean(median_errors):.4f} ± {np.std(median_errors):.4f} km  (range: {np.min(median_errors):.4f}–{np.max(median_errors):.4f})")
+    print(f"Max Error:    {np.mean(max_errors):.4f} ± {np.std(max_errors):.4f} km  (range: {np.min(max_errors):.4f}–{np.max(max_errors):.4f})")
+
+    return all_metrics
 
 
-def predict_sample(abundances: dict) -> tuple[float, float]:
+# ----------------------------------------------------------------------
+# 2. Untuned Feature Engineering model
+# ----------------------------------------------------------------------
+def evaluate_untuned_fe_on_test_set(seeds=range(1, 11)):
     """
-    Predict lat/lon for a single new sample.
-
-    Parameters
-    ----------
-    abundances : dict
-        {species_name: relative_abundance} for as many species as you have.
-        Missing species default to 0.0.
-
-    Returns
-    -------
-    (latitude, longitude) as floats
+    Evaluate the UNTUNED FE pipeline (saved from run_stage2_fe_network)
+    on the test set across 10 random seeds.
     """
-    pipeline = joblib.load("/home/chandru/binp51/src/ml/mlruns/1/models/m-150112cb0dfd4175b98a23716a7f042b/artifacts/model.pkl")
+    print("\n" + "=" * 60)
+    print("Evaluating UNTUNED FE model on test set (10 random splits)")
+    print("=" * 60)
 
-    # Get expected input columns from fitted zero filter
-    FEATURE_COLUMNS = pipeline.named_steps["zeros_filter"]._keep_cols_
+    pipeline = joblib.load("/home/chandru/binp51/src/ml/fe_model_group_kfold.joblib")
+    all_metrics = []
 
-    # Build a single-row DataFrame, filling missing species with 0
-    row = {col: abundances.get(col, 0.0) for col in FEATURE_COLUMNS}
-    X = pd.DataFrame([row], columns=FEATURE_COLUMNS)
+    for seed in seeds:
+        original_rs = config.data_splitting.random_state
+        config.data_splitting.random_state = seed
 
-    # Predict in meters (EPSG:3006)
-    pred = pipeline.predict(X)  # [[x_meters, y_meters]]
-    x_meters, y_meters = pred[0]
+        config.database.table = "malmo_order"
+        df = load_and_prep_data()
+        splitter = TrainTestSplit(
+            df,
+            n_splits=config.data_splitting.n_splits,
+            test_size=config.data_splitting.test_size,
+        )
+        X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+        X_test = X_test.reindex(columns=splitter.X_cv.columns, fill_value=0.0)
 
-    # Convert back to lat/lon
-    transformer = Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True)
-    lon, lat = transformer.transform(x_meters, y_meters)
+        preds = pipeline.predict(X_test)
+        metrics = evaluate_projected_coordinates(
+            x_true=y_test_coords["X_meters"].values,
+            y_true=y_test_coords["Y_meters"].values,
+            x_pred=preds[:, 0],
+            y_pred=preds[:, 1],
+            zones_true=y_test_zone.values,
+        )
+        all_metrics.append(metrics)
+        print(f"Seed {seed:2d} | Mean: {metrics['mean_error_km']:.4f} km | "
+              f"Median: {metrics['median_error_km']:.4f} km | "
+              f"Max: {metrics['max_error_km']:.4f} km")
 
-    return lat, lon
+        config.data_splitting.random_state = original_rs
+
+    mean_errors = [m['mean_error_km'] for m in all_metrics]
+    median_errors = [m['median_error_km'] for m in all_metrics]
+    max_errors = [m['max_error_km'] for m in all_metrics]
+
+    print("\n" + "=" * 60)
+    print("UNTUNED FE SUMMARY (over 10 seeds)")
+    print("=" * 60)
+    print(f"Mean Error:   {np.mean(mean_errors):.4f} ± {np.std(mean_errors):.4f} km  (range: {np.min(mean_errors):.4f}–{np.max(mean_errors):.4f})")
+    print(f"Median Error: {np.mean(median_errors):.4f} ± {np.std(median_errors):.4f} km  (range: {np.min(median_errors):.4f}–{np.max(median_errors):.4f})")
+    print(f"Max Error:    {np.mean(max_errors):.4f} ± {np.std(max_errors):.4f} km  (range: {np.min(max_errors):.4f}–{np.max(max_errors):.4f})")
+
+    return all_metrics
 
 
+# ----------------------------------------------------------------------
+# 3. Tuned Feature Engineering model (final pipeline)
+# ----------------------------------------------------------------------
+def evaluate_tuned_fe_on_test_set(seeds=range(1, 11)):
+    """
+    Evaluate the TUNED FE pipeline (final_tuned_model_group_kfold.joblib)
+    on the test set across 10 random seeds.
+    """
+    print("\n" + "=" * 60)
+    print("Evaluating TUNED FE model on test set (10 random splits)")
+    print("=" * 60)
+
+    pipeline = joblib.load("/home/chandru/binp51/src/ml/final_tuned_model_group_kfold.joblib")
+    all_metrics = []
+
+    for seed in seeds:
+        original_rs = config.data_splitting.random_state
+        config.data_splitting.random_state = seed
+
+        config.database.table = "malmo_order"
+        df = load_and_prep_data()
+        splitter = TrainTestSplit(
+            df,
+            n_splits=config.data_splitting.n_splits,
+            test_size=config.data_splitting.test_size,
+        )
+        X_test, y_test_zone, y_test_coords = splitter.get_test_data()
+        X_test = X_test.reindex(columns=splitter.X_cv.columns, fill_value=0.0)
+
+        preds = pipeline.predict(X_test)
+        metrics = evaluate_projected_coordinates(
+            x_true=y_test_coords["X_meters"].values,
+            y_true=y_test_coords["Y_meters"].values,
+            x_pred=preds[:, 0],
+            y_pred=preds[:, 1],
+            zones_true=y_test_zone.values,
+        )
+        all_metrics.append(metrics)
+        print(f"Seed {seed:2d} | Mean: {metrics['mean_error_km']:.4f} km | "
+              f"Median: {metrics['median_error_km']:.4f} km | "
+              f"Max: {metrics['max_error_km']:.4f} km")
+
+        config.data_splitting.random_state = original_rs
+
+    mean_errors = [m['mean_error_km'] for m in all_metrics]
+    median_errors = [m['median_error_km'] for m in all_metrics]
+    max_errors = [m['max_error_km'] for m in all_metrics]
+
+    print("\n" + "=" * 60)
+    print("TUNED FE SUMMARY (over 10 seeds)")
+    print("=" * 60)
+    print(f"Mean Error:   {np.mean(mean_errors):.4f} ± {np.std(mean_errors):.4f} km  (range: {np.min(mean_errors):.4f}–{np.max(mean_errors):.4f})")
+    print(f"Median Error: {np.mean(median_errors):.4f} ± {np.std(median_errors):.4f} km  (range: {np.min(median_errors):.4f}–{np.max(median_errors):.4f})")
+    print(f"Max Error:    {np.mean(max_errors):.4f} ± {np.std(max_errors):.4f} km  (range: {np.min(max_errors):.4f}–{np.max(max_errors):.4f})")
+
+    return all_metrics
+
+
+# ----------------------------------------------------------------------
+# 4. Run all three and compare
+# ----------------------------------------------------------------------
 if __name__ == "__main__":
-    # Run the blind test set evaluation
-    preds, metrics = predict_and_evaluate_test_set()
+    # Run evaluations
+    baseline_metrics = evaluate_baseline_on_test_set(seeds=range(1, 11))
+    untuned_fe_metrics = evaluate_untuned_fe_on_test_set(seeds=range(1, 11))
+    tuned_fe_metrics = evaluate_tuned_fe_on_test_set(seeds=range(1, 11))
+
+    # Extract all metrics
+    baseline_mean = [m['mean_error_km'] for m in baseline_metrics]
+    baseline_median = [m['median_error_km'] for m in baseline_metrics]
+    baseline_max = [m['max_error_km'] for m in baseline_metrics]
+
+    untuned_mean = [m['mean_error_km'] for m in untuned_fe_metrics]
+    untuned_median = [m['median_error_km'] for m in untuned_fe_metrics]
+    untuned_max = [m['max_error_km'] for m in untuned_fe_metrics]
+
+    tuned_mean = [m['mean_error_km'] for m in tuned_fe_metrics]
+    tuned_median = [m['median_error_km'] for m in tuned_fe_metrics]
+    tuned_max = [m['max_error_km'] for m in tuned_fe_metrics]
+
+    print("\n" + "=" * 60)
+    print("FINAL THREE‑WAY COMPARISON (over 10 seeds)")
+    print("=" * 60)
+    print(f"{'Model':<20} {'Mean Error (km)':<25} {'Median Error (km)':<25} {'Max Error (km)':<25}")
+    print("-" * 100)
+    print(f"{'Baseline (no FE)':<20} {np.mean(baseline_mean):.4f} ± {np.std(baseline_mean):.4f}  "
+          f"{np.mean(baseline_median):.4f} ± {np.std(baseline_median):.4f}  "
+          f"{np.mean(baseline_max):.4f} ± {np.std(baseline_max):.4f}")
+    print(f"{'Untuned FE':<20} {np.mean(untuned_mean):.4f} ± {np.std(untuned_mean):.4f}  "
+          f"{np.mean(untuned_median):.4f} ± {np.std(untuned_median):.4f}  "
+          f"{np.mean(untuned_max):.4f} ± {np.std(untuned_max):.4f}")
+    print(f"{'Tuned FE (Final)':<20} {np.mean(tuned_mean):.4f} ± {np.std(tuned_mean):.4f}  "
+          f"{np.mean(tuned_median):.4f} ± {np.std(tuned_median):.4f}  "
+          f"{np.mean(tuned_max):.4f} ± {np.std(tuned_max):.4f}")
+
+    print("\n" + "=" * 60)
+    print("IMPROVEMENTS")
+    print("=" * 60)
+    print(f"FE Improvement (untuned): Mean: {np.mean(baseline_mean) - np.mean(untuned_mean):.4f} km")
+    print(f"Tuning Improvement:       Mean: {np.mean(untuned_mean) - np.mean(tuned_mean):.4f} km")
+    print(f"Total Improvement:        Mean: {np.mean(baseline_mean) - np.mean(tuned_mean):.4f} km")

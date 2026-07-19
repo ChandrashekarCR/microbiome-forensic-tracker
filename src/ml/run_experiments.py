@@ -20,7 +20,7 @@ import pandas as pd
 from typing import Optional
 from enum import Enum
 from typing import List
-
+import joblib
 
 
 from ml.config import config
@@ -235,111 +235,31 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
     return best_level, stage1_results
 
 
-# STAGE 2: Feature Engineering Variants - Use K-best features
-
-
-def run_stage2_fe_kbest(taxonomy_level: str, model_type: str = "RandomForest",
-                        synthesizer_config: SynthesizerConfig = None,
-                        data_route: DataRoute = DataRoute.RAW):
+# STAGE 2: Feature Engineering without kbest
+def run_stage2_fe_network(
+    taxonomy_level: str, 
+    model_type: str = "RandomForest", 
+    use_kbest: bool = False,
+    synthesizer_config: SynthesizerConfig = None,
+    data_route: DataRoute = DataRoute.RAW,
+    edge_threshold: float = 1e-05,
+    n_spectral_features: int = 8,
+    min_community_size: int = 3,
+    save_model_path: str = None
+):
     """
-    Experiment 2: Given the best taxonomy level, test feature engineering variants.
-    Tests network feature combinations + RFE on/off.
-    """
-    print(f"STAGE 2: Feature Engineering - Use K-best features taxonomy: {taxonomy_level}, no hyperparameter tuning, model: {model_type}")
-
-    stage2_results = {}
-
-    # Setup configurations
-    setup = setup_experiment(taxonomy_level=taxonomy_level,
-                             model_type=model_type,
-                             synthesizer_config=synthesizer_config)
-    
-    # Build the synthesizer if any
-    synthesizer = build_synthesizer(synthesizer_config) if synthesizer_config else None
-    n_synthetic = synthesizer_config.n_synthetic if synthesizer_config else None
-
-    # Create the mlflow run
-    run_name = f"stage2_fe_kbest_{model_type}_{int(time.time())}"
-
-    with start_run(run_name=run_name):
-        # === TAGS ===
-        mlflow.set_tag("stage", "stage2_fe_kbest")
-        mlflow.set_tag("taxonomy_level", taxonomy_level)
-        mlflow.set_tag("model_type", setup.model_type)
-        mlflow.set_tag("use_k_best", "True")
-        mlflow.set_tag("k_size",config.feature_engineering.k_best_features)
-        mlflow.set_tag("data_route", data_route.value)
-        mlflow.set_tag("synthesizer_type", 
-                           synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
-        mlflow.set_tag("use_network_features", "False")
-
-        # === PARAMETERS ===
-        params = {
-                "taxonomy_table": setup.table_name,
-                "model_type": setup.model_type,
-                "model_family": setup.model_family,
-                "n_samples_real": setup.n_samples,
-                "cv_strategy": setup.cv_strategy,
-                "use_meters": setup.use_meters,
-                "data_route": data_route.value,
-                "n_synthetic": n_synthetic,
-            }
-        if synthesizer_config:
-                params["synthesizer_epochs"] = synthesizer_config.epochs
-                params["synthesizer_batch_size"] = synthesizer_config.batch_size
-        mlflow.log_params(params)
-        
-        # Log XGBoost parameters
-        log_model_params(setup.estimator)
-
-        # === EVALUATE ===
-        avg_mekm, summary_metrics = evaluate_model_cv(
-            splitter=setup.splitter,
-            estimator=setup.estimator,
-            synthesizer=synthesizer, n_synthetic=n_synthetic,
-            use_network_features=False,
-            use_k_best=True,
-            feature_flags=None,
-            model_family=setup.model_family,
-        )
-
-        # Log metrics
-        log_model_metrics(metrics=summary_metrics)
-
-        # Store result
-        stage2_results["kbest"] = {"avg_mekm": avg_mekm, "run_id": mlflow.active_run().info.run_id, "metrics": summary_metrics}
-        print(f"Mean error: {avg_mekm:.4f} km")
-
-    return stage2_results
-
-
-# STAGE 3: Feature Engineering without kbest
-def run_stage3_fe_network(taxonomy_level: str, 
-                          model_type: str = "RandomForest", 
-                          use_kbest: bool = False,
-                          synthesizer_config: SynthesizerConfig = None,
-                          data_route: DataRoute = DataRoute.RAW,
-                          edge_threshold: float = 1e-05,
-                          n_spectral_features: int = 8,
-                          min_community_size: int = 3):
-    """
-    Experiment 3: Test network feature combinations for the GraphLaplacianFeatureEngineer.
+    Experiment 2: Test network feature combinations for the GraphLaplacianFeatureEngineer.
     CLR features are ALWAYS included (fallback in transformer).
     Toggles: use_spectral, use_global_graph, use_community -> 8 total combinations.
     """
-    print(f"STAGE 3: Feature Engineering - GraphLaplacian Features taxonomy: {taxonomy_level}, model: {model_type}, use_kbest: {use_kbest}")
+    print(f"STAGE 2: Feature Engineering - GraphLaplacian Features taxonomy: {taxonomy_level}, model: {model_type}, use_kbest: {use_kbest}")
 
-    # Setup configuration using the same helper as Stage 2
-    setup = setup_experiment(taxonomy_level=taxonomy_level,
-                             model_type=model_type,
-                             synthesizer_config=synthesizer_config)
-    
-    # Build the synthesizer if any
+    # Setup configuration
+    setup = setup_experiment(taxonomy_level, model_type, synthesizer_config)
     synthesizer = build_synthesizer(synthesizer_config) if synthesizer_config else None
     n_synthetic = synthesizer_config.n_synthetic if synthesizer_config else None
 
-    # Define all feature combinations for the 3 network flags (2^3 = 8 variants)
-    # CLR is ALWAYS ON (mandatory fallback in the transformer)
+    # Feature combinations (uncomment others to test all 8)
     feature_combinations = [
         # (use_spectral, use_global_graph, use_community)
         #(True, False, False),   # CLR + Spectral
@@ -351,15 +271,17 @@ def run_stage3_fe_network(taxonomy_level: str,
         (True, True, True),     # CLR + ALL network features
     ]
 
-    stage3_results = {}
+    stage2_results = {}
+    base_run_name = f"stage2_fe_graphlaplacian_{model_type}_{int(time.time())}"
 
-    # Create the base run name
-    base_run_name = f"stage3_fe_graphlaplacian_{model_type}_{int(time.time())}"
+    # Track best configuration
+    best_variant = None
+    best_error = float('inf')
+    best_feature_config = None
 
-    # Loop over each feature combination
     for use_spectral, use_global_graph, use_community in feature_combinations:
-        # Generate a descriptive name
-        fe_name_parts = ["CLR"]  # Always included
+        # Generate feature name
+        fe_name_parts = ["CLR"]
         if use_spectral:    fe_name_parts.append("Spectral")
         if use_global_graph: fe_name_parts.append("Global")
         if use_community:   fe_name_parts.append("Community")
@@ -368,12 +290,10 @@ def run_stage3_fe_network(taxonomy_level: str,
         print(f"\n--- Variant: {fe_name} ---")
         print(f"Flags: Spectral={use_spectral}, Global={use_global_graph}, Community={use_community}")
 
-        # Unique run name per variant
         run_name = f"{base_run_name}_{fe_name}"
-
         with start_run(run_name=run_name):
             # === TAGS ===
-            mlflow.set_tag("stage", "stage3_fe_graphlaplacian")
+            mlflow.set_tag("stage", "stage2_fe_graphlaplacian")
             mlflow.set_tag("taxonomy_level", taxonomy_level)
             mlflow.set_tag("model_type", setup.model_type)
             mlflow.set_tag("model_family", setup.model_family)
@@ -382,7 +302,7 @@ def run_stage3_fe_network(taxonomy_level: str,
             mlflow.set_tag("data_route", data_route.value)
             mlflow.set_tag("synthesizer_type", 
                            synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
-            mlflow.set_tag("clr_included", "True")  # Always true now
+            mlflow.set_tag("clr_included", "True")
 
             # === INDIVIDUAL FEATURE FLAG TAGS ===
             mlflow.set_tag("use_spectral", str(use_spectral))
@@ -400,8 +320,7 @@ def run_stage3_fe_network(taxonomy_level: str,
                 "data_route": data_route.value,
                 "n_synthetic": n_synthetic,
                 "use_kbest": use_kbest,
-                # GraphLaplacian specific params (from your __init__)
-                "n_spectral_features": n_spectral_features,          # You could make this configurable
+                "n_spectral_features": n_spectral_features,
                 "min_community_size": min_community_size,
                 "edge_threshold": edge_threshold,
             }
@@ -409,21 +328,18 @@ def run_stage3_fe_network(taxonomy_level: str,
                 params["synthesizer_epochs"] = synthesizer_config.epochs
                 params["synthesizer_batch_size"] = synthesizer_config.batch_size
             mlflow.log_params(params)
-
-            # Log the base model's hyperparameters
             log_model_params(setup.estimator)
 
-            # === BUILD FEATURE CONFIG DICTIONARY ===
-            # This gets passed to evaluate_model_cv, which will instantiate
-            # your GraphLaplacianFeatureEngineer with these flags
+            # === FEATURE CONFIG ===
             feature_config = {
                 "use_spectral": use_spectral,
                 "use_global_graph": use_global_graph,
                 "use_community": use_community,
-                # Optional: you can override these here if you want to test different values
                 "n_spectral_features": n_spectral_features,
                 "min_community_size": min_community_size,
                 "edge_threshold": edge_threshold,
+                "cv_folds": config.feature_engineering.cv_folds,
+                "max_iter": config.feature_engineering.max_iter,
             }
 
             # === EVALUATE ===
@@ -432,47 +348,63 @@ def run_stage3_fe_network(taxonomy_level: str,
                 estimator=setup.estimator,
                 synthesizer=synthesizer,
                 n_synthetic=n_synthetic,
-                use_network_features=True,          # This enables the GraphLaplacian engineer
+                use_network_features=True,
                 use_k_best=use_kbest,
                 feature_flags=feature_config,
                 model_family=setup.model_family,
             )
 
-            # Log metrics
             log_model_metrics(metrics=summary_metrics)
-
-            # Store result
-            stage3_results[fe_name] = {
+            stage2_results[fe_name] = {
                 "fe_type": "graphlaplacian_combination",
                 "fe_variant": fe_name,
-                "use_spectral": use_spectral,
-                "use_global_graph": use_global_graph,
-                "use_community": use_community,
                 "avg_mekm": avg_mekm,
-                "run_id": mlflow.active_run().info.run_id,
                 "metrics": summary_metrics,
+                "run_id": mlflow.active_run().info.run_id,
             }
-
             print(f"Mean error: {avg_mekm:.4f} km")
 
-    # Sort results by best (lowest) error
-    sorted_results = sorted(stage3_results.items(), key=lambda x: x[1]["avg_mekm"])
+            # Track best
+            if avg_mekm < best_error:
+                best_error = avg_mekm
+                best_variant = fe_name
+                best_feature_config = feature_config.copy()
 
-    # Find best variant
-    best_variant = sorted_results[0][0]
-    best_error = sorted_results[0][1]["avg_mekm"]
-
+    # Print summary
     print("\n" + "="*50)
     print(f"Best Feature Engineering: {best_variant}")
     print(f"Mean error: {best_error:.4f} km")
     print("="*50)
 
-    return best_variant, stage3_results
+    # --- SAVE THE BEST MODEL ---
+    if save_model_path is not None and best_feature_config is not None:
+        print("\nFitting final pipeline with the BEST feature configuration...")
+
+        # Get raw data – pipeline handles ZeroColumnFilter and CLR internally!
+        X_cv = setup.splitter.X_cv
+        y_cv = setup.splitter.y_cv_coords[["X_meters", "Y_meters"]]
+
+        # Build pipeline with best config
+        final_estimator = clone(setup.estimator)
+        final_pipeline = build_modelling_pipeline(
+            estimator=final_estimator,
+            use_network_features=True,
+            use_k_best=use_kbest,
+            feature_flags=best_feature_config,
+            model_family=setup.model_family,
+        )
+
+        # Fit on RAW data – pipeline will apply prevalence filter + CLR automatically
+        final_pipeline.fit(X_cv, y_cv)
+        joblib.dump(final_pipeline, save_model_path)
+        print(f"✅ Model saved to {save_model_path}")
+
+    return best_variant, stage2_results
 
 
 # Stage 4: Full Pipeline Hyperparameter Tuning
 
-def run_stage4_hyperparameter_tuning(
+def run_stage3_hyperparameter_tuning(
     taxonomy_level: str,
     model_type: str = "ExtraTreesRegressor",
     use_network_features: bool = True,
@@ -481,12 +413,13 @@ def run_stage4_hyperparameter_tuning(
     n_iter: int = 30,
     synthesizer_config: SynthesizerConfig = None,
     data_route: DataRoute = DataRoute.RAW,
+    save_model_path: str = None
 ):
     """
-    Stage 4: Hyperparameter tuning with RandomizedSearchCV.
-    Mirrors Stage 3 structure using setup_experiment.
+    Stage 3: Hyperparameter tuning with RandomizedSearchCV.
+    Mirrors Stage 2 structure using setup_experiment.
     """
-    print(f"STAGE 4: Hyperparameter Tuning - taxonomy: {taxonomy_level}, model: {model_type}, network_features: {use_network_features}")
+    print(f"STAGE 3: Hyperparameter Tuning - taxonomy: {taxonomy_level}, model: {model_type}, network_features: {use_network_features}")
 
     # 1. Setup (same as Stage 3)
     setup = setup_experiment(taxonomy_level, model_type, synthesizer_config)
@@ -524,12 +457,13 @@ def run_stage4_hyperparameter_tuning(
 
 
     # 5. Run MLflow
-    run_name = f"stage4_tuning_{model_type}_{taxonomy_level}_{int(time.time())}"
+    run_name = f"stage3_tuning_{model_type}_{taxonomy_level}_{int(time.time())}"
     with start_run(run_name=run_name):
         # === TAGS ===
         mlflow.set_tag("stage", "stage4_hyperparameter_tuning")
         mlflow.set_tag("taxonomy_level", taxonomy_level)
         mlflow.set_tag("model_type", model_type)
+        mlflow.set_tag("fe_variant", "CLR_Spectral_Global_Community")
         mlflow.set_tag("use_network_features", str(use_network_features))
         mlflow.set_tag("use_kbest", str(use_kbest))
         mlflow.set_tag("data_route", data_route.value)
@@ -607,6 +541,23 @@ def run_stage4_hyperparameter_tuning(
             "run_id": mlflow.active_run().info.run_id,
         }
 
+        # Fit on the final dataset and then we can use it to predict directly
+        print("\nFitting final pipeline on full training set...")
+        final_pipeline = build_modelling_pipeline(
+            estimator=clone(tuned_estimator),   # uses best params
+            use_network_features=use_network_features,
+            use_k_best=use_kbest,
+            feature_flags=feature_flags,
+            model_family=setup.model_family,
+        )
+        final_pipeline.fit(X_cv, y_cv)
+
+        # Save the pipeline if a path is given
+        if save_model_path:
+            joblib.dump(final_pipeline, save_model_path)
+            print(f"Model saved to {save_model_path}")
+        
+
         return results
 
 
@@ -630,34 +581,7 @@ def main():
             batch_size=32
         )
 
-        #for models in MODELS:
-        #    best_synth, results_synth = run_stage1_taxonomy_baseline(
-        #        model_type=models,
-        #        synthesizer_config=synthetic_config,
-        #        data_route=DataRoute.RAW
-        #    )
-
-        # Stage 2: Determine best feature engineering approach
-        #stage2_results = run_stage2_fe_kbest(taxonomy_level="species", 
-        #                                     model_type="RandomForest",
-        #                                     synthesizer_config=synthetic_config,
-        #                                     data_route=DataRoute.RAW)
-#
-        # Stage 3: Determine the best combination of network features
-        #best_variant, stage3_results = run_stage3_fe_network(taxonomy_level="order", 
-        #                                                     model_type="ExtraTreesRegressor",
-        #                                                     use_kbest=False,
-        #                                                     synthesizer_config=synthetic_config,
-        #                                                     data_route=DataRoute.RAW,
-        #                                                     edge_threshold=0.0005,
-        #                                                     n_spectral_features=8,
-        #                                                     min_community_size=3)
-
-      
-        
-        # Stage 4 remains optional/disabled unless you explicitly enable it later
-        # Tune RandomForest on genus level without network features
-        # YOUR BEST FE CONFIGURATION
+        # YOUR BEST FE CONFIGURATION - Group Kfold
         feature_flags = {
             "use_spectral": True,
             "use_global_graph": True,
@@ -668,18 +592,44 @@ def main():
             "max_iter": 5000,
         }
 
-        # Run tuning
-        fe_results = run_stage4_hyperparameter_tuning(
-            taxonomy_level="order",
-            model_type="ExtraTreesRegressor",
-            use_network_features=True,
-            use_kbest=False,
-            feature_flags=feature_flags,
-            n_iter=15,
-        )
 
-        print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
-        print(f"Best Params: {fe_results['best_params']}")
+        #for models in MODELS:
+        #    best_synth, results_synth = run_stage1_taxonomy_baseline(
+        #        model_type=models,
+        #        synthesizer_config=synthetic_config,
+        #        data_route=DataRoute.RAW
+        #    )
+
+#
+        # Stage 3: Determine the best combination of network features
+        best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
+                                                             model_type="ExtraTreesRegressor",
+                                                             use_kbest=False,
+                                                             synthesizer_config=synthetic_config,
+                                                             data_route=DataRoute.RAW,
+                                                             edge_threshold=0.0005,
+                                                             n_spectral_features=8,
+                                                             min_community_size=3,
+                                                             save_model_path="fe_model_group_kfold.joblib")
+
+      
+        
+        # Stage 4 remains optional/disabled unless you explicitly enable it later
+        # Tune RandomForest on genus level without network features
+        
+        # Run tuning
+        #fe_results = run_stage3_hyperparameter_tuning(
+        #    taxonomy_level="order",
+        #    model_type="ExtraTreesRegressor",
+        #    use_network_features=True,
+        #    use_kbest=False,
+        #    feature_flags=feature_flags,
+        #    n_iter=20,
+        #    save_model_path="final_tuned_model_group_kfold.joblib"
+        #)
+#
+        #print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
+        #print(f"Best Params: {fe_results['best_params']}")
 
     except Exception as e:
         print(f"\nError: {e}")
