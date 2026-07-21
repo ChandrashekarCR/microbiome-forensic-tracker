@@ -421,8 +421,6 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
       2. Global graph smoothness
       3. Community-specific Laplacian coherence scores
 
-    No individual CLR species features are returned.
-    No edge-product features are returned.
     """
 
     def __init__(
