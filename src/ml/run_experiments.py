@@ -30,19 +30,19 @@ from ml.models import TrainTestSplit, load_and_prep_data, TVAEDataSynthesizer, B
 from ml.pipeline import build_modelling_pipeline,evaluate_model_cv, get_configured_cv_split
 
 TAXONOMY_TABLES = {
-#   "phylum": "malmo_phylum",
-#    "class": "malmo_class",
+   "phylum": "malmo_phylum",
+    "class": "malmo_class",
     "order": "malmo_order",
-#    "family": "malmo_family",
-#    "genus": "malmo_genus",
-#    "species": "malmo_species",
+    "family": "malmo_family",
+    "genus": "malmo_genus",
+    "species": "malmo_species",
 }
 
 MODELS = [
-#    "XGBoost",
-#    "RandomForest",
-#    "RidgeRegression",
-#    "ElasticNet",
+    "XGBoost",
+    "RandomForest",
+    "RidgeRegression",
+    "ElasticNet",
     "ExtraTreesRegressor"
 ]
 
@@ -397,7 +397,7 @@ def run_stage2_fe_network(
         # Fit on RAW data – pipeline will apply prevalence filter + CLR automatically
         final_pipeline.fit(X_cv, y_cv)
         joblib.dump(final_pipeline, save_model_path)
-        print(f"✅ Model saved to {save_model_path}")
+        print(f"Model saved to {save_model_path}")
 
     return best_variant, stage2_results
 
@@ -593,24 +593,24 @@ def main():
         }
 
 
-        #for models in MODELS:
-        #    best_synth, results_synth = run_stage1_taxonomy_baseline(
-        #        model_type=models,
-        #        synthesizer_config=synthetic_config,
-        #        data_route=DataRoute.RAW
-        #    )
+        for models in MODELS:
+            best_synth, results_synth = run_stage1_taxonomy_baseline(
+                model_type=models,
+                synthesizer_config=synthetic_config,
+                data_route=DataRoute.RAW
+            )
 
 #
         # Stage 3: Determine the best combination of network features
-        best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
-                                                             model_type="ExtraTreesRegressor",
-                                                             use_kbest=False,
-                                                             synthesizer_config=synthetic_config,
-                                                             data_route=DataRoute.RAW,
-                                                             edge_threshold=0.0005,
-                                                             n_spectral_features=8,
-                                                             min_community_size=3,
-                                                             save_model_path="fe_model_group_kfold.joblib")
+        #best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
+        #                                                     model_type="ExtraTreesRegressor",
+        #                                                     use_kbest=False,
+        #                                                     synthesizer_config=synthetic_config,
+        #                                                     data_route=DataRoute.RAW,
+        #                                                     edge_threshold=0.0005,
+        #                                                     n_spectral_features=8,
+        #                                                     min_community_size=3,
+        #                                                     save_model_path="fe_model_group_kfold.joblib")
 
       
         

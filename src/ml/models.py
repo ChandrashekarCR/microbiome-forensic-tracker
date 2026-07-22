@@ -7,6 +7,7 @@ from enum import Enum
 from malmo_samples.db_reader import DatabaseCreate
 from ml.config import config
 from ml.data_loading import DatabaseRSA
+from sklearn.cluster import DBSCAN
 
 from abc import ABC, abstractmethod
 from sdv.metadata import SingleTableMetadata
@@ -26,9 +27,18 @@ def load_and_prep_data() -> pd.DataFrame:
 
 # Differents methods of splitting data
 class TrainTestSplit:
-    def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2):
-        X_all = df.drop(columns=["latitude", "longitude", "zone", "sample_id"], axis=1)
-        y_zone_all = df["zone"]
+    def __init__(self, df: pd.DataFrame, n_splits: int = 4, 
+                 test_size: float = 0.2,
+                 site_threshold_meters: float = 15.0,
+                 random_state: int = config.data_splitting.random_state):
+
+
+        self.n_splits = n_splits
+        self.site_threshold_metres = site_threshold_meters
+
+
+        # Make a copy and project coordinates to meters
+        df = df.copy()
 
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:3006", always_xy=True)
         x_m, y_m = transformer.transform(
@@ -36,30 +46,65 @@ class TrainTestSplit:
             df["latitude"].to_numpy(),
         )
 
-        new_cols = pd.DataFrame(
-            {"X_meters": x_m, "Y_meters": y_m},
-            index=df.index,
-        )
+        df['X_meters'] = x_m
+        df['Y_meters'] = y_m
 
-        df = pd.concat([df, new_cols], axis=1)
+        # Create site ids using DBSCAN clustering algorithm 
+        coords = df[['X_meters','Y_meters']].to_numpy()
+        clustering = DBSCAN(eps=site_threshold_meters,min_samples=1,metric='euclidean')
+        df['site_id'] = clustering.fit_predict(coords)
+        df['site_id'] = df['site_id'].apply(lambda x: f'SITE_{x:04d}')
+
+        # Store the site info
+        self.site_counts = df['site_id'].value_counts()
+
+        # Prepare features and targets
+        drop_cols = ["latitude", "longitude", "zone", "sample_id","site_id","X_meters","Y_meters"]
+        X_all = df.drop(columns=drop_cols, axis=1)
+        y_zone_all = df["zone"]
+
 
         # Pass in everything and let the user decided on which he wants to train on. Accordingly the evaution metrics are set.
         y_coords_all = df[["X_meters", "Y_meters", "latitude", "longitude"]]
+        site_ids_all = df['site_id']
 
-        self.n_splits = n_splits
+        # Split by site_id and not by random rows
+        # Get unique sites with their zones
+        site_representatives = df.drop_duplicates(subset='site_id')[['site_id','zone']]
 
-        # 1. Slice off the 20% blind test set first. Stratify by zone.
-        (self.X_cv, self.X_test, self.y_cv_zone, self.y_test_zone, self.y_cv_coords, self.y_test_coords) = train_test_split(
-            X_all, y_zone_all, y_coords_all, test_size=test_size, stratify=y_zone_all, random_state=config.data_splitting.random_state
-        )
+        # Stratify at the site level to preserve zone proporions
+        train_sites, test_sites = train_test_split(site_representatives['site_id'],test_size=test_size,
+                                                   stratify=site_representatives['zone'],random_state=random_state)
 
-        # Reset indices so K-Fold integer indexing (.iloc) works perfectly
-        self.X_cv = self.X_cv.reset_index(drop=True)
-        self.X_test = self.X_test.reset_index(drop=True)
-        self.y_cv_zone = self.y_cv_zone.reset_index(drop=True)
-        self.y_test_zone = self.y_test_zone.reset_index(drop=True)
-        self.y_cv_coords = self.y_cv_coords.reset_index(drop=True)
-        self.y_test_coords = self.y_test_coords.reset_index(drop=True)
+        # Get indices for train and test
+        train_idx = df[df['site_id'].isin(train_sites)].index
+        test_idx = df[df['site_id'].isin(test_sites)].index
+
+        # Create train and test DataFrames
+        df_train = df.loc[train_idx].reset_index(drop=True)
+        df_test = df.loc[test_idx].reset_index(drop=True)
+        
+        # 5. Store train and test splits ---
+        self.X_cv = df_train.drop(columns=drop_cols, axis=1)
+        self.X_test = df_test.drop(columns=drop_cols, axis=1)
+        
+        self.y_cv_zone = df_train["zone"].reset_index(drop=True)
+        self.y_test_zone = df_test["zone"].reset_index(drop=True)
+        
+        self.y_cv_coords = df_train[["X_meters", "Y_meters", "latitude", "longitude"]].reset_index(drop=True)
+        self.y_test_coords = df_test[["X_meters", "Y_meters", "latitude", "longitude"]].reset_index(drop=True)
+        
+        self.cv_site_ids = df_train["site_id"].reset_index(drop=True)
+        self.test_site_ids = df_test["site_id"].reset_index(drop=True)
+
+    def groupkfold_site_split(self) -> list:
+        """
+        GroupKFold by site_id.
+        All samples from the same site stay together in the same fold.
+        This is TRUE spatial generalization and prevents data leakage.
+        """
+        gkf = GroupKFold(n_splits=self.n_splits)
+        return list(gkf.split(self.X_cv, self.y_cv_zone, groups=self.cv_site_ids))
 
     def stratifed_zone_data_split(self) -> list:
         """

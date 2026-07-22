@@ -94,6 +94,8 @@ def get_configured_cv_split(splitter: TrainTestSplit):
         return splitter.repeated_zone_data_split()
     elif strategy == "group_kfold":
         return splitter.groupkfold_zone_split()
+    elif strategy == "group_kfold_site":
+        return splitter.groupkfold_site_split()
     else:
         return splitter.repeated_stratified_zone_data_split()
 
