@@ -618,18 +618,18 @@ def main():
         # Tune RandomForest on genus level without network features
         
         # Run tuning
-        #fe_results = run_stage3_hyperparameter_tuning(
-        #    taxonomy_level="order",
-        #    model_type="ExtraTreesRegressor",
-        #    use_network_features=True,
-        #    use_kbest=False,
-        #    feature_flags=feature_flags,
-        #    n_iter=20,
-        #    save_model_path="final_tuned_model_group_kfold.joblib"
-        #)
-#
-        #print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
-        #print(f"Best Params: {fe_results['best_params']}")
+        fe_results = run_stage3_hyperparameter_tuning(
+            taxonomy_level="order",
+            model_type="ExtraTreesRegressor",
+            use_network_features=True,
+            use_kbest=False,
+            feature_flags=feature_flags,
+            n_iter=20,
+            save_model_path="final_tuned_model_group_kfold.joblib"
+        )
+
+        print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
+        print(f"Best Params: {fe_results['best_params']}")
 
     except Exception as e:
         print(f"\nError: {e}")
