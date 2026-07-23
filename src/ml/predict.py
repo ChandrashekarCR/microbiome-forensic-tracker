@@ -238,18 +238,18 @@ def evaluate_tuned_fe_on_test_set_corrected(seeds=range(1, 11)):
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     # Run evaluations (CORRECTED: retrain for each seed)
-    #baseline_metrics = evaluate_baseline_on_test_set(seeds=range(1, 11))
-    #untuned_fe_metrics = evaluate_untuned_fe_on_test_set_corrected(seeds=range(1, 11))
+    baseline_metrics = evaluate_baseline_on_test_set(seeds=range(1, 11))
+    untuned_fe_metrics = evaluate_untuned_fe_on_test_set_corrected(seeds=range(1, 11))
     tuned_fe_metrics = evaluate_tuned_fe_on_test_set_corrected(seeds=range(1, 11))
 
     # Extract all metrics
-    #baseline_mean = [m['mean_error_km'] for m in baseline_metrics]
-    #baseline_median = [m['median_error_km'] for m in baseline_metrics]
-    #baseline_max = [m['max_error_km'] for m in baseline_metrics]
-#
-    #untuned_mean = [m['mean_error_km'] for m in untuned_fe_metrics]
-    #untuned_median = [m['median_error_km'] for m in untuned_fe_metrics]
-    #untuned_max = [m['max_error_km'] for m in untuned_fe_metrics]
+    baseline_mean = [m['mean_error_km'] for m in baseline_metrics]
+    baseline_median = [m['median_error_km'] for m in baseline_metrics]
+    baseline_max = [m['max_error_km'] for m in baseline_metrics]
+
+    untuned_mean = [m['mean_error_km'] for m in untuned_fe_metrics]
+    untuned_median = [m['median_error_km'] for m in untuned_fe_metrics]
+    untuned_max = [m['max_error_km'] for m in untuned_fe_metrics]
 
     tuned_mean = [m['mean_error_km'] for m in tuned_fe_metrics]
     tuned_median = [m['median_error_km'] for m in tuned_fe_metrics]
@@ -260,12 +260,12 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"{'Model':<20} {'Mean Error (km)':<30} {'Median Error (km)':<30} {'Max Error (km)':<30}")
     print("-" * 110)
-    #print(f"{'Baseline (no FE)':<20} {np.mean(baseline_mean):.4f} ± {np.std(baseline_mean):.4f}   "
-    #      f"{np.mean(baseline_median):.4f} ± {np.std(baseline_median):.4f}   "
-    #      f"{np.mean(baseline_max):.4f} ± {np.std(baseline_max):.4f}")
-    #print(f"{'Untuned FE':<20} {np.mean(untuned_mean):.4f} ± {np.std(untuned_mean):.4f}   "
-    #      f"{np.mean(untuned_median):.4f} ± {np.std(untuned_median):.4f}   "
-    #      f"{np.mean(untuned_max):.4f} ± {np.std(untuned_max):.4f}")
+    print(f"{'Baseline (no FE)':<20} {np.mean(baseline_mean):.4f} ± {np.std(baseline_mean):.4f}   "
+          f"{np.mean(baseline_median):.4f} ± {np.std(baseline_median):.4f}   "
+          f"{np.mean(baseline_max):.4f} ± {np.std(baseline_max):.4f}")
+    print(f"{'Untuned FE':<20} {np.mean(untuned_mean):.4f} ± {np.std(untuned_mean):.4f}   "
+          f"{np.mean(untuned_median):.4f} ± {np.std(untuned_median):.4f}   "
+          f"{np.mean(untuned_max):.4f} ± {np.std(untuned_max):.4f}")
     print(f"{'Tuned FE (Final)':<20} {np.mean(tuned_mean):.4f} ± {np.std(tuned_mean):.4f}   "
           f"{np.mean(tuned_median):.4f} ± {np.std(tuned_median):.4f}   "
           f"{np.mean(tuned_max):.4f} ± {np.std(tuned_max):.4f}")
@@ -273,6 +273,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("IMPROVEMENTS")
     print("=" * 60)
-    #print(f"FE Improvement (untuned): Mean: {np.mean(baseline_mean) - np.mean(untuned_mean):.4f} km")
-    #print(f"Tuning Improvement:       Mean: {np.mean(untuned_mean) - np.mean(tuned_mean):.4f} km")
-    #print(f"Total Improvement:        Mean: {np.mean(baseline_mean) - np.mean(tuned_mean):.4f} km")
+    print(f"FE Improvement (untuned): Mean: {np.mean(baseline_mean) - np.mean(untuned_mean):.4f} km")
+    print(f"Tuning Improvement:       Mean: {np.mean(untuned_mean) - np.mean(tuned_mean):.4f} km")
+    print(f"Total Improvement:        Mean: {np.mean(baseline_mean) - np.mean(tuned_mean):.4f} km")
