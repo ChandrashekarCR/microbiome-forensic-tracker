@@ -27,12 +27,10 @@ from src.backend import tasks
 from src.backend.database import Base
 from src.backend.models import Abundance, Samples
 
-
-
 # generate_sample_sheet
 
-class TestGenerateSampleSheet:
 
+class TestGenerateSampleSheet:
     def test_writes_expected_header_and_row(self, tmp_path, monkeypatch):
         # Redirect the sample-sheet output directory so the test is hermetic.
         monkeypatch.setattr(tasks, "RUNTIME_DIR", tmp_path)
@@ -49,11 +47,10 @@ class TestGenerateSampleSheet:
         assert rows[1] == ["malmo_01", "/data/malmo_01_R1.fq.gz", "/data/malmo_01_R2.fq.gz"]
 
 
-
 # render_snakemake_profile
 
-class TestRenderSnakemakeProfile:
 
+class TestRenderSnakemakeProfile:
     def test_expands_environment_variables(self, tmp_path, monkeypatch):
         # Prepare a fake profile directory with a config.yaml that references
         # an environment variable.
@@ -72,8 +69,8 @@ class TestRenderSnakemakeProfile:
         assert "${TEST_KRAKEN_DB}" not in content
 
 
-
 # import_abundance_csv
+
 
 class TestImportAbundanceCsv:
     """

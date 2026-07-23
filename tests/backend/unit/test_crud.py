@@ -19,12 +19,10 @@ import pytest
 from src.backend import crud
 from src.backend.models import Abundance
 
-
-
 # create_sample
 
-class TestCreateSample:
 
+class TestCreateSample:
     async def test_persists_new_row(self, db_session):
         sample = await crud.create_sample(
             db=db_session,
@@ -44,11 +42,10 @@ class TestCreateSample:
         assert sample.r1_path == "/tmp/r1.fq.gz"
 
 
-
 # get_sample_by_name / by_id
 
-class TestGetSample:
 
+class TestGetSample:
     async def test_by_name_returns_row_when_present(self, db_session, created_sample):
         found = await crud.get_sample_by_name(db_session, created_sample.sample_name)
         assert found is not None
@@ -64,8 +61,8 @@ class TestGetSample:
         assert found.sample_name == created_sample.sample_name
 
 
-
 # get_all_samples
+
 
 async def test_get_all_samples_empty(db_session):
     assert await crud.get_all_samples(db_session) == []
@@ -87,27 +84,22 @@ async def test_get_all_samples_orders_newest_first(db_session):
     assert rows[0].sample_name == "s_2"
 
 
-
 # update_sample_status
 
-class TestUpdateStatus:
 
+class TestUpdateStatus:
     async def test_updates_status_field(self, db_session, created_sample):
         updated = await crud.update_sample_status(db_session, created_sample.id, "processing")
         assert updated.status == "processing"
 
     async def test_updates_extra_kwargs(self, db_session, created_sample):
-        updated = await crud.update_sample_status(
-            db_session, created_sample.id, "failed", error_msg="pipeline crashed"
-        )
+        updated = await crud.update_sample_status(db_session, created_sample.id, "failed", error_msg="pipeline crashed")
         assert updated.status == "failed"
         assert updated.error_msg == "pipeline crashed"
 
     async def test_ignores_unknown_attrs(self, db_session, created_sample):
         # `nonsense` is not a column — should be silently ignored, not raise.
-        updated = await crud.update_sample_status(
-            db_session, created_sample.id, "processing", nonsense="oops"
-        )
+        updated = await crud.update_sample_status(db_session, created_sample.id, "processing", nonsense="oops")
         assert updated.status == "processing"
         assert not hasattr(updated, "nonsense")
 
@@ -116,11 +108,10 @@ class TestUpdateStatus:
         assert result is None
 
 
-
 # delete_sample
 
-class TestDeleteSample:
 
+class TestDeleteSample:
     async def test_returns_true_when_deleted(self, db_session, created_sample):
         assert await crud.delete_sample(db_session, created_sample.sample_name) is True
         assert await crud.get_sample_by_name(db_session, created_sample.sample_name) is None
@@ -129,19 +120,18 @@ class TestDeleteSample:
         assert await crud.delete_sample(db_session, "does_not_exist") is False
 
 
-
 # update_celery_task_id
+
 
 async def test_update_celery_task_id(db_session, created_sample):
     updated = await crud.update_celery_task_id(db_session, created_sample.id, "task-42")
     assert updated.celery_task_id == "task-42"
 
 
-
 # fetch_abundance — returns a wide-form pandas DataFrame
 
-class TestFetchAbundance:
 
+class TestFetchAbundance:
     async def _seed_abundance(self, db_session, sample_id, sample_name):
         rows = [
             Abundance(

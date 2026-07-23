@@ -9,8 +9,6 @@ patches `get_pipeline()` to return a lightweight MagicMock.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -18,11 +16,8 @@ from src.backend import predict
 
 
 class TestPredictSample:
-
     def test_returns_lat_lon_floats(self, mock_ml_pipeline):
-        wide_df = pd.DataFrame(
-            [{"Bacteroides": 0.4, "Prevotella": 0.3, "Faecalibacterium": 0.3}]
-        )
+        wide_df = pd.DataFrame([{"Bacteroides": 0.4, "Prevotella": 0.3, "Faecalibacterium": 0.3}])
         lat, lon = predict.predict_sample(wide_df)
         assert isinstance(lat, float)
         assert isinstance(lon, float)
@@ -32,9 +27,7 @@ class TestPredictSample:
         The mock returns EPSG:3006 coords near Malmö.  After transforming
         to EPSG:4326 we expect roughly (55.6°N, 13.0°E).
         """
-        wide_df = pd.DataFrame(
-            [{"Bacteroides": 0.4, "Prevotella": 0.3, "Faecalibacterium": 0.3}]
-        )
+        wide_df = pd.DataFrame([{"Bacteroides": 0.4, "Prevotella": 0.3, "Faecalibacterium": 0.3}])
         lat, lon = predict.predict_sample(wide_df)
         assert 55.0 < lat < 56.0
         assert 12.0 < lon < 14.0
@@ -56,16 +49,13 @@ class TestPredictSample:
 
     def test_extra_columns_are_ignored(self, mock_ml_pipeline):
         """Columns the model doesn't know about must be dropped, not passed in."""
-        wide_df = pd.DataFrame(
-            [{"Bacteroides": 0.4, "UnknownClade": 0.99, "Faecalibacterium": 0.3}]
-        )
+        wide_df = pd.DataFrame([{"Bacteroides": 0.4, "UnknownClade": 0.99, "Faecalibacterium": 0.3}])
         predict.predict_sample(wide_df)
         called_with = mock_ml_pipeline.predict.call_args[0][0]
         assert "UnknownClade" not in called_with.columns
 
 
 class TestGetPipeline:
-
     def test_raises_when_model_file_missing(self, monkeypatch, tmp_path):
         # Point MODEL_PATH at a location that definitely doesn't exist.
         monkeypatch.setattr(predict.settings, "MODEL_PATH", tmp_path / "does_not_exist.pkl")

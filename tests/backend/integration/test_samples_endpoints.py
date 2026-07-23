@@ -14,15 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-
-
 # POST /samples
 
-class TestUploadSample:
 
-    async def test_creates_sample_returns_201(
-        self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, mock_celery
-    ):
+class TestUploadSample:
+    async def test_creates_sample_returns_201(self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, mock_celery):
         response = await api_client.post(
             "/samples",
             data=sample_payload,
@@ -41,9 +37,7 @@ class TestUploadSample:
         # Celery task was scheduled exactly once.
         assert mock_celery.call_count == 1
 
-    async def test_duplicate_sample_name_returns_400(
-        self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, created_sample
-    ):
+    async def test_duplicate_sample_name_returns_400(self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, created_sample):
         # `created_sample` fixture already inserted a row with this name.
         response = await api_client.post(
             "/samples",
@@ -57,9 +51,7 @@ class TestUploadSample:
         "bad_filename",
         ["reads.txt", "reads.fastq", "reads.fq", "reads.bam"],
     )
-    async def test_rejects_wrong_file_extension(
-        self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, bad_filename
-    ):
+    async def test_rejects_wrong_file_extension(self, api_client, sample_payload, fake_fastq_files, temp_upload_dir, bad_filename):
         import io
 
         bad = (bad_filename, io.BytesIO(b"data"), "application/octet-stream")
@@ -71,9 +63,7 @@ class TestUploadSample:
         assert response.status_code == 400
         assert ".fastq.gz" in response.json()["detail"] or ".fq.gz" in response.json()["detail"]
 
-    async def test_missing_form_field_returns_422(
-        self, api_client, fake_fastq_files, temp_upload_dir
-    ):
+    async def test_missing_form_field_returns_422(self, api_client, fake_fastq_files, temp_upload_dir):
         # No 'username' field — FastAPI/Pydantic must reject with 422.
         response = await api_client.post(
             "/samples",
@@ -83,11 +73,10 @@ class TestUploadSample:
         assert response.status_code == 422
 
 
-
 # GET /samples
 
-class TestListSamples:
 
+class TestListSamples:
     async def test_empty_list(self, api_client):
         response = await api_client.get("/samples")
         assert response.status_code == 200
@@ -103,11 +92,10 @@ class TestListSamples:
         assert body["samples"][0]["sample_name"] == created_sample.sample_name
 
 
-
 # GET /samples/{name}
 
-class TestGetSampleStatus:
 
+class TestGetSampleStatus:
     async def test_returns_existing_sample(self, api_client, created_sample):
         response = await api_client.get(f"/samples/{created_sample.sample_name}")
         assert response.status_code == 201
@@ -119,11 +107,10 @@ class TestGetSampleStatus:
         assert response.json()["detail"] == "Sample not found"
 
 
-
 # DELETE /samples/{name}
 
-class TestDeleteSample:
 
+class TestDeleteSample:
     async def test_deletes_existing_sample(self, api_client, created_sample):
         response = await api_client.delete(f"/samples/{created_sample.sample_name}")
         assert response.status_code == 200

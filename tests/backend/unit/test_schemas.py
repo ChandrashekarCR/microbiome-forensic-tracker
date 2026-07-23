@@ -53,7 +53,6 @@ class TestSampleCreate:
 
 # SampleResponse — the output schema for GET /samples/{name}
 class TestSampleResponse:
-
     def test_serialises_minimum_fields(self):
         obj = SampleResponse(
             id=uuid.uuid4(),

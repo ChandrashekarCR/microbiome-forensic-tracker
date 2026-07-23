@@ -1,18 +1,16 @@
-import pandas as pd
-from pyproj import Transformer
-from sklearn.model_selection import GroupKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
+from abc import ABC, abstractmethod
 from enum import Enum
 
+import pandas as pd
+import torch
+from pyproj import Transformer
+from sdv.metadata import SingleTableMetadata
+from sdv.single_table import TVAESynthesizer
+from sklearn.model_selection import GroupKFold, LeaveOneOut, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold, train_test_split
 
 from malmo_samples.db_reader import DatabaseCreate
 from ml.config import config
 from ml.data_loading import DatabaseRSA
-from sklearn.cluster import DBSCAN
-
-from abc import ABC, abstractmethod
-from sdv.metadata import SingleTableMetadata
-from sdv.single_table import TVAESynthesizer
-import torch
 
 
 # Load the data from the SQL database
@@ -27,7 +25,7 @@ def load_and_prep_data() -> pd.DataFrame:
 
 # Differents methods of splitting data
 class TrainTestSplit:
-    def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2,random_state: int = config.data_splitting.random_state):
+    def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2, random_state: int = config.data_splitting.random_state):
         X_all = df.drop(columns=["latitude", "longitude", "zone", "sample_id"], axis=1)
         y_zone_all = df["zone"]
 
@@ -37,23 +35,22 @@ class TrainTestSplit:
             df["latitude"].to_numpy(),
         )
 
-        df['X_meters'] = x_m
-        df['Y_meters'] = y_m
+        df["X_meters"] = x_m
+        df["Y_meters"] = y_m
 
-        # Create site ids using DBSCAN clustering algorithm 
-        coords = df[['X_meters','Y_meters']].to_numpy()
-        clustering = DBSCAN(eps=site_threshold_meters,min_samples=1,metric='euclidean')
-        df['site_id'] = clustering.fit_predict(coords)
-        df['site_id'] = df['site_id'].apply(lambda x: f'SITE_{x:04d}')
-
-        # Store the site info
-        self.site_counts = df['site_id'].value_counts()
+        # Create site ids using DBSCAN clustering algorithm
+        # coords = df[['X_meters','Y_meters']].to_numpy()
+        # clustering = DBSCAN(eps=site_threshold_meters,min_samples=1,metric='euclidean')
+        # df['site_id'] = clustering.fit_predict(coords)
+        # df['site_id'] = df['site_id'].apply(lambda x: f'SITE_{x:04d}')
+        #
+        ## Store the site info
+        # self.site_counts = df['site_id'].value_counts()
 
         # Prepare features and targets
-        drop_cols = ["latitude", "longitude", "zone", "sample_id","site_id","X_meters","Y_meters"]
+        drop_cols = ["latitude", "longitude", "zone", "sample_id", "site_id", "X_meters", "Y_meters"]
         X_all = df.drop(columns=drop_cols, axis=1)
         y_zone_all = df["zone"]
-
 
         # Pass in everything and let the user decided on which he wants to train on. Accordingly the evaution metrics are set.
         y_coords_all = df[["X_meters", "Y_meters", "latitude", "longitude"]]
@@ -126,6 +123,7 @@ class TrainTestSplit:
         """
         return self.X_test, self.y_test_zone, self.y_test_coords
 
+
 class BaseSynthesizer(ABC):
     """Abstract base for all synthetic data generators."""
 
@@ -138,13 +136,14 @@ class BaseSynthesizer(ABC):
         """Returns (synthetic_X, synthetic_y)"""
         pass
 
+
 class TVAEDataSynthesizer(BaseSynthesizer):
     """
     TVAE based synthesizer using SDV
     Fit on combined (X,y) to learn joint distribution
     """
 
-    def __init__(self, epochs:int=300, batch_size:int=32, cuda: bool = True):
+    def __init__(self, epochs: int = 300, batch_size: int = 32, cuda: bool = True):
         self.epochs = epochs
         self.batch_size = batch_size
         self.synthesizer = None
@@ -152,42 +151,37 @@ class TVAEDataSynthesizer(BaseSynthesizer):
         self._y_cols = None
         self.cuda = cuda and torch.cuda.is_available()
 
-    def fit(self, X:pd.DataFrame, y:pd.DataFrame) -> None:
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> None:
         self._x_cols = X.columns.tolist()
         self._y_cols = y.columns.to_list()
 
         # We need to combined this to a dataframe
-        combined_df = pd.concat([X.reset_index(drop=True),y.reset_index(drop=True)],axis=1)
+        combined_df = pd.concat([X.reset_index(drop=True), y.reset_index(drop=True)], axis=1)
 
         # Initialize metadata class
         metadata = SingleTableMetadata()
         metadata.detect_from_dataframe(combined_df)
         for cols in self._y_cols:
-            metadata.update_column(column_name=cols,sdtype="numerical")
-        
+            metadata.update_column(column_name=cols, sdtype="numerical")
+
         # Initialize the synthesizer
         self.synthesizer = TVAESynthesizer(
-            metadata,
-            enforce_min_max_values=True,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            enable_gpu=self.cuda
+            metadata, enforce_min_max_values=True, epochs=self.epochs, batch_size=self.batch_size, enable_gpu=self.cuda
         )
 
         self.synthesizer.fit(combined_df)
-    
-    def generate(self, n:int) -> tuple[pd.DataFrame,pd.DataFrame]:
+
+    def generate(self, n: int) -> tuple[pd.DataFrame, pd.DataFrame]:
         synthetic = self.synthesizer.sample(num_rows=n)
 
-        return synthetic[self._x_cols].reset_index(drop=True), \
-                synthetic[self._y_cols].reset_index(drop=True)
-        
+        return synthetic[self._x_cols].reset_index(drop=True), synthetic[self._y_cols].reset_index(drop=True)
 
 
 class DataRoute(str, Enum):
-    RAW = "raw"               # only real data (your current baseline)
-    SYNTHETIC = "synthetic"   # only synthetic data
-    COMBINED = "combined"     # real + synthetic (most useful)
+    RAW = "raw"  # only real data (your current baseline)
+    SYNTHETIC = "synthetic"  # only synthetic data
+    COMBINED = "combined"  # real + synthetic (most useful)
+
 
 # df = load_and_prep_data()
 # splitter = TrainTestSplit(df)

@@ -215,7 +215,7 @@ line-length = 150
 
 [tool.ruff.lint]
 select = ["E", "F", "C", "B", "I"]
-ignore = ["E203","B008","C901"]
+ignore = ["E203","B008","C901","C414"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

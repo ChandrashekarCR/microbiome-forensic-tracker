@@ -4,8 +4,8 @@ import pandas as pd
 import seaborn as sns
 import umap
 
-from ml.data_loading import DatabaseRSA
 from malmo_samples.db_reader import DatabaseCreate
+from ml.data_loading import DatabaseRSA
 
 
 def plot_umap_by_zone(

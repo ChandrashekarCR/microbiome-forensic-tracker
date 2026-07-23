@@ -91,8 +91,8 @@ class Settings(BaseSettings):
         p = self.BACKEND_DB_PATH
         return p if p.is_absolute() else self.PROJECT_ROOT / p
 
-    #@property
-    #def ml_db_path(self) -> Path:
+    # @property
+    # def ml_db_path(self) -> Path:
     #    p = self.ML_DB_PATH
     #    return p if p.is_absolute() else self.PROJECT_ROOT / p
 
@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     @property
     def snakemake_config(self) -> Path:
         return self.PROJECT_ROOT / self.SNAKEMAKE_CONFIG
-    
+
     @property
     def snakemake_tools(self) -> Path:
         p = self.SNAKEMAKE_TOOLS

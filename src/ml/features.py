@@ -45,18 +45,19 @@ class ZeroColumnFilter(BaseEstimator, TransformerMixin):
         X_out = X_out.loc[:, ~X_out.columns.duplicated(keep="first")]
         return X_out.astype(float)
 
+
 class CLRFilter(BaseEstimator, TransformerMixin):
     """
     Centered Log-Ratio (CLR) transformation for compositional data.
-    
+
     Steps:
         1. Multiplicative replacement of zeros (impute with delta)
         2. Row-wise normalization to relative abundance (sum = 1)
         3. CLR: log(x) - mean(log(x)) for each sample
-    
+
     This is a standalone transformer that can be used in an sklearn Pipeline.
     """
-    
+
     def __init__(self, delta: float = 1e-6):
         """
         Parameters
@@ -76,13 +77,13 @@ class CLRFilter(BaseEstimator, TransformerMixin):
     def transform(self, X) -> pd.DataFrame:
         """
         Apply CLR transformation to the input data.
-        
+
         Parameters
         ----------
         X : pd.DataFrame or np.ndarray
             Relative abundance data (features as columns, samples as rows).
             Can contain zeros - they will be handled.
-            
+
         Returns
         -------
         pd.DataFrame or np.ndarray
@@ -106,10 +107,10 @@ class CLRFilter(BaseEstimator, TransformerMixin):
         row_sums[row_sums == 0] = self.delta
         X = X / row_sums
 
-        # Step 3: Clipping to avoid log(0) or log(negative) 
+        # Step 3: Clipping to avoid log(0) or log(negative)
         X = np.clip(X, self.delta, 1.0)
 
-        # Step 4: Centered Log-Ratio transformation 
+        # Step 4: Centered Log-Ratio transformation
         clr_transformed = clr(X)
 
         # Step 5: Return in same format as input
@@ -132,7 +133,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         top_k_edges: int = 20,
         use_edge: bool = False,
         use_community: bool = True,
-        min_community_size: int =3
+        min_community_size: int = 3,
     ):
 
         self.cv_folds = cv_folds
@@ -208,21 +209,20 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         # Any value sufficiently far from 0 is an edge
         self.adjacency_matrix = (np.abs(self.precision_matrix) > 1e-5).astype(int)
         np.fill_diagonal(self.adjacency_matrix, 0)
-        
+
         G = nx.Graph()
         G.add_nodes_from(range(len(self.taxa_names_)))
         rows, cols = np.where(np.triu(self.adjacency_matrix, k=1) == 1)
-        for r,c in zip(rows,cols):
-            G.add_edge(int(r),int(c),weight=float(abs(self.precision_matrix[r,c])))
-        
-        raw_communities = nx.community.louvain_communities(G,weight="weight",seed=42)
+        for r, c in zip(rows, cols):
+            G.add_edge(int(r), int(c), weight=float(abs(self.precision_matrix[r, c])))
+
+        raw_communities = nx.community.louvain_communities(G, weight="weight", seed=42)
 
         self._communities_ = [
             {"community_id": i, "taxa": [self.taxa_names_[idx] for idx in sorted(comm)]}
             for i, comm in enumerate(raw_communities)
             if len(comm) >= self.min_community_size
         ]
-
 
         # Extract network derived features per taxon
         Gd = nx.from_numpy_array(self.adjacency_matrix)
@@ -236,8 +236,8 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         Apply learned transformation to any data (train,val or test)
         """
         X_raw = X.values.copy()
-        #X_nonzero = self.multiplicative_replacement(X_raw)
-        #X_clr_data = clr(X_nonzero)
+        # X_nonzero = self.multiplicative_replacement(X_raw)
+        # X_clr_data = clr(X_nonzero)
         X_clr_data = X_raw
 
         if np.any(~np.isfinite(X_clr_data)):
@@ -248,7 +248,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
         # a) Raw CLR features
         for i, taxon in enumerate(self.taxa_names_):
             features[f"clr_{taxon}"] = X_clr_data[:, i]
-        
+
         # b) Community aggregated scores
         if self.use_community:
             col_index = {name: i for i, name in enumerate(self.taxa_names_)}
@@ -256,7 +256,7 @@ class MicrobiomeFeatureEngineer(BaseEstimator, TransformerMixin):
                 idx = [col_index[t] for t in comm["taxa"] if t in col_index]
                 if len(idx) < self.min_community_size:
                     continue
-                features[f"community_{comm['community_id']}_score"] = X_clr_data[:,idx].sum(axis=1)
+                features[f"community_{comm['community_id']}_score"] = X_clr_data[:, idx].sum(axis=1)
 
         # c) Extract specific Sample-by-Edge active interactions
         # We find all non-zero edges in the global network
@@ -434,7 +434,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
         eps: float = 1e-12,
         use_spectral: bool = False,
         use_global_graph: bool = False,
-        use_community: bool = False
+        use_community: bool = False,
     ):
         self.cv_folds = cv_folds
         self.max_iter = max_iter
@@ -484,8 +484,8 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
             self.spectral_eigenvalues_ = np.array([], dtype=float)
             self.community_indices_ = []
             self.partial_corr_ = np.zeros_like(self.precision_matrix_)
-            self.degree_centrality = {i: 0.0 for i in range(x_train.shape[1])}
-            self.betweenness = {i: 0.0 for i in range(x_train.shape[1])}
+            self.degree_centrality = dict.fromkeys(range(x_train.shape[1]), 0.0)
+            self.betweenness = dict.fromkeys(range(x_train.shape[1]), 0.0)
             return self
 
         self.affinity_matrix_ = np.abs(self.precision_matrix_)
@@ -519,16 +519,11 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
         degree_inv_sqrt = np.zeros_like(degree)
 
         valid_degree = degree > self.eps
-        degree_inv_sqrt[valid_degree] = 1.0 / np.sqrt(
-            degree[valid_degree]
-        )
+        degree_inv_sqrt[valid_degree] = 1.0 / np.sqrt(degree[valid_degree])
 
         d_inv_sqrt = np.diag(degree_inv_sqrt)
 
-        self.laplacian_ = (
-            np.eye(affinity.shape[0])
-            - d_inv_sqrt @ affinity @ d_inv_sqrt
-        )
+        self.laplacian_ = np.eye(affinity.shape[0]) - d_inv_sqrt @ affinity @ d_inv_sqrt
 
         # 4. Graph spectral basis.
         eigenvalues, eigenvectors = np.linalg.eigh(self.laplacian_)
@@ -540,9 +535,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
 
         if n_keep == 0:
             # Safe fallback for a graph with no usable edges.
-            self.spectral_basis_ = np.zeros(
-                (affinity.shape[0], 0)
-            )
+            self.spectral_basis_ = np.zeros((affinity.shape[0], 0))
         else:
             self.spectral_basis_ = eigenvectors[:, usable[:n_keep]]
 
@@ -558,9 +551,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
         )
 
         self.community_indices_ = [
-            np.array(sorted(list(community)), dtype=int)
-            for community in raw_communities
-            if len(community) >= self.min_community_size
+            np.array(sorted(list(community)), dtype=int) for community in raw_communities if len(community) >= self.min_community_size
         ]
 
         return self
@@ -583,7 +574,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
 
         # As a fallback we add the raw CLR features as well
         for i, taxon in enumerate(self.taxa_names_):
-            features[f"clr_{taxon}"] = x_clr[:,i]
+            features[f"clr_{taxon}"] = x_clr[:, i]
 
         # A. Network spectral coordinates:
         # Each coordinate is a graph-informed projection of the full species profile.
@@ -592,9 +583,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
                 spectral_scores = x_clr @ self.spectral_basis_
 
                 for component_index in range(spectral_scores.shape[1]):
-                    features[
-                        f"network_spectral_{component_index + 1}"
-                    ] = spectral_scores[:, component_index]
+                    features[f"network_spectral_{component_index + 1}"] = spectral_scores[:, component_index]
 
         # B. Global graph Laplacian energy:
         # High value: connected taxa have strongly discordant CLR behavior.
@@ -607,9 +596,7 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
 
             clr_norm = np.sum(np.square(x_clr), axis=1)
 
-            features["network_global_laplacian_energy"] = (
-                global_energy / (clr_norm + self.eps)
-            )
+            features["network_global_laplacian_energy"] = global_energy / (clr_norm + self.eps)
 
         # C. Community-specific network coherence:
         # One topology-aware score per detected microbial community.
@@ -628,13 +615,6 @@ class GraphLaplacianFeatureEngineer(BaseEstimator, TransformerMixin):
                     axis=1,
                 )
 
-                features[
-                    f"community_{community_id}_laplacian_energy"
-                ] = community_energy / (
-                    community_norm + self.eps
-                )
+                features[f"community_{community_id}_laplacian_energy"] = community_energy / (community_norm + self.eps)
 
         return pd.DataFrame(features, index=X.index)
-
-
-

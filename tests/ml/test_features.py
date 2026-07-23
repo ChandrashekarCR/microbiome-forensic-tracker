@@ -14,7 +14,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.exceptions import NotFittedError
 
 from src.ml.features import (
     CLRFilter,
@@ -25,10 +24,10 @@ from src.ml.features import (
     ZeroColumnFilter,
 )
 
-
 # ---------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_data():
@@ -43,9 +42,7 @@ def sample_data():
     X.iloc[2, 3] = 0.0
     X.iloc[4, 5] = 0.0
     # Target lat/lon for regression
-    y = pd.DataFrame(
-        {"lat": np.random.uniform(55, 56, 5), "lon": np.random.uniform(12, 14, 5)}
-    )
+    y = pd.DataFrame({"lat": np.random.uniform(55, 56, 5), "lon": np.random.uniform(12, 14, 5)})
     return X, y
 
 
@@ -63,11 +60,12 @@ def y_df(sample_data):
 # ZeroColumnFilter
 # ---------------------------------------------------------------------
 
+
 def test_zero_column_filter_fit_transform(X_df):
     # Create a copy and add a column that appears in only 1 of 5 samples
     X = X_df.copy()
     X["rare_taxon"] = 0.0
-    X.iloc[0, -1] = 1.0   # only first sample has this taxon
+    X.iloc[0, -1] = 1.0  # only first sample has this taxon
     transformer = ZeroColumnFilter(min_prevalence=0.9, min_abd=1e-6)
     transformer.fit(X)
     assert transformer._keep_cols_ is not None
@@ -87,9 +85,10 @@ def test_zero_column_filter_not_fitted_raises(X_df):
 # CLRFilter
 # ---------------------------------------------------------------------
 
+
 def test_clr_filter_transform(X_df):
     transformer = CLRFilter(delta=1e-6)
-    transformer.fit(X_df)   # does nothing but required for pipeline
+    transformer.fit(X_df)  # does nothing but required for pipeline
     Xt = transformer.transform(X_df)
     assert isinstance(Xt, pd.DataFrame)
     assert Xt.shape == X_df.shape
@@ -101,6 +100,7 @@ def test_clr_filter_transform(X_df):
 # ---------------------------------------------------------------------
 # MicrobiomeFeatureEngineer
 # ---------------------------------------------------------------------
+
 
 def test_microbiome_feature_engineer_fit(X_df):
     """Fit should store precision matrix and communities."""
@@ -185,6 +185,7 @@ def test_microbiome_feature_engineer_feature_flags_control_output(X_df):
 # GraphLaplacianFeatureEngineer
 # ---------------------------------------------------------------------
 
+
 def test_graph_laplacian_feature_engineer_fit(X_df):
     transformer = GraphLaplacianFeatureEngineer(
         cv_folds=2,
@@ -199,9 +200,7 @@ def test_graph_laplacian_feature_engineer_fit(X_df):
 
 def test_graph_laplacian_feature_engineer_transform_outputs(X_df):
     # Only raw CLR features (fallback)
-    transformer = GraphLaplacianFeatureEngineer(
-        use_spectral=False, use_global_graph=False, use_community=False
-    )
+    transformer = GraphLaplacianFeatureEngineer(use_spectral=False, use_global_graph=False, use_community=False)
     transformer.fit(X_df)
     Xt = transformer.transform(X_df)
     # Should have clr_* only
@@ -209,27 +208,20 @@ def test_graph_laplacian_feature_engineer_transform_outputs(X_df):
     assert set(Xt.columns) == set(expected_cols)
 
     # Spectral features
-    transformer = GraphLaplacianFeatureEngineer(
-        use_spectral=True, use_global_graph=False, use_community=False,
-        n_spectral_features=3
-    )
+    transformer = GraphLaplacianFeatureEngineer(use_spectral=True, use_global_graph=False, use_community=False, n_spectral_features=3)
     transformer.fit(X_df)
     Xt = transformer.transform(X_df)
     spectral_cols = [col for col in Xt.columns if col.startswith("network_spectral_")]
     assert len(spectral_cols) == 3
 
     # Global graph energy
-    transformer = GraphLaplacianFeatureEngineer(
-        use_spectral=False, use_global_graph=True, use_community=False
-    )
+    transformer = GraphLaplacianFeatureEngineer(use_spectral=False, use_global_graph=True, use_community=False)
     transformer.fit(X_df)
     Xt = transformer.transform(X_df)
     assert "network_global_laplacian_energy" in Xt.columns
 
     # Community Laplacian energy
-    transformer = GraphLaplacianFeatureEngineer(
-        use_spectral=False, use_global_graph=False, use_community=True
-    )
+    transformer = GraphLaplacianFeatureEngineer(use_spectral=False, use_global_graph=False, use_community=True)
     transformer.fit(X_df)
     Xt = transformer.transform(X_df)
     comm_cols = [col for col in Xt.columns if col.startswith("community_")]
@@ -239,6 +231,7 @@ def test_graph_laplacian_feature_engineer_transform_outputs(X_df):
 # ---------------------------------------------------------------------
 # KBestFeatureSelection
 # ---------------------------------------------------------------------
+
 
 def test_kbest_feature_selection(X_df, y_df):
     transformer = KBestFeatureSelection(k=2)
@@ -254,6 +247,7 @@ def test_kbest_feature_selection(X_df, y_df):
 # LinearModelScaler
 # ---------------------------------------------------------------------
 
+
 def test_linear_model_scaler(X_df):
     scaler = LinearModelScaler()
     scaler.fit(X_df)
@@ -263,6 +257,7 @@ def test_linear_model_scaler(X_df):
     # Mean should be ~0, std ~1 for each column
     np.testing.assert_allclose(Xt.mean(axis=0), 0.0, atol=1e-10)
     np.testing.assert_allclose(np.std(Xt.values, axis=0, ddof=0), 1.0, atol=1e-10)
+
 
 def test_linear_model_scaler_not_fitted_raises(X_df):
     scaler = LinearModelScaler()

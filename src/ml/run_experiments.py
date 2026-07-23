@@ -6,31 +6,26 @@ Runs three stages of experiments:
   3. Final tuning: Full multistage pipeline with hyperparameter tuning
 """
 
-import json
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
 
+import joblib
 import mlflow
 import mlflow.sklearn
-from omegaconf import ListConfig
-from sklearn.base import clone
-from sklearn.model_selection import RandomizedSearchCV
-from dataclasses import dataclass, field
-from sklearn.base import BaseEstimator
 import pandas as pd
-from typing import Optional
-from enum import Enum
-from typing import List
-import joblib
-
+from sklearn.base import BaseEstimator, clone
+from sklearn.model_selection import RandomizedSearchCV
 
 from ml.config import config
 from ml.mlflow_utils import log_model_metrics, log_model_params, start_run
 from ml.model_registry import models as model_registry
-from ml.models import TrainTestSplit, load_and_prep_data, TVAEDataSynthesizer, BaseSynthesizer, DataRoute
-from ml.pipeline import build_modelling_pipeline,evaluate_model_cv, get_configured_cv_split
+from ml.models import BaseSynthesizer, DataRoute, TrainTestSplit, TVAEDataSynthesizer, load_and_prep_data
+from ml.pipeline import build_modelling_pipeline, evaluate_model_cv, get_configured_cv_split
 
 TAXONOMY_TABLES = {
-   "phylum": "malmo_phylum",
+    "phylum": "malmo_phylum",
     "class": "malmo_class",
     "order": "malmo_order",
     "family": "malmo_family",
@@ -38,18 +33,14 @@ TAXONOMY_TABLES = {
     "species": "malmo_species",
 }
 
-MODELS = [
-    "XGBoost",
-    "RandomForest",
-    "RidgeRegression",
-    "ElasticNet",
-    "ExtraTreesRegressor"
-]
+MODELS = ["XGBoost", "RandomForest", "RidgeRegression", "ElasticNet", "ExtraTreesRegressor"]
 
-class Synthesizertype(str,Enum):
+
+class Synthesizertype(str, Enum):
     NONE = "none"
     BOOTSTRAP = "bootstrap"
     TVAE = "tvae"
+
 
 @dataclass
 class SynthesizerConfig:
@@ -59,11 +50,13 @@ class SynthesizerConfig:
     batch_size: int = 128
     data_routes: list = field(default_factory=lambda: [DataRoute.RAW])
 
+
 @dataclass
 class ExperimentSetup:
     """
     Container for all experiment context.
     """
+
     taxonomy_level: str
     table_name: str
     model_type: str
@@ -77,10 +70,7 @@ class ExperimentSetup:
     synthesizer_config: Optional[SynthesizerConfig] = None
 
 
-def setup_experiment(taxonomy_level: str, 
-                     model_type: str, 
-                     use_meters: bool = None,
-                     synthesizer_config: SynthesizerConfig = None) -> ExperimentSetup:
+def setup_experiment(taxonomy_level: str, model_type: str, use_meters: bool = None, synthesizer_config: SynthesizerConfig = None) -> ExperimentSetup:
 
     # Get the baseline models from the model registry
     all_models = []
@@ -97,7 +87,7 @@ def setup_experiment(taxonomy_level: str,
     table_name = TAXONOMY_TABLES.get(taxonomy_level)
     if table_name is None:
         raise ValueError(f"Unknown taxonomy level: {taxonomy_level}")
-    
+
     # Config and data load
     config.database.table = table_name
     df = load_and_prep_data()
@@ -111,8 +101,8 @@ def setup_experiment(taxonomy_level: str,
 
     # Other configurations
     if use_meters is None:
-        use_meters = config.pipeline_excecution.get("use_cartesian_meters",True)
-    cv_strategy = config.pipeline_excecution.get("cv_strategy","stratified")
+        use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
+    cv_strategy = config.pipeline_excecution.get("cv_strategy", "stratified")
 
     return ExperimentSetup(
         taxonomy_level=taxonomy_level,
@@ -125,43 +115,39 @@ def setup_experiment(taxonomy_level: str,
         n_samples=len(df),
         use_meters=use_meters,
         cv_strategy=cv_strategy,
-        synthesizer_config=synthesizer_config
+        synthesizer_config=synthesizer_config,
     )
+
 
 def build_synthesizer(synth_config: SynthesizerConfig) -> Optional[BaseSynthesizer]:
     """Instantiate the correct synthesizer from config."""
     if synth_config is None or synth_config.synthesizer_type == Synthesizertype.NONE:
         return None
     if synth_config.synthesizer_type == Synthesizertype.TVAE:
-        return TVAEDataSynthesizer(
-            epochs=synth_config.epochs,
-            batch_size=synth_config.batch_size
-        )
+        return TVAEDataSynthesizer(epochs=synth_config.epochs, batch_size=synth_config.batch_size)
+
 
 # STAGE 1: Taxonomy Baseline
 # In this stage, we are intrested in which of the following models from our config file and
 # which of the following taxonomy levels give the best result, i.e least mean_error_km
 
 
-def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
-                                 synthesizer_config: SynthesizerConfig = None,
-                                 data_route: DataRoute = DataRoute.RAW):
+def run_stage1_taxonomy_baseline(
+    model_type: str = "ExtraTreesRegressor", synthesizer_config: SynthesizerConfig = None, data_route: DataRoute = DataRoute.RAW
+):
     """
     Experiment 1: Determine which taxonomy level provides best geolocation signal.
     Uses all baseline models (no feature engineering, no hyperparameter tuning).
     """
     print(f"STAGE 1: Taxonomy Baseline {model_type} - route: {data_route.value}")
-    
-    stage1_results = {}
 
+    stage1_results = {}
 
     for level in TAXONOMY_TABLES.keys():
         print(f"\nRunning taxonomy level: {level}")
 
         # Setup configurations
-        setup = setup_experiment(taxonomy_level=level, 
-                                 model_type=model_type,
-                                 synthesizer_config=synthesizer_config)
+        setup = setup_experiment(taxonomy_level=level, model_type=model_type, synthesizer_config=synthesizer_config)
 
         # Build the synthesizer if any
         synthesizer = build_synthesizer(synthesizer_config) if synthesizer_config else None
@@ -176,8 +162,7 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
             mlflow.set_tag("model_type", setup.model_type)  # e.g., "RandomForest"
             mlflow.set_tag("model_family", setup.model_family)  # e.g., "tree"
             mlflow.set_tag("data_route", data_route.value)
-            mlflow.set_tag("synthesizer_type", 
-                           synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
+            mlflow.set_tag("synthesizer_type", synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
             mlflow.set_tag("use_network_features", "False")
             mlflow.set_tag("use_k_best", "False")
 
@@ -202,11 +187,15 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
 
             # Evaluate the model across CV folds
             avg_mekm, summary_metrics = evaluate_model_cv(
-                setup.splitter, setup.estimator,
+                setup.splitter,
+                setup.estimator,
                 synthesizer=synthesizer,
-                data_route=data_route,n_synthetic=n_synthetic,
-                use_network_features=False, 
-                use_k_best=False, feature_flags=None, model_family=setup.model_family
+                data_route=data_route,
+                n_synthetic=n_synthetic,
+                use_network_features=False,
+                use_k_best=False,
+                feature_flags=None,
+                model_family=setup.model_family,
             )
 
             # Log evaluation metrics
@@ -237,15 +226,15 @@ def run_stage1_taxonomy_baseline(model_type: str = "ExtraTreesRegressor",
 
 # STAGE 2: Feature Engineering without kbest
 def run_stage2_fe_network(
-    taxonomy_level: str, 
-    model_type: str = "RandomForest", 
+    taxonomy_level: str,
+    model_type: str = "RandomForest",
     use_kbest: bool = False,
     synthesizer_config: SynthesizerConfig = None,
     data_route: DataRoute = DataRoute.RAW,
     edge_threshold: float = 1e-05,
     n_spectral_features: int = 8,
     min_community_size: int = 3,
-    save_model_path: str = None
+    save_model_path: str = None,
 ):
     """
     Experiment 2: Test network feature combinations for the GraphLaplacianFeatureEngineer.
@@ -262,13 +251,13 @@ def run_stage2_fe_network(
     # Feature combinations (uncomment others to test all 8)
     feature_combinations = [
         # (use_spectral, use_global_graph, use_community)
-        #(True, False, False),   # CLR + Spectral
-        #(False, True, False),   # CLR + Global
-        #(False, False, True),   # CLR + Community
-        #(True, True, False),    # CLR + Spectral + Global
-        #(True, False, True),    # CLR + Spectral + Community
-        #(False, True, True),    # CLR + Global + Community
-        (True, True, True),     # CLR + ALL network features
+        # (True, False, False),   # CLR + Spectral
+        # (False, True, False),   # CLR + Global
+        # (False, False, True),   # CLR + Community
+        # (True, True, False),    # CLR + Spectral + Global
+        # (True, False, True),    # CLR + Spectral + Community
+        # (False, True, True),    # CLR + Global + Community
+        (True, True, True),  # CLR + ALL network features
     ]
 
     stage2_results = {}
@@ -276,15 +265,18 @@ def run_stage2_fe_network(
 
     # Track best configuration
     best_variant = None
-    best_error = float('inf')
+    best_error = float("inf")
     best_feature_config = None
 
     for use_spectral, use_global_graph, use_community in feature_combinations:
         # Generate feature name
         fe_name_parts = ["CLR"]
-        if use_spectral:    fe_name_parts.append("Spectral")
-        if use_global_graph: fe_name_parts.append("Global")
-        if use_community:   fe_name_parts.append("Community")
+        if use_spectral:
+            fe_name_parts.append("Spectral")
+        if use_global_graph:
+            fe_name_parts.append("Global")
+        if use_community:
+            fe_name_parts.append("Community")
         fe_name = "_".join(fe_name_parts)
 
         print(f"\n--- Variant: {fe_name} ---")
@@ -300,8 +292,7 @@ def run_stage2_fe_network(
             mlflow.set_tag("fe_variant", fe_name)
             mlflow.set_tag("use_kbest", str(use_kbest))
             mlflow.set_tag("data_route", data_route.value)
-            mlflow.set_tag("synthesizer_type", 
-                           synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
+            mlflow.set_tag("synthesizer_type", synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
             mlflow.set_tag("clr_included", "True")
 
             # === INDIVIDUAL FEATURE FLAG TAGS ===
@@ -371,10 +362,10 @@ def run_stage2_fe_network(
                 best_feature_config = feature_config.copy()
 
     # Print summary
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print(f"Best Feature Engineering: {best_variant}")
     print(f"Mean error: {best_error:.4f} km")
-    print("="*50)
+    print("=" * 50)
 
     # --- SAVE THE BEST MODEL ---
     if save_model_path is not None and best_feature_config is not None:
@@ -404,6 +395,7 @@ def run_stage2_fe_network(
 
 # Stage 4: Full Pipeline Hyperparameter Tuning
 
+
 def run_stage3_hyperparameter_tuning(
     taxonomy_level: str,
     model_type: str = "ExtraTreesRegressor",
@@ -413,7 +405,7 @@ def run_stage3_hyperparameter_tuning(
     n_iter: int = 30,
     synthesizer_config: SynthesizerConfig = None,
     data_route: DataRoute = DataRoute.RAW,
-    save_model_path: str = None
+    save_model_path: str = None,
 ):
     """
     Stage 3: Hyperparameter tuning with RandomizedSearchCV.
@@ -423,7 +415,7 @@ def run_stage3_hyperparameter_tuning(
 
     # 1. Setup (same as Stage 3)
     setup = setup_experiment(taxonomy_level, model_type, synthesizer_config)
-    
+
     # Build synthesizer if needed
     synthesizer = build_synthesizer(synthesizer_config) if synthesizer_config else None
     n_synthetic = synthesizer_config.n_synthetic if synthesizer_config else None
@@ -438,12 +430,9 @@ def run_stage3_hyperparameter_tuning(
     # 3. Hyperparameter grid
     if model_type not in config.stage_3.grids:
         raise ValueError(f"No hyperparameter grid for {model_type} in config.stage_3.grids")
-    
+
     param_grid = config.stage_3.grids[model_type]
-    param_distributions = {
-        f"model__estimator__{param}": list(values) 
-        for param, values in param_grid.items()
-    }
+    param_distributions = {f"model__estimator__{param}": list(values) for param, values in param_grid.items()}
 
     # 4. Build pipeline
     pipeline = build_modelling_pipeline(
@@ -453,8 +442,6 @@ def run_stage3_hyperparameter_tuning(
         feature_flags=feature_flags,
         model_family=setup.model_family,
     )
-
-
 
     # 5. Run MLflow
     run_name = f"stage3_tuning_{model_type}_{taxonomy_level}_{int(time.time())}"
@@ -467,8 +454,7 @@ def run_stage3_hyperparameter_tuning(
         mlflow.set_tag("use_network_features", str(use_network_features))
         mlflow.set_tag("use_kbest", str(use_kbest))
         mlflow.set_tag("data_route", data_route.value)
-        mlflow.set_tag("synthesizer_type", 
-                       synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
+        mlflow.set_tag("synthesizer_type", synthesizer_config.synthesizer_type.value if synthesizer_config else "none")
 
         # === PARAMETERS ===
         params = {
@@ -506,10 +492,7 @@ def run_stage3_hyperparameter_tuning(
 
         # 7. Log best params
         best_params_raw = search.best_params_
-        best_params_clean = {
-            k.replace("model__estimator__", ""): v 
-            for k, v in best_params_raw.items()
-        }
+        best_params_clean = {k.replace("model__estimator__", ""): v for k, v in best_params_raw.items()}
         mlflow.log_params({f"tuned_{k}": v for k, v in best_params_clean.items()})
         mlflow.log_metric("search_best_neg_mse", search.best_score_)
 
@@ -544,7 +527,7 @@ def run_stage3_hyperparameter_tuning(
         # Fit on the final dataset and then we can use it to predict directly
         print("\nFitting final pipeline on full training set...")
         final_pipeline = build_modelling_pipeline(
-            estimator=clone(tuned_estimator),   # uses best params
+            estimator=clone(tuned_estimator),  # uses best params
             use_network_features=use_network_features,
             use_k_best=use_kbest,
             feature_flags=feature_flags,
@@ -556,7 +539,6 @@ def run_stage3_hyperparameter_tuning(
         if save_model_path:
             joblib.dump(final_pipeline, save_model_path)
             print(f"Model saved to {save_model_path}")
-        
 
         return results
 
@@ -573,36 +555,26 @@ def main():
     mlflow.set_experiment(config.mlflow.experiment_name)
 
     try:
-        # Stage 1: Determine best taxonomy level     
-        synthetic_config = SynthesizerConfig(
-            synthesizer_type=Synthesizertype.TVAE,
-            n_synthetic=1000,
-            epochs=300,
-            batch_size=32
-        )
+        # Stage 1: Determine best taxonomy level
+        synthetic_config = SynthesizerConfig(synthesizer_type=Synthesizertype.TVAE, n_synthetic=1000, epochs=300, batch_size=32)
 
         # YOUR BEST FE CONFIGURATION - Group Kfold
         feature_flags = {
             "use_spectral": True,
             "use_global_graph": True,
             "use_community": True,
-            "edge_threshold": 0.0005,        
+            "edge_threshold": 0.0005,
             "n_spectral_features": 8,
             "min_community_size": 3,
             "max_iter": 5000,
         }
 
-
         for models in MODELS:
-            best_synth, results_synth = run_stage1_taxonomy_baseline(
-                model_type=models,
-                synthesizer_config=synthetic_config,
-                data_route=DataRoute.RAW
-            )
+            best_synth, results_synth = run_stage1_taxonomy_baseline(model_type=models, synthesizer_config=synthetic_config, data_route=DataRoute.RAW)
 
-#
+        #
         # Stage 3: Determine the best combination of network features
-        #best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
+        # best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order",
         #                                                     model_type="ExtraTreesRegressor",
         #                                                     use_kbest=False,
         #                                                     synthesizer_config=synthetic_config,
@@ -612,11 +584,9 @@ def main():
         #                                                     min_community_size=3,
         #                                                     save_model_path="fe_model_group_kfold.joblib")
 
-      
-        
         # Stage 4 remains optional/disabled unless you explicitly enable it later
         # Tune RandomForest on genus level without network features
-        
+
         # Run tuning
         fe_results = run_stage3_hyperparameter_tuning(
             taxonomy_level="order",
@@ -625,7 +595,7 @@ def main():
             use_kbest=False,
             feature_flags=feature_flags,
             n_iter=20,
-            save_model_path="final_tuned_model_group_kfold.joblib"
+            save_model_path="final_tuned_model_group_kfold.joblib",
         )
 
         print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")

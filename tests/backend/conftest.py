@@ -19,8 +19,8 @@ Design goals for this file:
 from __future__ import annotations
 
 import asyncio
-import io
 import importlib
+import io
 import os
 import sys
 import tempfile
@@ -34,7 +34,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # 1.  Force a safe test-time configuration BEFORE importing the app.
-# The backend reads a .env file at import time via pydantic-settings.  
+# The backend reads a .env file at import time via pydantic-settings.
 # We will override the values that would otherwise point at Redis / real DB paths annd we do not want that.
 TEST_ROOT = Path(tempfile.mkdtemp(prefix="binp51-tests-"))
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -74,7 +74,8 @@ def event_loop():
 
 
 # 3.  Database fixtures.
-# We use an in-memory SQLite database.  It's created fresh for every single  test (function scope) which guarantees test isolation — the golden rule of
+# We use an in-memory SQLite database.  It's created fresh for every single  test (function scope) which guarantees
+# test isolation — the golden rule of
 # testing databases.
 @pytest_asyncio.fixture
 async def db_engine():
@@ -194,9 +195,7 @@ def mock_ml_pipeline(monkeypatch):
     always returns EPSG:3006 coordinates roughly corresponding to Malmö.
     """
     fake_pipeline = MagicMock()
-    fake_pipeline.named_steps = {
-        "zeros_filter": MagicMock(_keep_cols_=["Bacteroides", "Prevotella", "Faecalibacterium"])
-    }
+    fake_pipeline.named_steps = {"zeros_filter": MagicMock(_keep_cols_=["Bacteroides", "Prevotella", "Faecalibacterium"])}
     # SWEREF99 TM coordinates near Malmö → will convert to ~55.6°N, 13.0°E
     fake_pipeline.predict.return_value = [[370000.0, 6165000.0]]
 

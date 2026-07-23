@@ -26,10 +26,7 @@ ROOT_DIR = Path.cwd()
 
 # Tool image directories
 TOOLS_DIR = os.path.expandvars(os.environ["SNAKEMAKE_TOOLS"])
-TOOLS = {
-    k: str(Path(TOOLS_DIR) / v)
-    for k, v in config["tools"].items()
-}
+TOOLS = {k: str(Path(TOOLS_DIR) / v) for k, v in config["tools"].items()}
 # Dynamic sample sheet path via config
 DEFAULT_SAMPLE_SHEET = config["samples"]["sample_sheet"]
 

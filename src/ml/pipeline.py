@@ -1,15 +1,14 @@
 import warnings
 
 import numpy as np
-import pandas as pd
 from sklearn.base import clone
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
 
 from ml.config import config
 from ml.evaluation import evaluate_coordinates, evaluate_projected_coordinates
-from ml.features import KBestFeatureSelection, LinearModelScaler, GraphLaplacianFeatureEngineer, ZeroColumnFilter, CLRFilter
-from ml.models import TrainTestSplit, DataRoute, BaseSynthesizer
+from ml.features import CLRFilter, GraphLaplacianFeatureEngineer, KBestFeatureSelection, LinearModelScaler, ZeroColumnFilter
+from ml.models import BaseSynthesizer, DataRoute, TrainTestSplit
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="sklearn.covariance")
 
@@ -23,23 +22,21 @@ def _wrap_multioutput(estimator):
 
 
 # Build a pipline which is re-usable
-def build_modelling_pipeline(estimator, use_k_best: bool = False, 
-                             use_network_features: bool = True, 
-                             feature_flags: dict = None, 
-                             model_family: str = "tree") -> Pipeline:
+def build_modelling_pipeline(
+    estimator, use_k_best: bool = False, use_network_features: bool = True, feature_flags: dict = None, model_family: str = "tree"
+) -> Pipeline:
     """
     Build a reusable pipeline with optional network feature engineering.
     """
     steps = []
 
-    steps.append(("prevalence", ZeroColumnFilter(
-        min_prevalence=config.feature_engineering.min_prevalance,
-        min_abd=config.feature_engineering.min_abundance
-    )))
+    steps.append(
+        ("prevalence", ZeroColumnFilter(min_prevalence=config.feature_engineering.min_prevalance, min_abd=config.feature_engineering.min_abundance))
+    )
     steps.append(("clr", CLRFilter(delta=config.feature_engineering.delta_value)))
 
     # Select the best features
-    #if use_k_best:
+    # if use_k_best:
     #    steps.append(("k_best_select", KBestFeatureSelection(k=config.feature_engineering.k_best_features)))
 
     # Feature Engineering toggle switch
@@ -51,10 +48,16 @@ def build_modelling_pipeline(estimator, use_k_best: bool = False,
         # Extract all parameters that GraphLaplacianFeatureEngineer accepts
         # We'll pass the whole dict, but only keys that are in the class's __init__
         valid_keys = [
-            "cv_folds", "max_iter", "n_jobs", 
-            "n_spectral_features", "min_community_size", 
-            "edge_threshold", "eps",
-            "use_spectral", "use_global_graph", "use_community"
+            "cv_folds",
+            "max_iter",
+            "n_jobs",
+            "n_spectral_features",
+            "min_community_size",
+            "edge_threshold",
+            "eps",
+            "use_spectral",
+            "use_global_graph",
+            "use_community",
         ]
         network_kwargs = {k: v for k, v in feature_flags.items() if k in valid_keys}
 
@@ -80,6 +83,7 @@ def build_modelling_pipeline(estimator, use_k_best: bool = False,
     steps.append(("model", _wrap_multioutput(estimator)))
 
     return Pipeline(steps)
+
 
 # There are different ways of splitting the data, but everything generates indcices, we will use accordingly
 def get_configured_cv_split(splitter: TrainTestSplit):
@@ -122,7 +126,6 @@ def evaluate_model_cv(
     fold_5km = []
     fold_10km = []
 
-
     cv_splits = get_configured_cv_split(splitter)
     use_meters = config.pipeline_excecution.get("use_cartesian_meters", True)
     strategy = config.pipeline_excecution.get("cv_strategy").lower()
@@ -130,8 +133,7 @@ def evaluate_model_cv(
 
     for fold, (train_idx, val_idx) in enumerate(cv_splits):
         # 1. Get fold data
-        X_train, X_val, y_train_zone, y_val_zone, \
-        y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
+        X_train, X_val, y_train_zone, y_val_zone, y_train_coords, y_val_coords = splitter.get_fold_data(train_idx, val_idx)
 
         # Check if the use meters is switched on or off. If we are using cartesion then we need to train on x,y as cartesion cordinates
         # and not as latitude and longitude
@@ -139,11 +141,7 @@ def evaluate_model_cv(
 
         # 2. Build pipeline (Create a frsh piepline for each fold)
         pipeline = build_modelling_pipeline(
-            clone(estimator), 
-            use_network_features=use_network_features, 
-            use_k_best=use_k_best, 
-            feature_flags=feature_flags, 
-            model_family=model_family
+            clone(estimator), use_network_features=use_network_features, use_k_best=use_k_best, feature_flags=feature_flags, model_family=model_family
         )
 
         # 3. Fit the models

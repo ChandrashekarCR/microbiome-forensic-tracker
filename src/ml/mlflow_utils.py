@@ -60,6 +60,3 @@ def log_model_metrics(metrics: Dict[str, float], step: Optional[int] = None):
     """
     for key, value in metrics.items():
         mlflow.log_metric(key, value, step=step)
-
-
-

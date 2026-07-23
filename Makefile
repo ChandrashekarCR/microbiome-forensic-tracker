@@ -85,7 +85,7 @@ clean: # Clean all the cache files and .out and .err files from slurm runs
 	@echo "[clean] ok"
 
 lint: # Linting python scripts
-	@$(PYTHON) -m ruff check . || (echo '[lint] ruff failed' >&2; exit 1)
+	@$(PYTHON) -m ruff check src/ tests/ || (echo '[lint] ruff failed' >&2; exit 1)
 	@echo "[lint] ok"
 
 format: # Code formatting using ruff and black
