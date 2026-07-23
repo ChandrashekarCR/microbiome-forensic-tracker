@@ -1,260 +1,270 @@
+"""Unit tests for ML feature engineering classes.
+
+Tests:
+    - ZeroColumnFilter
+    - CLRFilter
+    - MicrobiomeFeatureEngineer (network + community features)
+    - GraphLaplacianFeatureEngineer (spectral / Laplacian features)
+    - KBestFeatureSelection
+    - LinearModelScaler
+"""
+
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.exceptions import NotFittedError
 
-from src.ml.features import MicrobiomeFeatureEngineer, ZeroColumnFilter
-
-
-@pytest.mark.parametrize(
-    "min_prevalence, min_abd, X, expected_cols",
-    [
-        # Case 1: very low prevalence threshold, only column c is frequent enough
-        (
-            0.05,
-            1e-6,
-            pd.DataFrame(
-                {
-                    "a": [0, 0, 0, 0],  # prevalence 0.0
-                    "b": [1, 0, 0, 0],  # prevalence 0.25
-                    "c": [1, 1, 1, 1],  # prevalence 1.0
-                }
-            ),
-            ["b", "c"],  # if min_prevalence == 0.05, b (0.25) and c (1.0) are kept
-        ),
-        # Case 2: threshold 0.25, all three columns meet it
-        (
-            0.25,
-            1e-6,
-            pd.DataFrame(
-                {
-                    "a": [0, 0, 1, 0],  # prevalence 0.25
-                    "b": [1, 0, 0, 0],  # prevalence 0.25
-                    "c": [1, 1, 1, 1],  # prevalence 1.0
-                }
-            ),
-            ["a", "b", "c"],
-        ),
-        # Case 3: threshold 0.5, only c is kept
-        (
-            0.5,
-            1e-6,
-            pd.DataFrame(
-                {
-                    "a": [0, 0, 1, 0],  # prevalence 0.25
-                    "b": [1, 0, 0, 0],  # prevalence 0.25
-                    "c": [1, 1, 1, 1],  # prevalence 1.0
-                }
-            ),
-            ["c"],
-        ),
-    ],
+from src.ml.features import (
+    CLRFilter,
+    GraphLaplacianFeatureEngineer,
+    KBestFeatureSelection,
+    LinearModelScaler,
+    MicrobiomeFeatureEngineer,
+    ZeroColumnFilter,
 )
-def test_zero_column_filter(min_prevalence, min_abd, X, expected_cols):
-    filt = ZeroColumnFilter(min_prevalence=min_prevalence, min_abd=min_abd)
-    filt.fit(X)
 
-    # The transformer stores kept columns in _keep_cols_
-    assert filt._keep_cols_ == expected_cols
 
-    Xt = filt.transform(X)
-    assert list(Xt.columns) == expected_cols
-    assert all(str(dtype) == "float64" for dtype in Xt.dtypes)
-
+# ---------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------
 
 @pytest.fixture
-def small_microbiome_df():
-    """
-    Fixture: small synthetic microbiome abundance table.
-
-    - 5 samples (rows)
-    - 4 taxa (columns)
-    - Contains zeros and non-zero values to exercise multiplicative_replacement and CLR.
-
-    This keeps tests fast and deterministic while resembling real compositional data.
-    """
-    data = {
-        "taxon_A": [0.1, 0.0, 0.3, 0.0, 0.2],
-        "taxon_B": [0.0, 0.2, 0.1, 0.0, 0.3],
-        "taxon_C": [0.4, 0.3, 0.0, 0.1, 0.0],
-        "taxon_D": [0.5, 0.5, 0.6, 0.9, 0.5],
-    }
-    return pd.DataFrame(data, index=[f"sample_{i}" for i in range(5)])
-
-
-@pytest.fixture
-def base_transformer():
-    """
-    Fixture: MicrobiomeFeatureEngineer with all feature types enabled.
-
-    - use_clr: raw CLR features
-    - use_degree: degree-weighted features
-    - use_hub: betweenness-weighted features
-    - use_edge: edge-based interaction features
-
-    Using small cv_folds keeps GraphicalLassoCV fast for tests.
-    """
-    return MicrobiomeFeatureEngineer(
-        cv_folds=3,  # fewer folds for speed
-        max_iter=500,  # lower iteration count for tests
-        n_jobs=1,  # predictable single-threaded behaviour
-        top_k_edges=5,  # small number of edges
-        use_clr=True,
-        use_degree=True,
-        use_hub=True,
-        use_edge=True,
+def sample_data():
+    """A small synthetic abundance matrix with 5 samples, 6 taxa."""
+    np.random.seed(42)
+    X = pd.DataFrame(
+        np.random.dirichlet(np.ones(6), size=5),
+        columns=[f"taxon_{i}" for i in range(6)],
     )
+    # Ensure some zeros to test replacement/filtering
+    X.iloc[0, 1] = 0.0
+    X.iloc[2, 3] = 0.0
+    X.iloc[4, 5] = 0.0
+    # Target lat/lon for regression
+    y = pd.DataFrame(
+        {"lat": np.random.uniform(55, 56, 5), "lon": np.random.uniform(12, 14, 5)}
+    )
+    return X, y
 
 
-def test_fit_learns_network_and_clr(small_microbiome_df, base_transformer):
-    """
-    Test that .fit():
+@pytest.fixture
+def X_df(sample_data):
+    return sample_data[0]
 
-    - Stores taxa_names_ matching input columns.
-    - Computes CLR-transformed training data (X_clr_train_) with same shape as input.
-    - Fits GraphicalLassoCV and produces a precision_matrix and adjacency_matrix.
-    - Ensures no NaN or Inf values remain in X_clr_train_.
 
-    This validates that the core learning step is numerically stable and
-    that network-related attributes are initialized properly.
-    """
-    X = small_microbiome_df
+@pytest.fixture
+def y_df(sample_data):
+    return sample_data[1]
 
-    transformer = base_transformer
+
+# ---------------------------------------------------------------------
+# ZeroColumnFilter
+# ---------------------------------------------------------------------
+
+def test_zero_column_filter_fit_transform(X_df):
+    # Create a copy and add a column that appears in only 1 of 5 samples
+    X = X_df.copy()
+    X["rare_taxon"] = 0.0
+    X.iloc[0, -1] = 1.0   # only first sample has this taxon
+    transformer = ZeroColumnFilter(min_prevalence=0.9, min_abd=1e-6)
     transformer.fit(X)
-
-    # Taxa names preserved
-    assert transformer.taxa_names_ == list(X.columns)
-
-    # CLR data shape matches (n_samples, n_taxa)
-    assert transformer.X_clr_train_.shape == X.shape
-    assert np.all(np.isfinite(transformer.X_clr_train_))
-
-    # Precision and adjacency matrices exist with correct square shape
-    n_taxa = X.shape[1]
-    assert transformer.precision_matrix.shape == (n_taxa, n_taxa)
-    assert transformer.adjacency_matrix.shape == (n_taxa, n_taxa)
-
-    # Diagonal of adjacency should be zero as set in fit()
-    assert np.all(np.diag(transformer.adjacency_matrix) == 0)
-
-    # Degree and betweenness centrality dictionaries should have one entry per taxon index
-    assert len(transformer.degree_centrality) == n_taxa
-    assert len(transformer.betweenness) == n_taxa
+    assert transformer._keep_cols_ is not None
+    Xt = transformer.transform(X)
+    # The rare column should be dropped, so shape[1] < original shape[1]
+    assert Xt.shape[1] < X.shape[1]
+    assert "rare_taxon" not in Xt.columns
 
 
-def test_transform_outputs_features_with_expected_shape_and_names(small_microbiome_df, base_transformer):
-    """
-    Test that .transform():
-
-    - Accepts a new DataFrame with the same taxa columns.
-    - Returns a feature DataFrame with:
-        * index identical to input
-        * only numeric values (no NaNs/Infs)
-        * columns matching the enabled feature families:
-            clr_*, deg_weighted_*, hub_weighted_*, edge_*
-
-    This ensures that the transformer can be used safely in pipelines for
-    train/validation/test splits without breaking on unseen samples.
-    """
-    X = small_microbiome_df
-
-    transformer = base_transformer
-    transformer.fit(X)
-
-    X_trans = transformer.transform(X)
-
-    # Index preserved
-    assert list(X_trans.index) == list(X.index)
-
-    # All values finite
-    assert np.all(np.isfinite(X_trans.to_numpy()))
-
-    # Expected CLR feature columns present
-    clr_cols = [c for c in X_trans.columns if c.startswith("clr_")]
-    assert len(clr_cols) == X.shape[1]  # one CLR feature per taxon
-
-    # Degree-weighted feature columns present
-    deg_cols = [c for c in X_trans.columns if c.startswith("deg_weighted_")]
-    assert len(deg_cols) == X.shape[1]
-
-    # Hub-weighted feature columns present
-    hub_cols = [c for c in X_trans.columns if c.startswith("hub_weighted_")]
-    assert len(hub_cols) == X.shape[1]
-
-    # Edge-based interaction features present (top_k_edges)
-    edge_cols = [c for c in X_trans.columns if c.startswith("edge_")]
-    assert len(edge_cols) == transformer.top_k_edges
+def test_zero_column_filter_not_fitted_raises(X_df):
+    transformer = ZeroColumnFilter()
+    with pytest.raises(ValueError, match="must be fitted"):
+        transformer.transform(X_df)
 
 
-@pytest.mark.parametrize(
-    "use_clr, use_degree, use_hub, use_edge",
-    [
-        (True, False, False, False),
-        (False, True, False, False),
-        (False, False, True, False),
-        (False, False, False, True),
-        (True, True, True, True),
-    ],
-)
-def test_feature_family_flags_control_output(small_microbiome_df, use_clr, use_degree, use_hub, use_edge):
-    """
-    Test that the boolean flags in __init__ correctly control which feature
-    families are present in the transformed DataFrame.
+# ---------------------------------------------------------------------
+# CLRFilter
+# ---------------------------------------------------------------------
 
-    This is important so that downstream experiments can enable/disable
-    CLR, degree, hub, and edge features independently without code changes.
-    """
-    X = small_microbiome_df
+def test_clr_filter_transform(X_df):
+    transformer = CLRFilter(delta=1e-6)
+    transformer.fit(X_df)   # does nothing but required for pipeline
+    Xt = transformer.transform(X_df)
+    assert isinstance(Xt, pd.DataFrame)
+    assert Xt.shape == X_df.shape
+    # Row sums should be near zero (CLR centered)
+    row_sums = Xt.sum(axis=1)
+    np.testing.assert_allclose(row_sums, 0.0, atol=1e-10)
+
+
+# ---------------------------------------------------------------------
+# MicrobiomeFeatureEngineer
+# ---------------------------------------------------------------------
+
+def test_microbiome_feature_engineer_fit(X_df):
+    """Fit should store precision matrix and communities."""
     transformer = MicrobiomeFeatureEngineer(
-        cv_folds=3,
-        max_iter=300,
-        n_jobs=1,
-        top_k_edges=3,
-        use_clr=use_clr,
-        use_degree=use_degree,
-        use_hub=use_hub,
-        use_edge=use_edge,
+        cv_folds=2,  # small for test speed
+        use_edge=False,
+        use_community=True,
     )
-    transformer.fit(X)
-    X_trans = transformer.transform(X)
-
-    cols = list(X_trans.columns)
-
-    # Check each family according to flags
-    has_clr = any(c.startswith("clr_") for c in cols)
-    has_deg = any(c.startswith("deg_weighted_") for c in cols)
-    has_hub = any(c.startswith("hub_weighted_") for c in cols)
-    has_edge = any(c.startswith("edge_") for c in cols)
-
-    assert has_clr == use_clr
-    assert has_deg == use_degree
-    assert has_hub == use_hub
-    assert has_edge == use_edge
+    transformer.fit(X_df)
+    assert transformer.precision_matrix is not None
+    assert transformer.adjacency_matrix is not None
+    assert hasattr(transformer, "_communities_")
+    assert hasattr(transformer, "degree_centrality")
 
 
-def test_multiplicative_replacement_handles_zeros_and_row_sums(small_microbiome_df, base_transformer):
-    """
-    Test multiplicative_replacement:
+def test_microbiome_feature_engineer_transform_without_fit_raises(X_df):
+    transformer = MicrobiomeFeatureEngineer()
+    with pytest.raises(AttributeError):
+        transformer.transform(X_df)
 
-    - Replaces zeros with a small delta and normalizes rows to relative abundances.
-    - Returns an array with the same shape as input.
-    - Ensures all entries are strictly positive and <= 1 (after clipping),
-      so that CLR log-transform will not encounter log(0) or negative values.
 
-    This protects the CLR step from numerical issues when microbiome data
-    contains many zeros or low-abundance taxa.
-    """
-    X = small_microbiome_df.values
-    transformer = base_transformer
+def test_microbiome_feature_engineer_transform_outputs(X_df):
+    """Transform should produce expected columns based on flags."""
+    # Case: no extra features (only raw CLR features)
+    transformer = MicrobiomeFeatureEngineer(use_edge=False, use_community=False)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    # Only clr_* columns
+    expected_cols = [f"clr_{taxon}" for taxon in X_df.columns]
+    assert set(Xt.columns) == set(expected_cols)
+    assert Xt.shape[0] == X_df.shape[0]
 
-    X_repl = transformer.multiplicative_replacement(X, delta=1e-6)
+    # Case: community features enabled
+    transformer = MicrobiomeFeatureEngineer(use_edge=False, use_community=True)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    # Should have clr_* plus community_* columns
+    clr_cols = [f"clr_{taxon}" for taxon in X_df.columns]
+    comm_cols = [col for col in Xt.columns if col.startswith("community_")]
+    assert len(comm_cols) > 0
+    assert set(clr_cols).issubset(set(Xt.columns))
 
-    assert X_repl.shape == X.shape
+    # Case: edge features enabled (requires some edges)
+    transformer = MicrobiomeFeatureEngineer(use_edge=True, use_community=False, top_k_edges=2)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    edge_cols = [col for col in Xt.columns if col.startswith("edge_")]
+    assert len(edge_cols) > 0
 
-    # All values in (0, 1]
-    assert np.all(X_repl > 0.0)
-    assert np.all(X_repl <= 1.0)
 
-    # Row sums approximately 1 (relative abundances)
-    row_sums = X_repl.sum(axis=1)
-    assert np.allclose(row_sums, 1.0, atol=1e-6)
+def test_microbiome_feature_engineer_feature_flags_control_output(X_df):
+    """Test that use_edge and use_community flags control inclusion of feature families."""
+    # Without any extra features
+    transformer = MicrobiomeFeatureEngineer(use_edge=False, use_community=False)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    assert all(col.startswith("clr_") for col in Xt.columns)
+
+    # Only community
+    transformer = MicrobiomeFeatureEngineer(use_edge=False, use_community=True)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    assert any(col.startswith("community_") for col in Xt.columns)
+    assert not any(col.startswith("edge_") for col in Xt.columns)
+
+    # Only edges
+    transformer = MicrobiomeFeatureEngineer(use_edge=True, use_community=False, top_k_edges=2)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    assert any(col.startswith("edge_") for col in Xt.columns)
+    assert not any(col.startswith("community_") for col in Xt.columns)
+
+    # Both
+    transformer = MicrobiomeFeatureEngineer(use_edge=True, use_community=True, top_k_edges=2)
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    assert any(col.startswith("edge_") for col in Xt.columns)
+    assert any(col.startswith("community_") for col in Xt.columns)
+
+
+# ---------------------------------------------------------------------
+# GraphLaplacianFeatureEngineer
+# ---------------------------------------------------------------------
+
+def test_graph_laplacian_feature_engineer_fit(X_df):
+    transformer = GraphLaplacianFeatureEngineer(
+        cv_folds=2,
+        use_spectral=False,
+        use_global_graph=False,
+        use_community=False,
+    )
+    transformer.fit(X_df)
+    assert hasattr(transformer, "laplacian_")
+    assert hasattr(transformer, "spectral_basis_")
+
+
+def test_graph_laplacian_feature_engineer_transform_outputs(X_df):
+    # Only raw CLR features (fallback)
+    transformer = GraphLaplacianFeatureEngineer(
+        use_spectral=False, use_global_graph=False, use_community=False
+    )
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    # Should have clr_* only
+    expected_cols = [f"clr_{taxon}" for taxon in X_df.columns]
+    assert set(Xt.columns) == set(expected_cols)
+
+    # Spectral features
+    transformer = GraphLaplacianFeatureEngineer(
+        use_spectral=True, use_global_graph=False, use_community=False,
+        n_spectral_features=3
+    )
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    spectral_cols = [col for col in Xt.columns if col.startswith("network_spectral_")]
+    assert len(spectral_cols) == 3
+
+    # Global graph energy
+    transformer = GraphLaplacianFeatureEngineer(
+        use_spectral=False, use_global_graph=True, use_community=False
+    )
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    assert "network_global_laplacian_energy" in Xt.columns
+
+    # Community Laplacian energy
+    transformer = GraphLaplacianFeatureEngineer(
+        use_spectral=False, use_global_graph=False, use_community=True
+    )
+    transformer.fit(X_df)
+    Xt = transformer.transform(X_df)
+    comm_cols = [col for col in Xt.columns if col.startswith("community_")]
+    assert len(comm_cols) > 0
+
+
+# ---------------------------------------------------------------------
+# KBestFeatureSelection
+# ---------------------------------------------------------------------
+
+def test_kbest_feature_selection(X_df, y_df):
+    transformer = KBestFeatureSelection(k=2)
+    transformer.fit(X_df, y_df)
+    assert hasattr(transformer, "selected_features")
+    assert len(transformer.selected_features) == 2
+    Xt = transformer.transform(X_df)
+    assert Xt.shape[1] == 2
+    assert set(Xt.columns) == set(transformer.selected_features)
+
+
+# ---------------------------------------------------------------------
+# LinearModelScaler
+# ---------------------------------------------------------------------
+
+def test_linear_model_scaler(X_df):
+    scaler = LinearModelScaler()
+    scaler.fit(X_df)
+    Xt = scaler.transform(X_df)
+    assert isinstance(Xt, pd.DataFrame)
+    assert Xt.shape == X_df.shape
+    # Mean should be ~0, std ~1 for each column
+    np.testing.assert_allclose(Xt.mean(axis=0), 0.0, atol=1e-10)
+    np.testing.assert_allclose(np.std(Xt.values, axis=0, ddof=0), 1.0, atol=1e-10)
+
+def test_linear_model_scaler_not_fitted_raises(X_df):
+    scaler = LinearModelScaler()
+    with pytest.raises(ValueError, match="must be fitted"):
+        scaler.transform(X_df)

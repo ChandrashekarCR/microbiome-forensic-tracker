@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import importlib
 import os
+import sys
+import tempfile
 from pathlib import Path
 from typing import AsyncGenerator
 from unittest.mock import MagicMock
@@ -33,9 +36,28 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # 1.  Force a safe test-time configuration BEFORE importing the app.
 # The backend reads a .env file at import time via pydantic-settings.  
 # We will override the values that would otherwise point at Redis / real DB paths annd we do not want that.
-os.environ.setdefault("CELERY_BROKER_URL", "memory://")
-os.environ.setdefault("CELERY_RESULT_BACKEND", "cache+memory://")
-os.environ.setdefault("BACKEND_DB_URL", "sqlite+aiosqlite:///:memory:")
+TEST_ROOT = Path(tempfile.mkdtemp(prefix="binp51-tests-"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = REPO_ROOT / "src"
+os.environ["ENV_FILE"] = ".env.test"
+os.environ["PROJECT_ROOT"] = str(TEST_ROOT)
+os.environ["UPLOAD_DIR"] = str(TEST_ROOT / "uploads")
+os.environ["RESULTS_DIR"] = str(TEST_ROOT / "results")
+os.environ["LOGS_DIR"] = str(TEST_ROOT / "logs")
+os.environ["RUNTIME_DIR"] = str(TEST_ROOT / "runtime")
+os.environ["BACKEND_DB_PATH"] = str(TEST_ROOT / "databases" / "malmo_backend.db")
+os.environ["CELERY_BROKER_URL"] = "memory://"
+os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
+
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+# Map absolute app imports (`backend.*`) to `src.backend.*` without replacing
+# the top-level `backend` test package used by pytest collection.
+sys.modules["backend.config"] = importlib.import_module("src.backend.config")
+sys.modules["backend.database"] = importlib.import_module("src.backend.database")
+sys.modules["backend.models"] = importlib.import_module("src.backend.models")
+sys.modules["backend.celery_app"] = importlib.import_module("src.backend.celery_app")
 
 # Now it's safe to import backend modules — they'll pick up the overrides.
 from src.backend import crud, main  # noqa: E402
@@ -149,7 +171,7 @@ def mock_celery(monkeypatch):
     fake_task.id = "fake-task-id-1234"
 
     fake_delay = MagicMock(return_value=fake_task)
-    monkeypatch.setattr("backend.main.run_pipeline.delay", fake_delay)
+    monkeypatch.setattr("src.backend.main.run_pipeline.delay", fake_delay)
     return fake_delay
 
 
@@ -161,7 +183,7 @@ def temp_upload_dir(tmp_path, monkeypatch):
     """
     upload_dir = tmp_path / "uploads"
     upload_dir.mkdir()
-    monkeypatch.setattr("backend.main.UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr("src.backend.main.UPLOAD_DIR", upload_dir)
     return upload_dir
 
 
@@ -178,7 +200,7 @@ def mock_ml_pipeline(monkeypatch):
     # SWEREF99 TM coordinates near Malmö → will convert to ~55.6°N, 13.0°E
     fake_pipeline.predict.return_value = [[370000.0, 6165000.0]]
 
-    monkeypatch.setattr("backend.predict.get_pipeline", lambda: fake_pipeline)
+    monkeypatch.setattr("src.backend.predict.get_pipeline", lambda: fake_pipeline)
     return fake_pipeline
 
 

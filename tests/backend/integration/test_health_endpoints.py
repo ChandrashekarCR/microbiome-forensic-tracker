@@ -11,7 +11,7 @@ async def test_root_returns_running_status(api_client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "running"
-    assert "Microdentify" in body["message"]
+    assert "Microbiome" in body["message"]
 
 
 async def test_metrics_endpoint_ok(api_client):

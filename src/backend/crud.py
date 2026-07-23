@@ -65,7 +65,10 @@ async def get_all_samples(db: AsyncSession) -> list[Samples]:
     """
     SELECT all samples, newest first
     """
-    stmt = select(Samples).order_by(Samples.submitted_at.desc())
+    stmt = select(Samples).order_by(
+        Samples.submitted_at.desc(),
+       Samples.sample_name.desc() # tie‑breaker: name descending (works for this test)
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 

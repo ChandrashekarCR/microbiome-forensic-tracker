@@ -219,6 +219,7 @@ ignore = ["E203","B008","C901"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
+asyncio_mode = "auto"
 addopts = "-v --tb=short"
 testpaths = ["tests"]
 filterwarnings = [

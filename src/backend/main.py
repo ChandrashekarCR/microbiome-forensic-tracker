@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 # FastAPI app
 app = FastAPI(
-    title="Microdentify API",
+    title="Microbiome API",
     description="Metagenomic sample processing, location prediction and profile estimation",
     version="1.0.0",
     lifespan=lifespan,
@@ -49,7 +49,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"status": "running", "message": "Microdentify"}
+    return {"status": "running", "message": "Microbiome"}
 
 
 @app.get("/metrics")
