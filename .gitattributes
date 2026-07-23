@@ -1,7 +1,7 @@
 # Ignore the large HTML file for language stats
 src/backend/templates/malmo_interactive_map.html linguist-documentation
 src/malmo_samples/templates/*.html linguist-documentation
-notebooks/*.ipynb linguist-documentation
+notebooks/** linguist-documentation
 
 # Ensure Snakemake files are counted in language statistics
 *.smk linguist-detectable linguist-language=Snakemake
