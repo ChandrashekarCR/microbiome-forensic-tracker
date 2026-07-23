@@ -397,7 +397,7 @@ def run_stage2_fe_network(
         # Fit on RAW data – pipeline will apply prevalence filter + CLR automatically
         final_pipeline.fit(X_cv, y_cv)
         joblib.dump(final_pipeline, save_model_path)
-        print(f"✅ Model saved to {save_model_path}")
+        print(f"Model saved to {save_model_path}")
 
     return best_variant, stage2_results
 
@@ -602,15 +602,15 @@ def main():
 
 #
         # Stage 3: Determine the best combination of network features
-        best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
-                                                             model_type="ExtraTreesRegressor",
-                                                             use_kbest=False,
-                                                             synthesizer_config=synthetic_config,
-                                                             data_route=DataRoute.RAW,
-                                                             edge_threshold=0.0005,
-                                                             n_spectral_features=8,
-                                                             min_community_size=3,
-                                                             save_model_path="fe_model_group_kfold.joblib")
+        #best_variant, stage2_results = run_stage2_fe_network(taxonomy_level="order", 
+        #                                                     model_type="ExtraTreesRegressor",
+        #                                                     use_kbest=False,
+        #                                                     synthesizer_config=synthetic_config,
+        #                                                     data_route=DataRoute.RAW,
+        #                                                     edge_threshold=0.0005,
+        #                                                     n_spectral_features=8,
+        #                                                     min_community_size=3,
+        #                                                     save_model_path="fe_model_group_kfold.joblib")
 
       
         
@@ -618,18 +618,18 @@ def main():
         # Tune RandomForest on genus level without network features
         
         # Run tuning
-        #fe_results = run_stage3_hyperparameter_tuning(
-        #    taxonomy_level="order",
-        #    model_type="ExtraTreesRegressor",
-        #    use_network_features=True,
-        #    use_kbest=False,
-        #    feature_flags=feature_flags,
-        #    n_iter=20,
-        #    save_model_path="final_tuned_model_group_kfold.joblib"
-        #)
-#
-        #print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
-        #print(f"Best Params: {fe_results['best_params']}")
+        fe_results = run_stage3_hyperparameter_tuning(
+            taxonomy_level="order",
+            model_type="ExtraTreesRegressor",
+            use_network_features=True,
+            use_kbest=False,
+            feature_flags=feature_flags,
+            n_iter=20,
+            save_model_path="final_tuned_model_group_kfold.joblib"
+        )
+
+        print(f"FE Tuned Mean Error: {fe_results['cv_mean_error_km']:.4f} km")
+        print(f"Best Params: {fe_results['best_params']}")
 
     except Exception as e:
         print(f"\nError: {e}")

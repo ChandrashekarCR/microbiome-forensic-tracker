@@ -26,7 +26,7 @@ def load_and_prep_data() -> pd.DataFrame:
 
 # Differents methods of splitting data
 class TrainTestSplit:
-    def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2):
+    def __init__(self, df: pd.DataFrame, n_splits: int = 4, test_size: float = 0.2,random_state: int = config.data_splitting.random_state):
         X_all = df.drop(columns=["latitude", "longitude", "zone", "sample_id"], axis=1)
         y_zone_all = df["zone"]
 
@@ -50,7 +50,7 @@ class TrainTestSplit:
 
         # 1. Slice off the 20% blind test set first. Stratify by zone.
         (self.X_cv, self.X_test, self.y_cv_zone, self.y_test_zone, self.y_cv_coords, self.y_test_coords) = train_test_split(
-            X_all, y_zone_all, y_coords_all, test_size=test_size, stratify=y_zone_all, random_state=config.data_splitting.random_state
+            X_all, y_zone_all, y_coords_all, test_size=test_size, stratify=y_zone_all, random_state=random_state
         )
 
         # Reset indices so K-Fold integer indexing (.iloc) works perfectly

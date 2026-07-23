@@ -41,12 +41,13 @@ def evaluate_baseline_on_test_set(seeds=range(1, 11)):
         original_rs = config.data_splitting.random_state
         config.data_splitting.random_state = seed
 
-        config.database.table = "malmo_order"
+        config.database.table = "malmo_family"
         df = load_and_prep_data()
         splitter = TrainTestSplit(
             df,
             n_splits=config.data_splitting.n_splits,
             test_size=config.data_splitting.test_size,
+            random_state=seed
         )
         X_cv = splitter.X_cv
         y_cv = splitter.y_cv_coords[["X_meters", "Y_meters"]]
@@ -93,35 +94,63 @@ def evaluate_baseline_on_test_set(seeds=range(1, 11)):
 
 
 # ----------------------------------------------------------------------
-# 2. Untuned Feature Engineering model
+# 2. Untuned Feature Engineering model (CORRECTED)
 # ----------------------------------------------------------------------
-def evaluate_untuned_fe_on_test_set(seeds=range(1, 11)):
+def evaluate_untuned_fe_on_test_set_corrected(seeds=range(1, 11)):
     """
-    Evaluate the UNTUNED FE pipeline (saved from run_stage2_fe_network)
-    on the test set across 10 random seeds.
+    CORRECTED: Build a NEW UNTUNED FE pipeline for each seed,
+    fit on CV set, evaluate on test set, and return metrics.
+    
+    This matches the baseline evaluation method.
     """
     print("\n" + "=" * 60)
     print("Evaluating UNTUNED FE model on test set (10 random splits)")
+    print("RETRAINING FOR EACH SEED (correct evaluation)")
     print("=" * 60)
 
-    pipeline = joblib.load("/home/chandru/binp51/src/ml/fe_model_group_kfold.joblib")
     all_metrics = []
+    base_estimator = get_model("ExtraTreesRegressor")
+
+    # The best feature configuration from Stage 2
+    best_feature_config = {
+        "use_spectral": True,
+        "use_global_graph": True,
+        "use_community": True,
+        "n_spectral_features": 8,
+        "min_community_size": 3,
+        "edge_threshold": 0.0005,
+        "cv_folds": config.feature_engineering.cv_folds,
+        "max_iter": config.feature_engineering.max_iter,
+    }
 
     for seed in seeds:
         original_rs = config.data_splitting.random_state
         config.data_splitting.random_state = seed
 
-        config.database.table = "malmo_order"
+        config.database.table = "malmo_family"
         df = load_and_prep_data()
         splitter = TrainTestSplit(
             df,
             n_splits=config.data_splitting.n_splits,
             test_size=config.data_splitting.test_size,
+            random_state=seed
         )
+        X_cv = splitter.X_cv
+        y_cv = splitter.y_cv_coords[["X_meters", "Y_meters"]]
         X_test, y_test_zone, y_test_coords = splitter.get_test_data()
         X_test = X_test.reindex(columns=splitter.X_cv.columns, fill_value=0.0)
 
+        # --- BUILD A NEW PIPELINE FOR THIS SEED ---
+        pipeline = build_modelling_pipeline(
+            estimator=clone(base_estimator),
+            use_network_features=True,
+            use_k_best=False,
+            feature_flags=best_feature_config,
+            model_family="tree"
+        )
+        pipeline.fit(X_cv, y_cv)
         preds = pipeline.predict(X_test)
+
         metrics = evaluate_projected_coordinates(
             x_true=y_test_coords["X_meters"].values,
             y_true=y_test_coords["Y_meters"].values,
@@ -136,12 +165,13 @@ def evaluate_untuned_fe_on_test_set(seeds=range(1, 11)):
 
         config.data_splitting.random_state = original_rs
 
+    # Aggregate all metrics
     mean_errors = [m['mean_error_km'] for m in all_metrics]
     median_errors = [m['median_error_km'] for m in all_metrics]
     max_errors = [m['max_error_km'] for m in all_metrics]
 
     print("\n" + "=" * 60)
-    print("UNTUNED FE SUMMARY (over 10 seeds)")
+    print("UNTUNED FE SUMMARY (over 10 seeds, RETRAINED for each seed)")
     print("=" * 60)
     print(f"Mean Error:   {np.mean(mean_errors):.4f} ± {np.std(mean_errors):.4f} km  (range: {np.min(mean_errors):.4f}–{np.max(mean_errors):.4f})")
     print(f"Median Error: {np.mean(median_errors):.4f} ± {np.std(median_errors):.4f} km  (range: {np.min(median_errors):.4f}–{np.max(median_errors):.4f})")
@@ -151,9 +181,9 @@ def evaluate_untuned_fe_on_test_set(seeds=range(1, 11)):
 
 
 # ----------------------------------------------------------------------
-# 3. Tuned Feature Engineering model (final pipeline)
+# 3. Tuned Feature Engineering model (CORRECTED)
 # ----------------------------------------------------------------------
-def evaluate_tuned_fe_on_test_set(seeds=range(1, 11)):
+def evaluate_tuned_fe_on_test_set_corrected(seeds=range(1, 11)):
     """
     Evaluate the TUNED FE pipeline (final_tuned_model_group_kfold.joblib)
     on the test set across 10 random seeds.
@@ -166,15 +196,13 @@ def evaluate_tuned_fe_on_test_set(seeds=range(1, 11)):
     all_metrics = []
 
     for seed in seeds:
-        original_rs = config.data_splitting.random_state
-        config.data_splitting.random_state = seed
-
         config.database.table = "malmo_order"
         df = load_and_prep_data()
         splitter = TrainTestSplit(
             df,
             n_splits=config.data_splitting.n_splits,
             test_size=config.data_splitting.test_size,
+            random_state=seed
         )
         X_test, y_test_zone, y_test_coords = splitter.get_test_data()
         X_test = X_test.reindex(columns=splitter.X_cv.columns, fill_value=0.0)
@@ -191,8 +219,6 @@ def evaluate_tuned_fe_on_test_set(seeds=range(1, 11)):
         print(f"Seed {seed:2d} | Mean: {metrics['mean_error_km']:.4f} km | "
               f"Median: {metrics['median_error_km']:.4f} km | "
               f"Max: {metrics['max_error_km']:.4f} km")
-
-        config.data_splitting.random_state = original_rs
 
     mean_errors = [m['mean_error_km'] for m in all_metrics]
     median_errors = [m['median_error_km'] for m in all_metrics]
@@ -207,47 +233,46 @@ def evaluate_tuned_fe_on_test_set(seeds=range(1, 11)):
 
     return all_metrics
 
-
 # ----------------------------------------------------------------------
 # 4. Run all three and compare
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    # Run evaluations
-    baseline_metrics = evaluate_baseline_on_test_set(seeds=range(1, 11))
-    untuned_fe_metrics = evaluate_untuned_fe_on_test_set(seeds=range(1, 11))
-    tuned_fe_metrics = evaluate_tuned_fe_on_test_set(seeds=range(1, 11))
+    # Run evaluations (CORRECTED: retrain for each seed)
+    #baseline_metrics = evaluate_baseline_on_test_set(seeds=range(1, 11))
+    #untuned_fe_metrics = evaluate_untuned_fe_on_test_set_corrected(seeds=range(1, 11))
+    tuned_fe_metrics = evaluate_tuned_fe_on_test_set_corrected(seeds=range(1, 11))
 
     # Extract all metrics
-    baseline_mean = [m['mean_error_km'] for m in baseline_metrics]
-    baseline_median = [m['median_error_km'] for m in baseline_metrics]
-    baseline_max = [m['max_error_km'] for m in baseline_metrics]
-
-    untuned_mean = [m['mean_error_km'] for m in untuned_fe_metrics]
-    untuned_median = [m['median_error_km'] for m in untuned_fe_metrics]
-    untuned_max = [m['max_error_km'] for m in untuned_fe_metrics]
+    #baseline_mean = [m['mean_error_km'] for m in baseline_metrics]
+    #baseline_median = [m['median_error_km'] for m in baseline_metrics]
+    #baseline_max = [m['max_error_km'] for m in baseline_metrics]
+#
+    #untuned_mean = [m['mean_error_km'] for m in untuned_fe_metrics]
+    #untuned_median = [m['median_error_km'] for m in untuned_fe_metrics]
+    #untuned_max = [m['max_error_km'] for m in untuned_fe_metrics]
 
     tuned_mean = [m['mean_error_km'] for m in tuned_fe_metrics]
     tuned_median = [m['median_error_km'] for m in tuned_fe_metrics]
     tuned_max = [m['max_error_km'] for m in tuned_fe_metrics]
 
     print("\n" + "=" * 60)
-    print("FINAL THREE‑WAY COMPARISON (over 10 seeds)")
+    print("FINAL THREE‑WAY COMPARISON (over 10 seeds, RETRAINED for each seed)")
     print("=" * 60)
-    print(f"{'Model':<20} {'Mean Error (km)':<25} {'Median Error (km)':<25} {'Max Error (km)':<25}")
-    print("-" * 100)
-    print(f"{'Baseline (no FE)':<20} {np.mean(baseline_mean):.4f} ± {np.std(baseline_mean):.4f}  "
-          f"{np.mean(baseline_median):.4f} ± {np.std(baseline_median):.4f}  "
-          f"{np.mean(baseline_max):.4f} ± {np.std(baseline_max):.4f}")
-    print(f"{'Untuned FE':<20} {np.mean(untuned_mean):.4f} ± {np.std(untuned_mean):.4f}  "
-          f"{np.mean(untuned_median):.4f} ± {np.std(untuned_median):.4f}  "
-          f"{np.mean(untuned_max):.4f} ± {np.std(untuned_max):.4f}")
-    print(f"{'Tuned FE (Final)':<20} {np.mean(tuned_mean):.4f} ± {np.std(tuned_mean):.4f}  "
-          f"{np.mean(tuned_median):.4f} ± {np.std(tuned_median):.4f}  "
+    print(f"{'Model':<20} {'Mean Error (km)':<30} {'Median Error (km)':<30} {'Max Error (km)':<30}")
+    print("-" * 110)
+    #print(f"{'Baseline (no FE)':<20} {np.mean(baseline_mean):.4f} ± {np.std(baseline_mean):.4f}   "
+    #      f"{np.mean(baseline_median):.4f} ± {np.std(baseline_median):.4f}   "
+    #      f"{np.mean(baseline_max):.4f} ± {np.std(baseline_max):.4f}")
+    #print(f"{'Untuned FE':<20} {np.mean(untuned_mean):.4f} ± {np.std(untuned_mean):.4f}   "
+    #      f"{np.mean(untuned_median):.4f} ± {np.std(untuned_median):.4f}   "
+    #      f"{np.mean(untuned_max):.4f} ± {np.std(untuned_max):.4f}")
+    print(f"{'Tuned FE (Final)':<20} {np.mean(tuned_mean):.4f} ± {np.std(tuned_mean):.4f}   "
+          f"{np.mean(tuned_median):.4f} ± {np.std(tuned_median):.4f}   "
           f"{np.mean(tuned_max):.4f} ± {np.std(tuned_max):.4f}")
 
     print("\n" + "=" * 60)
     print("IMPROVEMENTS")
     print("=" * 60)
-    print(f"FE Improvement (untuned): Mean: {np.mean(baseline_mean) - np.mean(untuned_mean):.4f} km")
-    print(f"Tuning Improvement:       Mean: {np.mean(untuned_mean) - np.mean(tuned_mean):.4f} km")
-    print(f"Total Improvement:        Mean: {np.mean(baseline_mean) - np.mean(tuned_mean):.4f} km")
+    #print(f"FE Improvement (untuned): Mean: {np.mean(baseline_mean) - np.mean(untuned_mean):.4f} km")
+    #print(f"Tuning Improvement:       Mean: {np.mean(untuned_mean) - np.mean(tuned_mean):.4f} km")
+    #print(f"Total Improvement:        Mean: {np.mean(baseline_mean) - np.mean(tuned_mean):.4f} km")
